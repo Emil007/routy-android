@@ -1,0 +1,34 @@
+<!-- Default (no locale qualifier) is German, matching the web app's DEFAULT_LOCALE
+     (src/lib/i18n/index.ts) — values-en/strings.xml is the English override. -->
+<resources>
+    <string name="app_name">Routy</string>
+
+    <string name="onboarding_title">Server-Adresse</string>
+    <string name="onboarding_subtitle">Die private Routy-Adresse deiner Familie.</string>
+    <string name="onboarding_url_label">Server-URL</string>
+    <string name="onboarding_url_hint">https://routy.beispiel.de</string>
+    <string name="onboarding_continue">Weiter</string>
+    <string name="onboarding_error_unreachable">Server nicht erreichbar. URL prüfen.</string>
+    <string name="onboarding_error_invalid_url">Das sieht nicht nach einer gültigen https://-Adresse aus.</string>
+
+    <string name="login_title">Anmelden</string>
+    <string name="login_username">Benutzername</string>
+    <string name="login_password">Passwort</string>
+    <string name="login_submit">Anmelden</string>
+    <string name="login_totp_label">Bestätigungscode</string>
+    <string name="login_totp_hint">6-stelliger Code aus deiner Authenticator-App</string>
+    <string name="login_error_invalid_credentials">Benutzername oder Passwort ist falsch.</string>
+    <string name="login_error_totp">Der Code ist falsch oder abgelaufen.</string>
+    <string name="login_error_inactive">Konto deaktiviert. Admin kontaktieren.</string>
+    <string name="login_error_locked">Zu viele Fehlversuche. Kurz warten und erneut versuchen.</string>
+    <string name="login_error_generic">Anmeldung fehlgeschlagen. Erneut versuchen.</string>
+    <string name="login_device_name_label">Gerätename</string>
+
+    <string name="nav_route">Route</string>
+    <string name="nav_map">Karte</string>
+    <string name="nav_stats">Statistik</string>
+    <string name="nav_settings">Einstellungen</string>
+    <string name="nav_admin">Verwaltung</string>
+
+    <string name="route_station_fallback">Station</string>
+</resources>
