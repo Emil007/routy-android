@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
+    <!-- Foreground GPS recording (M4) — coarse/fine for the location fix itself, background so
+         it keeps updating with the screen off, POST_NOTIFICATIONS for the ongoing-recording
+         notification Android 13+ requires, WAKE_LOCK so the CPU doesn't sleep mid-recording,
+         and the two foreground-service permissions Android 14+ (API 34) requires declaring
+         explicitly alongside the service's own foregroundServiceType. -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
+
+    <!-- So the "ignore battery optimizations" prompt (M7) can be shown — without it, several
+         OEMs (Xiaomi/Samsung/Huawei) kill the recording service within minutes of the screen
+         turning off, regardless of the foreground-service type. -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+
+    <application
+        android:name=".RoutyApplication"
+        android:allowBackup="false"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:theme="@style/Theme.Routy">
+        <!-- No custom network security config: the server URL is always https://, terminated by
+             whatever reverse proxy the household runs in front of it (Caddy, Cloudflare Tunnel,
+             ...) with a real certificate — Android's default cleartext-blocked, system-CA-trusting
+             behavior is exactly right, nothing to override. -->
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:launchMode="singleTop"
+            android:theme="@style/Theme.Routy">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+    </application>
+</manifest>
