@@ -1,0 +1,15 @@
+*.iml
+.gradle/
+.idea/
+.DS_Store
+build/
+**/build/
+/captures
+.externalNativeBuild
+.cxx
+local.properties
+
+# Signing — never commit these, CI reads them from repo secrets instead.
+*.jks
+*.keystore
+keystore.properties
