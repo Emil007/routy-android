@@ -176,6 +176,31 @@
     <string name="map_style_hiking">Hiking</string>
     <string name="map_style_satellite">Satellite</string>
 
+    <string name="common_close">Close</string>
+
+    <string name="map_nodes_count">%1$d nodes</string>
+    <string name="map_offline_cached">Offline cache</string>
+    <string name="map_record_track">Record track</string>
+    <string name="map_tap_hint">Tap a node for details. Edit network on the web admin.</string>
+    <string name="map_node_home">Home node</string>
+
+    <string name="settings_title">Settings</string>
+    <string name="settings_language">Language</string>
+    <string name="settings_theme">Theme</string>
+    <string name="settings_sessions">Signed-in devices</string>
+    <string name="settings_sessions_empty">No sessions loaded.</string>
+    <string name="settings_session_current">This device</string>
+    <string name="settings_session_revoke">Sign out</string>
+    <string name="settings_logout_everywhere">Sign out everywhere</string>
+    <string name="settings_logout">Sign out</string>
+    <string name="settings_saved">Saved</string>
+    <string name="settings_revoked_others">Other devices signed out</string>
+    <string name="settings_locale_de">Deutsch</string>
+    <string name="settings_locale_en">English</string>
+    <string name="settings_theme_auto">System</string>
+    <string name="settings_theme_light">Light</string>
+    <string name="settings_theme_dark">Dark</string>
+
     <string name="notification_recording_channel_name">Path recording</string>
     <string name="notification_recording_title">Recording in progress</string>
     <string name="notification_recording_text">%1$d points, %2$s km</string>

@@ -41,6 +41,8 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import com.routy.app.R
 import com.routy.app.RoutyApplication
 import com.routy.app.route.RouteScreen
+import com.routy.app.map.MapScreen
+import com.routy.app.settings.SettingsScreen
 import com.routy.app.stats.StatsScreen
 import com.routy.app.update.UpdateBanner
 import com.routy.app.upload.PendingUploadBanner
@@ -56,10 +58,8 @@ private val TABS = listOf(
 )
 
 /**
- * Bottom nav shared across the whole post-login app. Route is native (RouteScreen, M3) — every
- * other section (see the architecture note in NOTES.md at the repo root) stays a WebView tab
- * reusing the website as-is, since editing-heavy/occasional screens gain nothing from a native
- * rebuild.
+ * Bottom nav shared across the whole post-login app. Route, Map, Stats, and Settings are native
+ * Compose screens; Admin stays a WebView tab for infrequent admin workflows.
  */
 @Composable
 fun RoutyShellScreen(onSignedOut: () -> Unit, onStartRecording: () -> Unit) {
@@ -92,7 +92,7 @@ fun RoutyShellScreen(onSignedOut: () -> Unit, onStartRecording: () -> Unit) {
 
     val visibleTabs = TABS.filter { !it.adminOnly || uiState.user?.role == "admin" }
     val currentTab = visibleTabs.getOrElse(selectedTab.coerceIn(0, visibleTabs.lastIndex)) { visibleTabs.first() }
-    val webTabs = remember(visibleTabs) { visibleTabs.filter { it.path != "route" && it.path != "stats" } }
+    val webTabs = remember(visibleTabs) { visibleTabs.filter { it.path == "admin" } }
     val webViewStates = remember { mutableMapOf<String, Bundle>() }
     val webViews = remember { mutableMapOf<String, WebView>() }
 
@@ -157,11 +157,29 @@ fun RoutyShellScreen(onSignedOut: () -> Unit, onStartRecording: () -> Unit) {
                             modifier = Modifier.fillMaxSize(),
                         )
                     }
+                    "map" -> Surface(
+                        modifier = Modifier.fillMaxSize().zIndex(2f),
+                        color = MaterialTheme.colorScheme.background,
+                    ) {
+                        MapScreen(
+                            onStartRecording = onStartRecording,
+                            modifier = Modifier.fillMaxSize(),
+                        )
+                    }
                     "stats" -> Surface(
                         modifier = Modifier.fillMaxSize().zIndex(2f),
                         color = MaterialTheme.colorScheme.background,
                     ) {
                         StatsScreen(modifier = Modifier.fillMaxSize())
+                    }
+                    "settings" -> Surface(
+                        modifier = Modifier.fillMaxSize().zIndex(2f),
+                        color = MaterialTheme.colorScheme.background,
+                    ) {
+                        SettingsScreen(
+                            onSignOut = viewModel::signOut,
+                            modifier = Modifier.fillMaxSize(),
+                        )
                     }
                 }
             }

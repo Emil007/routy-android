@@ -7,6 +7,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -60,9 +61,9 @@ private const val ME_LAYER = "routy-me-layer"
 /**
  * Read-only network + route display: every known segment drawn faint in the background, the
  * active/suggested route highlighted on top of it, network nodes as small dots, the current
- * route's stations as bigger accent-colored dots, and an optional live position marker. Network
- * *editing* (the click-to-edit popups) stays on the WebView Map tab — this native map exists for
- * the one thing that needs to survive the phone going in a pocket: following an active route.
+ * route's stations as bigger accent-colored dots, and an optional live position marker.
+ * Network editing (popups, segment geometry, trash) stays on the web admin — this native map
+ * is for browsing the network and following routes on the go.
  */
 @Composable
 fun RoutyMapView(
@@ -75,6 +76,8 @@ fun RoutyMapView(
     fitKey: Any?,
     /** When >= 0, stations at or below this index render as completed; the next station is highlighted. */
     completedWaypointIndex: Int = -1,
+    selectedNodeId: Int? = null,
+    onMapClick: ((lat: Double, lng: Double) -> Unit)? = null,
     modifier: Modifier = Modifier,
     /** When true (default), camera fits route geometry + stations (+ myLocation), not the whole network. */
     fitToRouteOnly: Boolean = true,
@@ -88,6 +91,7 @@ fun RoutyMapView(
     val mapView = remember { MapView(context) }
     var maplibreMap by remember { mutableStateOf<MapLibreMap?>(null) }
     var loadedStyle by remember { mutableStateOf<Style?>(null) }
+    val onMapClickState by rememberUpdatedState(onMapClick)
 
     DisposableEffect(lifecycleOwner, mapView) {
         val observer = LifecycleEventObserver { _, event ->
@@ -113,15 +117,19 @@ fun RoutyMapView(
         loadedStyle = null
         mapView.getMapAsync { map ->
             maplibreMap = map
+            map.addOnMapClickListener { point ->
+                onMapClickState?.invoke(point.latitude, point.longitude)
+                true
+            }
             map.setStyle(Style.Builder().fromUri(style.assetUri)) { newStyle -> loadedStyle = newStyle }
         }
     }
 
-    LaunchedEffect(loadedStyle, nodes, segments, routeGeometry, stations, myLocation, routeColor, completedWaypointIndex) {
+    LaunchedEffect(loadedStyle, nodes, segments, routeGeometry, stations, myLocation, routeColor, completedWaypointIndex, selectedNodeId) {
         val currentStyle = loadedStyle ?: return@LaunchedEffect
         updateSegmentsLayer(currentStyle, segments)
         updateRouteLayer(currentStyle, routeGeometry, routeColor)
-        updateNodesLayer(currentStyle, nodes)
+        updateNodesLayer(currentStyle, nodes, selectedNodeId)
         updateStationsLayer(currentStyle, stations, completedWaypointIndex)
         updateMyLocationLayer(currentStyle, myLocation)
     }
@@ -191,8 +199,24 @@ private fun updateRouteLayer(style: Style, routeGeometry: List<GeoPoint>, routeC
     style.addLayer(layer)
 }
 
-private fun updateNodesLayer(style: Style, nodes: List<NodeDto>) {
-    val features = nodes.map { node -> Feature.fromGeometry(Point.fromLngLat(node.lng, node.lat)) }
+private fun updateNodesLayer(style: Style, nodes: List<NodeDto>, selectedNodeId: Int?) {
+    val features = nodes.map { node ->
+        val color = when {
+            node.id == selectedNodeId -> "#2563eb"
+            node.isHome -> "#a5711c"
+            else -> "#2e6b49"
+        }
+        val radius = when {
+            node.id == selectedNodeId -> 8f
+            node.isHome -> 5f
+            else -> 3f
+        }
+        val properties = JsonObject().apply {
+            addProperty("color", color)
+            addProperty("radius", radius)
+        }
+        Feature.fromGeometry(Point.fromLngLat(node.lng, node.lat), properties)
+    }
     val collection = FeatureCollection.fromFeatures(features)
     val existing = style.getSourceAs<GeoJsonSource>(NODES_SOURCE)
     if (existing != null) {
@@ -202,8 +226,8 @@ private fun updateNodesLayer(style: Style, nodes: List<NodeDto>) {
     style.addSource(GeoJsonSource(NODES_SOURCE, collection))
     val layer = CircleLayer(NODES_LAYER, NODES_SOURCE)
     layer.setProperties(
-        PropertyFactory.circleColor("#2e6b49"),
-        PropertyFactory.circleRadius(3f),
+        PropertyFactory.circleColor(org.maplibre.android.style.expressions.Expression.get("color")),
+        PropertyFactory.circleRadius(org.maplibre.android.style.expressions.Expression.get("radius")),
         PropertyFactory.circleStrokeColor("#ffffff"),
         PropertyFactory.circleStrokeWidth(1f),
     )

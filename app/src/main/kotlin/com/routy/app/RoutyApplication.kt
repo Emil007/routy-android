@@ -2,6 +2,7 @@ package com.routy.app
 
 import android.app.Application
 import com.routy.app.core.AccountLocale
+import com.routy.app.core.AccountTheme
 import com.routy.app.core.network.ApiClientProvider
 import com.routy.app.core.storage.SecureStorage
 import com.routy.app.core.BootstrapLoader
@@ -47,6 +48,7 @@ class RoutyApplication : Application() {
         bootstrapLoader = BootstrapLoader(apiClientProvider, networkCache)
         mapTilePrefetchScheduler = MapTilePrefetchScheduler(this)
         networkCache.loadBootstrap()?.user?.locale?.let { AccountLocale.apply(it) }
+        networkCache.loadBootstrap()?.user?.theme?.let { AccountTheme.apply(it) }
         gpxCommitScheduler.schedulePending()
         GpxQueueNotifier.setPendingCount(gpxCommitQueueStore.listAll().size)
         // MapLibre must initialize before HttpRequestUtil.setOkHttpClient — the HTTP module

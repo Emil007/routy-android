@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.routy.app.R
 import com.routy.app.core.AccountLocale
+import com.routy.app.core.AccountTheme
 import com.routy.app.core.network.ApiClientProvider
 import com.routy.app.core.storage.SecureStorage
 import com.routy.app.logic.api.ApiErrorBody
@@ -63,6 +64,7 @@ class LoginViewModel(
                 }
                 secureStorage.token = body.token
                 AccountLocale.apply(body.user.locale)
+                AccountTheme.apply(body.user.theme)
                 _uiState.value = _uiState.value.copy(loading = false, loggedIn = true)
                 return@launch
             }
