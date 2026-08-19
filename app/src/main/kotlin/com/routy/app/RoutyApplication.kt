@@ -1,6 +1,7 @@
 package com.routy.app
 
 import android.app.Application
+import com.routy.app.core.AccountLocale
 import com.routy.app.core.CrashReporting
 import com.routy.app.core.AccountTheme
 import com.routy.app.core.network.ApiClientProvider
