@@ -48,13 +48,13 @@ class SettingsViewModel(
             _uiState.value = _uiState.value.copy(loading = true, error = false, messageRes = null)
             val bootstrapResult = bootstrapLoader.load()
             val offline = bootstrapResult is BootstrapResult.CachedOnly
+            val (user, segments, avoidIds) = when (bootstrapResult) {
+                is BootstrapResult.Fresh -> Triple(bootstrapResult.body.user, bootstrapResult.body.segments, bootstrapResult.body.avoidSegmentIds)
+                is BootstrapResult.NotModified -> Triple(bootstrapResult.cached.user, bootstrapResult.cached.segments, bootstrapResult.cached.avoidSegmentIds)
+                is BootstrapResult.CachedOnly -> Triple(bootstrapResult.cached.user, bootstrapResult.cached.segments, bootstrapResult.cached.avoidSegmentIds)
+                else -> Triple(null, emptyList(), emptyList())
+            }
             try {
-                val (user, segments, avoidIds) = when (bootstrapResult) {
-                    is BootstrapResult.Fresh -> Triple(bootstrapResult.body.user, bootstrapResult.body.segments, bootstrapResult.body.avoidSegmentIds)
-                    is BootstrapResult.NotModified -> Triple(bootstrapResult.cached.user, bootstrapResult.cached.segments, bootstrapResult.cached.avoidSegmentIds)
-                    is BootstrapResult.CachedOnly -> Triple(bootstrapResult.cached.user, bootstrapResult.cached.segments, bootstrapResult.cached.avoidSegmentIds)
-                    else -> Triple(null, emptyList(), emptyList())
-                }
                 val sessionsRes = apiClientProvider.service.sessions()
                 val sessions = if (sessionsRes.isSuccessful) sessionsRes.body()?.sessions.orEmpty() else emptyList()
                 val configRes = runCatching { apiClientProvider.service.gpxConfig() }.getOrNull()
