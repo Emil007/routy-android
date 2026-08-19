@@ -16,8 +16,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.launch
-import com.routy.app.widget.RoutyWidgetProvider
-import com.routy.app.widget.WidgetPrefs
+import com.routy.app.widget.WidgetUpdater
 import com.routy.app.core.storage.NetworkCache
 import com.routy.app.logic.api.GeoPoint
 
@@ -75,8 +74,7 @@ class StatsViewModel(
                     )
                     val streak = body?.streak?.currentStreak ?: 0
                     val km = (body?.stats?.totalLengthM ?: 0) / 1000.0
-                    WidgetPrefs.save(appContext, streak, km)
-                    RoutyWidgetProvider.updateAll(appContext)
+                    WidgetUpdater.apply(appContext, streak, km)
                 } else {
                     _uiState.value = _uiState.value.copy(loading = false, error = true)
                 }
