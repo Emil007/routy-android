@@ -23,7 +23,7 @@ class RetryInterceptor(
 
             try {
                 response = chain.proceed(request)
-                if (response!!.isSuccessful || !response!!.code.isRetryable()) {
+                if (response!!.isSuccessful || !response!!.code.isRetryable) {
                     return response!!
                 }
             } catch (e: IOException) {

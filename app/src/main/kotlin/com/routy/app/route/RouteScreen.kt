@@ -18,8 +18,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material3.AlertDialog
@@ -117,20 +116,12 @@ fun RouteScreen(onStartRecording: () -> Unit, accountLocaleTag: String, modifier
 
     val route = uiState.route
     if (route == null) {
-        Column(
-            modifier = modifier.fillMaxSize().padding(12.dp).verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            if (uiState.offlineCached) OfflineBanner()
-            if (uiState.mode == RouteMode.SUGGESTING && uiState.favorites.isNotEmpty()) {
-                FavoritesCard(uiState.favorites, uiState.status == RouteStatus.LOADING, viewModel)
-            }
-            SuggestForm(uiState, viewModel)
-            OutlinedButton(onClick = onStartRecording, modifier = Modifier.fillMaxWidth()) {
-                Text(stringResource(R.string.record_entry_point))
-            }
-            uiState.messageRes?.let { Text(stringResource(it), color = MaterialTheme.colorScheme.primary) }
-        }
+        SuggestingMapLayout(
+            uiState = uiState,
+            viewModel = viewModel,
+            onStartRecording = onStartRecording,
+            modifier = modifier,
+        )
         return
     }
 
@@ -206,6 +197,62 @@ fun RouteScreen(onStartRecording: () -> Unit, accountLocaleTag: String, modifier
                 }
             },
         )
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun SuggestingMapLayout(
+    uiState: RouteUiState,
+    viewModel: RouteViewModel,
+    onStartRecording: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var mapStyle by remember { mutableStateOf(BaseMapStyle.STREETS) }
+
+    Box(modifier = modifier.fillMaxSize()) {
+        RoutyMapView(
+            style = mapStyle,
+            nodes = uiState.nodes,
+            segments = uiState.segments,
+            routeGeometry = emptyList(),
+            stations = emptyList(),
+            myLocation = null,
+            fitKey = uiState.nodes.size,
+            fitToRouteOnly = false,
+            modifier = Modifier.fillMaxSize(),
+        )
+
+        Column(
+            modifier = Modifier.align(Alignment.TopStart).padding(8.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            if (uiState.offlineCached) OfflineBanner()
+            MapStyleSwitcher(selected = mapStyle, onSelect = { mapStyle = it })
+        }
+
+        Card(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .padding(8.dp),
+        ) {
+            Column(
+                modifier = Modifier.padding(10.dp).heightIn(max = 320.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                if (uiState.favorites.isNotEmpty()) {
+                    FavoritesCard(uiState.favorites, uiState.status == RouteStatus.LOADING, viewModel)
+                }
+                SuggestForm(uiState, viewModel)
+                OutlinedButton(onClick = onStartRecording, modifier = Modifier.fillMaxWidth()) {
+                    Text(stringResource(R.string.record_entry_point))
+                }
+                uiState.messageRes?.let {
+                    Text(stringResource(it), color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.bodySmall)
+                }
+            }
+        }
     }
 }
 
@@ -405,17 +452,26 @@ private fun ActiveTrackingEffects(
 @Composable
 private fun FavoritesCard(favorites: List<FavoriteEntry>, loading: Boolean, viewModel: RouteViewModel) {
     var pendingDelete by remember { mutableStateOf<FavoriteEntry?>(null) }
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text(stringResource(R.string.route_favorites_title), style = MaterialTheme.typography.titleSmall)
-            favorites.forEach { fav ->
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("${fav.name} — ${"%.2f".format(fav.display.lengthM / 1000.0)} km", modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
-                    TextButton(onClick = { viewModel.takeFavorite(fav) }, enabled = !loading) { Text(stringResource(R.string.route_favorite_take)) }
-                    TextButton(onClick = { viewModel.toggleShare(fav) }) {
-                        Text(stringResource(if (fav.shareToken != null) R.string.route_favorite_unshare else R.string.route_favorite_share))
-                    }
-                    TextButton(onClick = { pendingDelete = fav }) { Text(stringResource(R.string.route_favorite_delete)) }
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(stringResource(R.string.route_favorites_title), style = MaterialTheme.typography.labelLarge)
+        favorites.forEach { fav ->
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    "${fav.name} — ${"%.2f".format(fav.display.lengthM / 1000.0)} km",
+                    modifier = Modifier.weight(1f),
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                TextButton(onClick = { viewModel.takeFavorite(fav) }, enabled = !loading) {
+                    Text(stringResource(R.string.route_favorite_take), style = MaterialTheme.typography.labelSmall)
+                }
+                TextButton(onClick = { viewModel.toggleShare(fav) }) {
+                    Text(
+                        stringResource(if (fav.shareToken != null) R.string.route_favorite_unshare else R.string.route_favorite_share),
+                        style = MaterialTheme.typography.labelSmall,
+                    )
+                }
+                TextButton(onClick = { pendingDelete = fav }) {
+                    Text(stringResource(R.string.route_favorite_delete), style = MaterialTheme.typography.labelSmall)
                 }
             }
         }
@@ -433,29 +489,35 @@ private fun FavoritesCard(favorites: List<FavoriteEntry>, loading: Boolean, view
 @OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
 @Composable
 private fun SuggestForm(uiState: RouteUiState, viewModel: RouteViewModel) {
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            NodeDropdown(stringResource(R.string.route_start), uiState.nodes, uiState.startNodeId, viewModel::setStartNodeId)
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        NodeDropdown(stringResource(R.string.route_start), uiState.nodes, uiState.startNodeId, viewModel::setStartNodeId)
+        if (!uiState.isLoop) {
+            NodeDropdown(stringResource(R.string.route_destination), uiState.nodes, uiState.destinationNodeId, viewModel::setDestinationNodeId)
+        }
+        NodeDropdown(
+            "${stringResource(R.string.route_waypoint)} (${stringResource(R.string.common_optional)})",
+            uiState.nodes,
+            uiState.waypointNodeId,
+            viewModel::setWaypointNodeId,
+            stringResource(R.string.route_waypoint_none),
+        )
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.Center) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Checkbox(checked = uiState.isLoop, onCheckedChange = viewModel::setIsLoop)
-                Text(stringResource(R.string.route_loop))
+                Text(stringResource(R.string.route_loop), style = MaterialTheme.typography.bodySmall)
             }
-            if (!uiState.isLoop) {
-                NodeDropdown(stringResource(R.string.route_destination), uiState.nodes, uiState.destinationNodeId, viewModel::setDestinationNodeId)
-            }
-            NodeDropdown("${stringResource(R.string.route_waypoint)} (${stringResource(R.string.common_optional)})", uiState.nodes, uiState.waypointNodeId, viewModel::setWaypointNodeId, stringResource(R.string.route_waypoint_none))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Checkbox(checked = uiState.explorerMode, onCheckedChange = viewModel::setExplorerMode)
-                Text(stringResource(R.string.route_explorer_mode))
+                Text(stringResource(R.string.route_explorer_mode), style = MaterialTheme.typography.bodySmall)
             }
-            val loading = uiState.status == RouteStatus.LOADING
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                Button(onClick = { viewModel.suggest() }, enabled = !loading && uiState.startNodeId != null) {
-                    Text(stringResource(if (loading) R.string.route_generating else R.string.route_suggest))
-                }
-                OutlinedButton(onClick = { viewModel.suggest("short") }, enabled = !loading) { Text(stringResource(R.string.route_preset_short)) }
-                OutlinedButton(onClick = { viewModel.suggest("long") }, enabled = !loading) { Text(stringResource(R.string.route_preset_long)) }
+        }
+        val loading = uiState.status == RouteStatus.LOADING
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Button(onClick = { viewModel.suggest() }, enabled = !loading && uiState.startNodeId != null) {
+                Text(stringResource(if (loading) R.string.route_generating else R.string.route_suggest))
             }
+            OutlinedButton(onClick = { viewModel.suggest("short") }, enabled = !loading) { Text(stringResource(R.string.route_preset_short)) }
+            OutlinedButton(onClick = { viewModel.suggest("long") }, enabled = !loading) { Text(stringResource(R.string.route_preset_long)) }
         }
     }
 }
