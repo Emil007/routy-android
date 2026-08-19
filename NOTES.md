@@ -145,15 +145,42 @@ any IDE inspection. What to expect on first sync:
     green) so the recording screen's live track renders in the same reddish-brown
     (`#9a3b29`) the web's `RecordTrackWizard.tsx` uses to distinguish "being recorded" from
     "the network" or "a suggested route."
+- **M5** — native voice guidance, wired into the Route screen's active mode as the same on/off
+  toggle the web has (next to "Show my location" — voice cues only fire while location is being
+  watched, matching `RouteGenerator.tsx`'s own gating). No server changes needed; entirely a
+  client-side feature.
+  - `route/VoiceGuidance.kt`: `VoiceGuidanceController` wraps Android `TextToSpeech` +
+    `AudioManager` audio-focus (`AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK` with
+    `USAGE_ASSISTANCE_NAVIGATION_GUIDANCE` attributes — the standard turn-by-turn-nav pattern
+    for ducking Spotify/music rather than pausing it), releasing focus itself via
+    `UtteranceProgressListener.onDone` once each cue finishes speaking. TTS language follows
+    `Locale.getDefault()` (the device locale) — same source the rest of the UI's strings follow,
+    not the account's server-side locale preference (that's the M7 gap already noted below).
+  - `RouteResultCard` in `route/RouteScreen.kt` wires `:logic`'s already-tested
+    `VoiceCueTracker` to `uiState.myLocation`, careful about one real Compose correctness
+    trap: `VoiceCueTracker.onLocationUpdate()` mutates internal state and must run exactly once
+    per genuinely new location fix, so it's called from inside `LaunchedEffect(location,
+    voiceActive)`, never directly in the composable body (which Compose can re-invoke for
+    unrelated reasons). The resulting cue's spoken text needs `stringResource()`, which only
+    works in composable context, not inside a `LaunchedEffect` coroutine — so the cue is staged
+    into a `pendingCue` state, resolved to text in the composable body, and *then* handed to a
+    second `LaunchedEffect(cue)` to actually call `speak()`. The tracker itself is
+    `remember(route.nodeChain)`-scoped, giving a fresh announcement sequence per accepted route
+    for free (mirrors the web's explicit `announcedStationIndexRef.current = 0` reset on
+    accept/takeFavorite) without needing matching ViewModel-side reset logic.
+  - Fixed in passing: `route_station_fallback` (added speculatively back in M1, unused until
+    now) held generic placeholder text ("Station") rather than the web's actual fallback
+    ("die nächste Station"/"the next station", used when an unnamed station's name is needed in
+    a voice cue) — corrected to match `src/lib/i18n/{de,en}.json`'s real `route.station` text.
 
 ## Not started yet
 
-M5 (native voice guidance — the ported algorithm in `:logic` is ready, just not wired to
-`TextToSpeech`/`AudioManager` yet), M6 (CI + signed releases — needs a keystore you generate
-and add as repo secrets, not something I can do), M7 (polish: battery-optimization prompt,
-network-drop retry during recording, locale following the account setting, base-map-style
-switcher UI for the native Route/Recording screens — the three style assets exist but
-`RoutyMapView` callers are hardcoded to `BaseMapStyle.STREETS`).
+M6 (CI + signed releases — needs a keystore you generate and add as repo secrets, not something
+I can do), M7 (polish: battery-optimization prompt, network-drop retry during recording, locale
+following the account's server-side setting — both the UI strings, which currently follow the
+*device* locale via Android's own resource system, and M5's TTS language, which does the same —
+base-map-style switcher UI for the native Route/Recording screens, since the three style assets
+exist but `RoutyMapView` callers are hardcoded to `BaseMapStyle.STREETS`).
 
 ## First things to do in Android Studio
 

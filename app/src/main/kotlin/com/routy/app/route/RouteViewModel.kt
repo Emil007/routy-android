@@ -52,6 +52,7 @@ data class RouteUiState(
 
     val myLocation: GeoPoint? = null,
     val watchingLocation: Boolean = false,
+    val voiceEnabled: Boolean = false,
 
     /** One-shot: the composable copies this to the clipboard and calls [clearPendingShareUrl]. */
     val pendingShareUrl: String? = null,
@@ -137,6 +138,10 @@ class RouteViewModel(
 
     fun setWatchingLocation(watching: Boolean) {
         _uiState.value = _uiState.value.copy(watchingLocation = watching, myLocation = if (watching) _uiState.value.myLocation else null)
+    }
+
+    fun setVoiceEnabled(enabled: Boolean) {
+        _uiState.value = _uiState.value.copy(voiceEnabled = enabled)
     }
 
     fun clearPendingShareUrl() {
