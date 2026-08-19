@@ -6,6 +6,7 @@ import android.content.pm.PackageManager
 import android.os.Looper
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -189,6 +190,7 @@ private fun FavoritesCard(favorites: List<FavoriteEntry>, loading: Boolean, view
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun SuggestForm(uiState: RouteUiState, viewModel: RouteViewModel) {
     Card(modifier = Modifier.fillMaxWidth()) {
@@ -248,6 +250,7 @@ private fun SuggestForm(uiState: RouteUiState, viewModel: RouteViewModel) {
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun RouteResultCard(uiState: RouteUiState, route: com.routy.app.logic.api.RouteDisplayPayload, nodes: List<NodeDto>, viewModel: RouteViewModel) {
     val context = LocalContext.current
@@ -341,12 +344,26 @@ private fun RouteResultCard(uiState: RouteUiState, route: com.routy.app.logic.ap
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                Text(
-                    route.shortStationGroups.joinToString(" › ") { group ->
-                        if (group.viaSegmentName != null) "${group.text} (${stringResource(R.string.route_via, group.viaSegmentName)})" else group.text
-                    },
-                    style = MaterialTheme.typography.bodyMedium,
-                )
+                // Built with buildString/forEachIndexed (both genuinely inline in the stdlib,
+                // unlike joinToString's *transform* parameter — which is non-inline because it's
+                // nullable) so stringResource() below stays in a valid @Composable context once
+                // inlined, and viaSegmentName gets a local val since a nullable val from another
+                // module (:logic's RouteDisplayPayload) can't be smart-cast across the boundary.
+                val stationText = buildString {
+                    route.shortStationGroups.forEachIndexed { index, group ->
+                        if (index > 0) append(" › ")
+                        val viaSegmentName = group.viaSegmentName
+                        if (viaSegmentName != null) {
+                            append(group.text)
+                            append(" (")
+                            append(stringResource(R.string.route_via, viaSegmentName))
+                            append(")")
+                        } else {
+                            append(group.text)
+                        }
+                    }
+                }
+                Text(stationText, style = MaterialTheme.typography.bodyMedium)
             }
 
             if (uiState.mode == RouteMode.SUGGESTING) {

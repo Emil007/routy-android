@@ -334,30 +334,66 @@ job, which has no such network restriction. Covers:
 If a future change touches the server's API contracts, this is the module to check first —
 and it's the one place a broken assumption would actually show up as a red test.
 
-## `:app` — written carefully, compiler-unverified
+## `:app` — first real compile happened, two real bugs found and fixed
 
 Everything Android-framework-dependent (Compose UI, `Application`/`Activity`, WebView,
-manifest, Gradle plugin wiring). This has never been through `./gradlew assembleDebug` or
-any IDE inspection. What to expect on first sync:
+manifest, Gradle plugin wiring). After the Gradle sync saga above finally resolved,
+`./gradlew :app:assembleDebug` ran for the first time ever — both locally and in CI — and
+compilation failed on real, previously-unverifiable-in-this-sandbox errors. Two genuine
+dependency-version bugs, exactly the kind this file's original "worth double-checking first"
+list predicted, plus a couple of Compose-specific code bugs no amount of source-reading would
+have caught without a compiler:
 
-- **Likely fine**: package/import structure, Compose code (it's ordinary Material 3 —
-  `Scaffold`, `NavigationBar`, `OutlinedTextField`, standard `ViewModel` + `StateFlow`
-  wiring via a manual `viewModelFactory` — no exotic APIs). Dependency versions in
-  `app/build.gradle.kts` were chosen as well-established stable releases as of this
-  writing, not bleeding-edge, specifically to reduce the odds of something having moved
-  out from under this.
-- **Worth double-checking first**: exact artifact coordinates/versions for
-  `androidx.security:security-crypto` (still alpha upstream — `1.1.0-alpha06` was current
-  when written, may have moved). `org.maplibre.gl:android-sdk` and
-  `com.google.android.gms:play-services-location` are now actually used (M3, see below) —
-  their API surface was grounded against real fetched source (MapLibre's own Android test app
-  on GitHub) rather than guessed wholesale, but two specific call sites are still worth a
-  second look: `Modifier.menuAnchor(MenuAnchorType.PrimaryNotEditable)` in
-  `route/RouteScreen.kt`'s `NodeDropdown` (Material3's exposed-dropdown-menu anchor API moved
-  around across 1.2→1.3, the type name may have changed again since `compose-bom:2024.12.01`),
-  and `Style.getSourceAs<GeoJsonSource>(id)` in `map/RoutyMapView.kt` (confirmed to exist, but
-  a known upstream issue throws if called while a *different* style is mid-transition — not a
-  concern here since each `RoutyMapView` only swaps styles on its own `style` param changing).
+- **`org.maplibre.gl:android-sdk:10.2.0` → `12.3.1`**: every single `org.maplibre.android.*`/
+  `org.maplibre.geojson.*` import came back `Unresolved reference`. Root cause: MapLibre
+  renamed its entire package from `com.mapbox.mapboxsdk.*` to `org.maplibre.android.*` at
+  v11.0.0 — 10.2.0 predates that rename and still ships the old namespace. The code was written
+  assuming the *new* namespace (correct for any version ≥11.0.0, wrong for the 10.2.0 actually
+  pinned) — grounding the API surface against real fetched source wasn't enough, since the
+  specific dependency *version* was never itself verified against what package it publishes.
+  12.3.1 picked deliberately as the latest stable release before v13.0.0's Vulkan-becomes-default
+  + `GeoJsonSource` sync-API changes, verified by downloading the actual AAR and confirming
+  every class this module imports is present in it.
+- **`com.jakewharton.retrofit:retrofit2-kotlinx-serialization-converter:1.0.0` →
+  `com.squareup.retrofit2:converter-kotlinx-serialization:2.11.0`**: `retrofit2.converter.
+  kotlinx.serialization.asConverterFactory` unresolved in both `ApiClientProvider.kt` and
+  `GithubReleaseClient.kt`, despite the import line being correct and the old artifact
+  resolving/downloading fine. That project was folded into Retrofit itself as of 2.10.0 — the
+  old third-party artifact apparently doesn't expose its classes to `compileDebugKotlin`
+  correctly under this toolchain even though it packages fine (likely a Gradle Module Metadata
+  gap; never fully diagnosed since the fix is unambiguous either way). Same package name in the
+  new artifact (verified directly against the published jar), so no import changes needed.
+- **`compose-bom:2024.12.01` → `2026.06.01`**: `RouteScreen.kt`'s `NodeDropdown` uses Material3's
+  standalone `ExposedDropdownMenu` composable (distinct from the older `ExposedDropdownMenuBox`
+  it's nested inside), which didn't exist yet in whatever Material3 version `2024.12.01` pins —
+  another case of a *version* never having been checked, not the API usage itself. This file's
+  own "worth double-checking" note above flagged the exposed-dropdown-menu anchor API as a risk
+  area for exactly this reason and turned out to be right, just about a different part of the
+  same API.
+- **Two Compose-specific code bugs, not dependency issues**: `RouteScreen.kt`'s station-list
+  text called `stringResource()` inside the `transform` lambda of `joinToString` — illegal,
+  since that lambda is non-inline (nullable function types can't be inlined) and therefore not a
+  valid `@Composable` context, unlike a genuinely-inline lambda (`buildString`/`forEachIndexed`,
+  both used in the fix). The same expression also tried to smart-cast a nullable `val` declared
+  in a different Gradle module (`:logic`'s `RouteDisplayPayload.viaSegmentName`), which Kotlin
+  doesn't allow across module boundaries — fixed by copying it to a local `val` first. Both
+  `RouteScreen.kt` and `RecordingScreen.kt` also used `FlowRow` without the
+  `@OptIn(ExperimentalLayoutApi::class)` its opt-in-required status still needs.
+
+Given the pattern above — dependency *versions*, not API-surface reasoning, being the actual
+recurring bug — the remaining unverified areas below deserve the same skepticism if they turn
+out to be wrong: not "the API might not exist," but "the pinned version specifically might not
+have it yet."
+
+- **Still worth a second look if something new comes up**: exact artifact coordinates/versions
+  for `androidx.security:security-crypto` (still alpha upstream — `1.1.0-alpha06` was current
+  when written, may have moved) and `com.google.android.gms:play-services-location`. Neither
+  flagged an error on this first compile, but neither had every code path exercised by a
+  compiler error the way MapLibre/the retrofit converter did either.
+- `Style.getSourceAs<GeoJsonSource>(id)` in `map/RoutyMapView.kt`: confirmed to exist in
+  `android-sdk:12.3.1` too, but a known upstream issue throws if called while a *different*
+  style is mid-transition — not a concern here since each `RoutyMapView` only swaps styles on
+  its own `style` param changing.
 - **Found and fixed while writing M3, applies retroactively to M1's `logout()` too**: OkHttp
   throws `IllegalArgumentException: method POST must have a request body` at call time (not
   compile time) for any Retrofit `@POST` method with no `@Body` at all — GET/HEAD prohibit a

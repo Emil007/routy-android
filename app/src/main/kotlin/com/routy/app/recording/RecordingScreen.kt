@@ -12,6 +12,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -200,6 +201,7 @@ fun RecordingScreen(onDone: () -> Unit, modifier: Modifier = Modifier) {
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun ActiveRecordingSection(
     uiState: RecordingUiState,
@@ -257,6 +259,7 @@ private fun ActiveRecordingSection(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun ConfirmSection(uiState: RecordingUiState, viewModel: RecordingViewModel, onDiscard: () -> Unit) {
     val start = uiState.points.firstOrNull()
@@ -311,6 +314,7 @@ private fun ConfirmSection(uiState: RecordingUiState, viewModel: RecordingViewMo
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun EndpointDecisionSection(
     label: String,
