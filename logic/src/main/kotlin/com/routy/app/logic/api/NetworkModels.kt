@@ -16,6 +16,9 @@ data class NodeDto(
     override val lat: Double,
     override val lng: Double,
     val isHome: Boolean = false,
+    val createdBy: Int? = null,
+    val namePart1Text: String? = null,
+    val namePart2Text: String? = null,
 ) : MatchableNode
 
 @Serializable
@@ -41,6 +44,7 @@ data class SegmentDto(
     val name: String? = null,
     val reverseOf: Int? = null,
     val lockedUntil: String? = null,
+    val submittedBy: Int? = null,
 )
 
 @Serializable
