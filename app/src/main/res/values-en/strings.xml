@@ -163,6 +163,8 @@
     <string name="update_view">View</string>
     <string name="update_dismiss">Dismiss</string>
 
+    <string name="shell_pending_uploads">%1$d tracks waiting to upload</string>
+
     <string name="battery_optimization_hint">For reliable background recording: turn off battery optimization for Routy.</string>
     <string name="battery_optimization_allow">Open settings</string>
     <string name="battery_optimization_dismiss">Not now</string>

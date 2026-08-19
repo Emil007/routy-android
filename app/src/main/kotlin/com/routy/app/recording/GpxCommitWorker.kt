@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.routy.app.core.GpxUploadNotifier
+import com.routy.app.core.GpxQueueNotifier
 import com.routy.app.core.network.ApiClientProvider
 import com.routy.app.core.storage.GpxCommitQueueStore
 import com.routy.app.core.storage.SecureStorage
@@ -34,12 +35,14 @@ class GpxCommitWorker(
         return when (gpxCommitOutcome(response.isSuccessful, response.code())) {
             GpxCommitOutcome.Success -> {
                 queueStore.remove(commitId)
+                GpxQueueNotifier.setPendingCount(queueStore.listAll().size)
                 GpxUploadNotifier.notifyUploadSucceeded()
                 Result.success()
             }
             GpxCommitOutcome.Retry -> Result.retry()
             GpxCommitOutcome.PermanentFailure -> {
                 queueStore.remove(commitId)
+                GpxQueueNotifier.setPendingCount(queueStore.listAll().size)
                 Result.failure()
             }
         }

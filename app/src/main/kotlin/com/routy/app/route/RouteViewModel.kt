@@ -12,6 +12,7 @@ import com.routy.app.logic.cache.CachedBootstrap
 import com.routy.app.logic.cache.CachedNetwork
 import com.routy.app.core.storage.NetworkCache
 import com.routy.app.core.storage.RouteProgressStore
+import com.routy.app.map.MapTilePrefetchScheduler
 import com.routy.app.logic.api.AchievementsDto
 import com.routy.app.logic.api.AdjustRouteRequest
 import com.routy.app.logic.api.ApiErrorBody
@@ -88,6 +89,7 @@ class RouteViewModel(
     private val routeProgressStore: RouteProgressStore,
     private val networkCache: NetworkCache,
     private val bootstrapLoader: BootstrapLoader,
+    private val mapTilePrefetchScheduler: MapTilePrefetchScheduler,
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(RouteUiState())
     val uiState: StateFlow<RouteUiState> = _uiState.asStateFlow()
@@ -106,6 +108,10 @@ class RouteViewModel(
     }
 
     private fun routeKey(route: RouteDisplayPayload): String = route.nodeChain.joinToString("-")
+
+    private fun prefetchMapTiles(route: RouteDisplayPayload?) {
+        route?.geometry?.let { mapTilePrefetchScheduler.prefetchRoute(it) }
+    }
 
     private fun loadInitial() {
         viewModelScope.launch {
@@ -199,6 +205,7 @@ class RouteViewModel(
             route = state?.activeRoute,
             nickname = state?.nickname ?: "",
         )
+        if (state?.activeRoute != null) prefetchMapTiles(state.activeRoute)
     }
 
     fun setStartNodeId(id: Int) { _uiState.value = _uiState.value.copy(startNodeId = id) }
@@ -302,6 +309,7 @@ class RouteViewModel(
                     voiceAnnouncedIndex = 0,
                     messageRes = null,
                 )
+                prefetchMapTiles(state.activeRoute)
             } else {
                 val code = parseErrorCode(response.errorBody()?.string())
                 _uiState.value = _uiState.value.copy(
@@ -375,6 +383,7 @@ class RouteViewModel(
             }
             if (response.isSuccessful) {
                 routeProgressStore.clear()
+                prefetchMapTiles(_uiState.value.route)
                 _uiState.value = _uiState.value.copy(mode = RouteMode.ACTIVE, status = RouteStatus.IDLE, messageRes = null, nickname = "", completedWaypointIndex = -1, voiceAnnouncedIndex = 0)
             } else {
                 _uiState.value = _uiState.value.copy(status = RouteStatus.IDLE, messageRes = R.string.route_session_expired)
@@ -504,6 +513,7 @@ class RouteViewModel(
             }
             if (response.isSuccessful) {
                 routeProgressStore.clear()
+                prefetchMapTiles(favorite.display)
                 _uiState.value = _uiState.value.copy(
                     route = favorite.display,
                     token = "",

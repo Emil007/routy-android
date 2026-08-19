@@ -43,6 +43,7 @@ import com.routy.app.RoutyApplication
 import com.routy.app.route.RouteScreen
 import com.routy.app.stats.StatsScreen
 import com.routy.app.update.UpdateBanner
+import com.routy.app.upload.PendingUploadBanner
 
 private data class ShellTab(val labelRes: Int, val path: String, val icon: ImageVector, val adminOnly: Boolean = false)
 
@@ -129,6 +130,7 @@ fun RoutyShellScreen(onSignedOut: () -> Unit, onStartRecording: () -> Unit) {
             // (not fillMaxSize()) so the banner keeps its own natural height and the tab content
             // takes only what's left, rather than both fighting over the full column height.
             UpdateBanner()
+            PendingUploadBanner()
             Box(modifier = Modifier.weight(1f).fillMaxSize()) {
                 webTabs.forEach { tab ->
                     val visible = currentTab.path == tab.path
