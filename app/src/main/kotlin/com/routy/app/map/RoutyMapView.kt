@@ -64,6 +64,7 @@ private const val LOCKED_SEGMENTS_SOURCE = "routy-segments-locked"
 private const val LOCKED_SEGMENTS_LAYER = "routy-segments-locked-layer"
 private const val EDIT_VERTICES_SOURCE = "routy-edit-vertices"
 private const val EDIT_VERTICES_LAYER = "routy-edit-vertices-layer"
+private const val ME_SOURCE = "routy-me"
 private const val ME_LAYER = "routy-me-layer"
 
 /**
