@@ -7,8 +7,8 @@
 // it out of the root means `./gradlew :logic:test` never needs Google's repo at all — only
 // building :app does.
 plugins {
-    id("org.jetbrains.kotlin.jvm") version "2.0.21" apply false
-    id("org.jetbrains.kotlin.android") version "2.0.21" apply false
-    id("org.jetbrains.kotlin.plugin.compose") version "2.0.21" apply false
-    id("org.jetbrains.kotlin.plugin.serialization") version "2.0.21" apply false
+    id("org.jetbrains.kotlin.jvm") version "2.2.10" apply false
+    id("org.jetbrains.kotlin.android") version "2.2.10" apply false
+    id("org.jetbrains.kotlin.plugin.compose") version "2.2.10" apply false
+    id("org.jetbrains.kotlin.plugin.serialization") version "2.2.10" apply false
 }
