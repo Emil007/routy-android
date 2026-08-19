@@ -85,11 +85,10 @@ import java.text.Collator
 fun RouteScreen(onStartRecording: () -> Unit, accountLocaleTag: String, modifier: Modifier = Modifier) {
     val app = LocalContext.current.applicationContext as RoutyApplication
     val activity = LocalContext.current as? android.app.Activity
-    val baseUrl = app.secureStorage.serverUrl.orEmpty()
     val viewModel: RouteViewModel = viewModel(
         factory = viewModelFactory {
             initializer {
-                RouteViewModel(app.apiClientProvider, baseUrl, app.routeProgressStore, app.networkCache, app.bootstrapLoader)
+                RouteViewModel(app.apiClientProvider, app.routeProgressStore, app.networkCache, app.bootstrapLoader)
             }
         },
     )
