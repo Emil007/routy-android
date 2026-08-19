@@ -146,6 +146,7 @@ fun RouteScreen(onStartRecording: () -> Unit, accountLocaleTag: String, modifier
                     route = route,
                     nodes = uiState.nodes,
                     viewModel = viewModel,
+                    accountLocaleTag = accountLocaleTag,
                 )
             }
         }
@@ -254,7 +255,13 @@ private fun SuggestForm(uiState: RouteUiState, viewModel: RouteViewModel) {
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun RouteResultCard(uiState: RouteUiState, route: com.routy.app.logic.api.RouteDisplayPayload, nodes: List<NodeDto>, viewModel: RouteViewModel) {
+private fun RouteResultCard(
+    uiState: RouteUiState,
+    route: com.routy.app.logic.api.RouteDisplayPayload,
+    nodes: List<NodeDto>,
+    viewModel: RouteViewModel,
+    accountLocaleTag: String,
+) {
     val context = LocalContext.current
     var hasLocationPermission by remember {
         mutableStateOf(ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED)
