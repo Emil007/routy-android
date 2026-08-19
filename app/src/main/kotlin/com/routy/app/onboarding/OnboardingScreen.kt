@@ -93,9 +93,10 @@ private fun UrlForm(
             modifier = Modifier.fillMaxWidth(),
         )
 
-        if (uiState is OnboardingUiState.Error) {
+        val errorState = uiState as? OnboardingUiState.Error
+        if (errorState != null) {
             Text(
-                stringResource(uiState.messageRes),
+                stringResource(errorState.messageRes),
                 color = MaterialTheme.colorScheme.error,
                 style = MaterialTheme.typography.bodySmall,
                 modifier = Modifier.padding(top = 8.dp),
@@ -172,9 +173,10 @@ private fun SetupForm(state: OnboardingUiState.NeedsSetup, viewModel: Onboarding
             CaptchaWebView(config = state.captcha, onToken = { captchaToken = it })
         }
 
-        if (uiState is OnboardingUiState.Error) {
+        val errorState = uiState as? OnboardingUiState.Error
+        if (errorState != null) {
             Text(
-                stringResource(uiState.messageRes),
+                stringResource(errorState.messageRes),
                 color = MaterialTheme.colorScheme.error,
                 style = MaterialTheme.typography.bodySmall,
             )
