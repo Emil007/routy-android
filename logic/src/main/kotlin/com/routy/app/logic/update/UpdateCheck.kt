@@ -1,8 +1,10 @@
 package com.routy.app.logic.update
 
-/** Kotlin port of src/lib/updateCheck.ts's parseVersion/isNewer — same dotted-integer comparison, ignoring a leading "v". */
+/** Kotlin port of src/lib/updateCheck.ts — dotted integers; strips trailing `a`/`s` on each segment. */
 private fun parseVersion(v: String): List<Int> =
-    v.removePrefix("v").split(".").map { it.toIntOrNull() ?: 0 }
+    v.removePrefix("v")
+        .split(".")
+        .map { part -> part.takeWhile { it.isDigit() }.toIntOrNull() ?: 0 }
 
 fun isNewerVersion(latest: String, current: String): Boolean {
     val a = parseVersion(latest)
