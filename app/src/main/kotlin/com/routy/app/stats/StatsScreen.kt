@@ -33,6 +33,7 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.routy.app.R
 import com.routy.app.RoutyApplication
+import com.routy.app.ui.OfflineBanner
 import com.routy.app.logic.api.GeoPoint
 import com.routy.app.logic.api.WalkLogEntryDto
 import com.routy.app.logic.geo.walkPathPoints
@@ -48,7 +49,7 @@ fun StatsScreen(modifier: Modifier = Modifier) {
     val app = LocalContext.current.applicationContext as RoutyApplication
     val viewModel: StatsViewModel = viewModel(
         factory = viewModelFactory {
-            initializer { StatsViewModel(app.apiClientProvider, app.networkCache, app.applicationContext) }
+            initializer { StatsViewModel(app.apiClientProvider, app.networkCache, app.bootstrapLoader, app.applicationContext) }
         },
     )
     val uiState by viewModel.uiState.collectAsState()
@@ -89,6 +90,9 @@ fun StatsScreen(modifier: Modifier = Modifier) {
             .padding(horizontal = 12.dp, vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
+        if (uiState.offlineCached) {
+            item { OfflineBanner() }
+        }
         item {
             StatsSection(title = stringResource(R.string.stats_your_stats)) {
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {

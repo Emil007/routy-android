@@ -82,6 +82,7 @@ import com.routy.app.logic.route.WaypointProgressTracker
 import com.routy.app.map.BaseMapStyle
 import com.routy.app.map.MapStyleSwitcher
 import com.routy.app.map.RoutyMapView
+import com.routy.app.ui.OfflineBanner
 import java.text.Collator
 
 @Composable
@@ -300,6 +301,9 @@ private fun SuggestingMapLayout(
                         CompactOutlinedButton(onClick = { viewModel.discover() }, enabled = !loading && uiState.startNodeId != null) {
                             Text(stringResource(R.string.route_preset_discover), style = MaterialTheme.typography.labelMedium)
                         }
+                        CompactOutlinedButton(onClick = { viewModel.surprise() }, enabled = !loading && uiState.startNodeId != null) {
+                            Text(stringResource(R.string.route_preset_surprise), style = MaterialTheme.typography.labelMedium)
+                        }
                         CompactOutlinedButton(onClick = onStartRecording) {
                             Text(stringResource(R.string.record_entry_point), style = MaterialTheme.typography.labelMedium)
                         }
@@ -318,17 +322,6 @@ private fun SuggestingMapLayout(
                 }
             }
         }
-    }
-}
-
-@Composable
-private fun OfflineBanner() {
-    Surface(color = MaterialTheme.colorScheme.errorContainer, modifier = Modifier.fillMaxWidth()) {
-        Text(
-            stringResource(R.string.route_offline_cached),
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
-            style = MaterialTheme.typography.labelMedium,
-        )
     }
 }
 

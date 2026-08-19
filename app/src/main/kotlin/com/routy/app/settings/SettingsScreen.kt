@@ -45,6 +45,9 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.routy.app.R
 import com.routy.app.RoutyApplication
+import android.net.Uri
+import androidx.browser.customtabs.CustomTabsIntent
+import com.routy.app.ui.OfflineBanner
 import com.routy.app.logic.api.isCanonical
 import com.routy.app.logic.api.SegmentDto
 import com.routy.app.logic.time.parseServerInstant
@@ -124,6 +127,32 @@ fun SettingsScreen(
         uiState.messageRes?.let { res ->
             item {
                 Text(stringResource(res), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+            }
+        }
+
+        item {
+            if (uiState.offlineCached) {
+                OfflineBanner()
+            }
+        }
+
+        item {
+            SettingsSection(title = stringResource(R.string.settings_account_security_title)) {
+                Text(
+                    stringResource(R.string.settings_account_security_subtitle),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                CompactOutlinedButton(
+                    onClick = {
+                        val base = app.secureStorage.serverUrl?.trimEnd('/') ?: return@CompactOutlinedButton
+                        CustomTabsIntent.Builder().build().launchUrl(activity ?: return@CompactOutlinedButton, Uri.parse("$base/settings"))
+                    },
+                    enabled = !uiState.saving,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(stringResource(R.string.settings_account_security_open), style = MaterialTheme.typography.labelMedium)
+                }
             }
         }
 

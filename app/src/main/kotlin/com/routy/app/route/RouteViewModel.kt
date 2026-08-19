@@ -326,6 +326,11 @@ class RouteViewModel(
         suggest()
     }
 
+    fun surprise() {
+        _uiState.value = _uiState.value.copy(explorerMode = false)
+        suggest(preset = "surprise")
+    }
+
     fun suggest(preset: String? = null) {
         val state = _uiState.value
         val startNodeId = state.startNodeId ?: return

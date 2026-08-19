@@ -20,7 +20,11 @@ import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.FilterChip
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuAnchorType
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -43,7 +47,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.routy.app.R
-import com.routy.app.RoutyApplication
+import com.routy.app.ui.OfflineBanner
 import com.routy.app.logic.api.GeoPoint
 import com.routy.app.logic.api.NodeDto
 import com.routy.app.logic.api.SegmentDto
@@ -133,12 +137,7 @@ fun MapScreen(onStartRecording: () -> Unit, modifier: Modifier = Modifier) {
         )
 
         if (uiState.offlineCached) {
-            AssistChip(
-                onClick = {},
-                enabled = false,
-                label = { Text(stringResource(R.string.map_offline_cached), style = MaterialTheme.typography.labelSmall) },
-                modifier = Modifier.align(Alignment.TopEnd).padding(8.dp),
-            )
+            OfflineBanner(modifier = Modifier.align(Alignment.TopCenter).padding(top = 48.dp))
         }
 
         if (uiState.actionBusy) {
@@ -162,6 +161,9 @@ fun MapScreen(onStartRecording: () -> Unit, modifier: Modifier = Modifier) {
 
             when (uiState.mode) {
                 MapMode.View -> {
+                    if (uiState.proposals.isNotEmpty()) {
+                        ProposalsPanel(uiState, viewModel)
+                    }
                     uiState.selectedNode?.let { MapNodePanel(it, uiState, viewModel) }
                     uiState.selectedSegment?.let { MapSegmentPanel(it, uiState, viewModel) }
                     MapViewToolbar(uiState, onStartRecording, { viewModel.setMode(MapMode.Draw) }, { gpxPicker.launch("*/*") })
@@ -234,10 +236,52 @@ private fun MapNodePanel(node: NodeDto, state: MapUiState, viewModel: MapViewMod
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
+private fun ProposalsPanel(state: MapUiState, viewModel: MapViewModel) {
+    Surface(color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.94f), shape = MaterialTheme.shapes.medium) {
+        Column(Modifier.fillMaxWidth().padding(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text(stringResource(R.string.map_proposals_title, state.proposals.size), style = MaterialTheme.typography.titleSmall)
+            state.proposals.forEach { proposal ->
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        proposal.segmentName ?: stringResource(R.string.map_proposal_segment, proposal.segmentId),
+                        modifier = Modifier.weight(1f),
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                    CompactOutlinedButton({ viewModel.acceptProposal(proposal.id) }) {
+                        Text(stringResource(R.string.map_proposal_accept), style = MaterialTheme.typography.labelSmall)
+                    }
+                    CompactOutlinedButton({ viewModel.dismissProposal(proposal.id) }) {
+                        Text(stringResource(R.string.map_proposal_dismiss), style = MaterialTheme.typography.labelSmall)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
 private fun MapSegmentPanel(segment: SegmentDto, state: MapUiState, viewModel: MapViewModel) {
+    val conditions = viewModel.conditionsForSegment(segment.id)
     Surface(color = MaterialTheme.colorScheme.surface.copy(alpha = 0.94f), shape = MaterialTheme.shapes.medium) {
         Column(Modifier.fillMaxWidth().padding(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text(segment.name ?: "#${segment.id}", style = MaterialTheme.typography.titleSmall)
+            if (conditions.isNotEmpty()) {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    conditions.forEach { c ->
+                        AssistChip(onClick = {}, enabled = false, label = { Text(conditionReasonLabel(c.reason), style = MaterialTheme.typography.labelSmall) })
+                    }
+                }
+            }
+            if (state.reportingCondition) {
+                ConditionReasonPicker(state.conditionReason, viewModel::setConditionReason)
+                CompactButton(viewModel::submitConditionReport) { Text(stringResource(R.string.map_condition_submit)) }
+                CompactOutlinedButton(viewModel::cancelReportCondition) { Text(stringResource(R.string.common_cancel)) }
+            } else {
+                CompactOutlinedButton(viewModel::startReportCondition) {
+                    Text(stringResource(R.string.map_condition_report), style = MaterialTheme.typography.labelMedium)
+                }
+            }
             if (!viewModel.canEditSegment(segment)) return@Column
             if (state.renamingSegment) {
                 OutlinedTextField(state.renameSegmentName, viewModel::updateRenameSegmentName, label = { Text(stringResource(R.string.map_segment_name)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
@@ -368,6 +412,49 @@ private fun EndpointBlock(label: String, candidates: List<NodeCandidate>, decisi
 }
 
 private val CompactPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
+
+private val CONDITION_REASONS = listOf("muddy", "flooded", "construction", "dog", "icy", "overgrown")
+
+@Composable
+private fun conditionReasonLabel(reason: String): String {
+    val res = when (reason) {
+        "muddy" -> R.string.map_condition_muddy
+        "flooded" -> R.string.map_condition_flooded
+        "construction" -> R.string.map_condition_construction
+        "dog" -> R.string.map_condition_dog
+        "icy" -> R.string.map_condition_icy
+        "overgrown" -> R.string.map_condition_overgrown
+        else -> R.string.map_condition_report
+    }
+    return stringResource(res)
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ConditionReasonPicker(selected: String, onSelect: (String) -> Unit) {
+    var expanded by remember { mutableStateOf(false) }
+    ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = it }) {
+        OutlinedTextField(
+            value = conditionReasonLabel(selected),
+            onValueChange = {},
+            readOnly = true,
+            label = { Text(stringResource(R.string.map_condition_reason)) },
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) },
+            modifier = Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
+        )
+        ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            CONDITION_REASONS.forEach { reason ->
+                DropdownMenuItem(
+                    text = { Text(conditionReasonLabel(reason)) },
+                    onClick = {
+                        expanded = false
+                        onSelect(reason)
+                    },
+                )
+            }
+        }
+    }
+}
 
 @Composable
 private fun CompactButton(onClick: () -> Unit, enabled: Boolean = true, content: @Composable RowScope.() -> Unit) {

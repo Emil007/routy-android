@@ -2,7 +2,8 @@ package com.routy.app.stats
 
 import android.content.Context
 import androidx.lifecycle.viewModelScope
-import com.routy.app.core.network.ApiClientProvider
+import com.routy.app.core.BootstrapLoader
+import com.routy.app.core.BootstrapResult
 import com.routy.app.logic.api.AchievementsDto
 import com.routy.app.logic.api.LeaderboardEntryDto
 import com.routy.app.logic.api.PointsLeaderboardEntryDto
@@ -23,6 +24,7 @@ import com.routy.app.logic.api.GeoPoint
 data class StatsUiState(
     val loading: Boolean = true,
     val error: Boolean = false,
+    val offlineCached: Boolean = false,
     val stats: UserStatsDto? = null,
     val streak: StreakStatsDto? = null,
     val achievements: AchievementsDto? = null,
@@ -38,6 +40,7 @@ data class StatsUiState(
 class StatsViewModel(
     private val apiClientProvider: ApiClientProvider,
     private val networkCache: NetworkCache,
+    private val bootstrapLoader: BootstrapLoader,
     private val appContext: Context,
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(StatsUiState())
@@ -52,7 +55,8 @@ class StatsViewModel(
 
     fun refresh() {
         viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(loading = true, error = false)
+            val bootstrapResult = bootstrapLoader.load()
+            val offline = bootstrapResult is BootstrapResult.CachedOnly
             val service = apiClientProvider.service
             try {
                 val meResponse = service.appStatsMe()
@@ -65,6 +69,7 @@ class StatsViewModel(
                     val geometry = cached?.segments?.associate { it.id to it.geometry }.orEmpty()
                     _uiState.value = StatsUiState(
                         loading = false,
+                        offlineCached = offline,
                         stats = body?.stats,
                         streak = body?.streak,
                         achievements = body?.achievements,
@@ -80,10 +85,10 @@ class StatsViewModel(
                     val km = (body?.stats?.totalLengthM ?: 0) / 1000.0
                     WidgetUpdater.apply(appContext, streak, km)
                 } else {
-                    _uiState.value = _uiState.value.copy(loading = false, error = true)
+                    _uiState.value = _uiState.value.copy(loading = false, error = true, offlineCached = offline)
                 }
             } catch (_: IOException) {
-                _uiState.value = _uiState.value.copy(loading = false, error = true)
+                _uiState.value = _uiState.value.copy(loading = false, error = true, offlineCached = offline)
             }
         }
     }
