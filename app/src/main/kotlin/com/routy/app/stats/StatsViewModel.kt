@@ -5,7 +5,9 @@ import androidx.lifecycle.viewModelScope
 import com.routy.app.core.network.ApiClientProvider
 import com.routy.app.logic.api.AchievementsDto
 import com.routy.app.logic.api.LeaderboardEntryDto
+import com.routy.app.logic.api.PointsLeaderboardEntryDto
 import com.routy.app.logic.api.StreakStatsDto
+import com.routy.app.logic.api.UserPointsDto
 import com.routy.app.logic.api.UserStatsDto
 import com.routy.app.logic.api.WalkLogEntryDto
 import java.io.IOException
@@ -22,6 +24,8 @@ data class StatsUiState(
     val achievements: AchievementsDto? = null,
     val recentWalks: List<WalkLogEntryDto> = emptyList(),
     val leaderboard: List<LeaderboardEntryDto> = emptyList(),
+    val pointsLeaderboard: List<PointsLeaderboardEntryDto> = emptyList(),
+    val points: UserPointsDto? = null,
     val currentUserId: Int? = null,
 )
 
@@ -42,6 +46,7 @@ class StatsViewModel(
             try {
                 val meResponse = service.appStatsMe()
                 val boardResponse = runCatching { service.weeklyLeaderboard() }.getOrNull()
+                val pointsBoard = runCatching { service.pointsLeaderboard() }.getOrNull()
                 if (meResponse.isSuccessful) {
                     val body = meResponse.body()
                     _uiState.value = StatsUiState(
@@ -52,6 +57,8 @@ class StatsViewModel(
                         recentWalks = body?.recentWalks.orEmpty(),
                         leaderboard = boardResponse?.takeIf { it.isSuccessful }?.body()?.leaderboard.orEmpty(),
                         currentUserId = boardResponse?.body()?.userId,
+                        points = body?.points,
+                        pointsLeaderboard = pointsBoard?.takeIf { it.isSuccessful }?.body()?.leaderboard.orEmpty(),
                     )
                 } else {
                     _uiState.value = _uiState.value.copy(loading = false, error = true)

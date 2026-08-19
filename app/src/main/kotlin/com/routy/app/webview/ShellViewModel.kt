@@ -1,5 +1,7 @@
 package com.routy.app.webview
 
+import androidx.appcompat.app.AppCompatDelegate
+import androidx.core.os.LocaleListCompat
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.routy.app.core.network.ApiClientProvider
@@ -43,6 +45,9 @@ class ShellViewModel(
 
             if (response.isSuccessful) {
                 val body = response.body()
+                body?.user?.locale?.let { locale ->
+                    AppCompatDelegate.setApplicationLocales(LocaleListCompat.forLanguageTags(locale))
+                }
                 _uiState.value = _uiState.value.copy(user = body?.user, checkedSession = true)
             } else if (response.code() == 401) {
                 secureStorage.clearToken()

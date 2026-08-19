@@ -22,6 +22,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -129,11 +130,13 @@ fun RoutyShellScreen(onSignedOut: () -> Unit, onStartRecording: () -> Unit) {
             } else if (currentTab.path == "stats") {
                 StatsScreen(modifier = Modifier.weight(1f))
             } else {
-                RoutyWebView(
-                    url = "$baseUrl/${currentTab.path}",
-                    onNavigateToLogin = { viewModel.signOut() },
-                    modifier = Modifier.weight(1f),
-                )
+                key(currentTab.path) {
+                    RoutyWebView(
+                        url = "$baseUrl/${currentTab.path}",
+                        onNavigateToLogin = { viewModel.signOut() },
+                        modifier = Modifier.weight(1f),
+                    )
+                }
             }
         }
     }

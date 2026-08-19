@@ -59,16 +59,37 @@ data class SpecialAchievementDto(
 )
 
 @Serializable
+data class UserPointsDto(
+    val totalPoints: Int,
+    val weeklyPoints: Int,
+    val streakMultiplier: Double,
+)
+
+@Serializable
+data class PointsLeaderboardEntryDto(
+    val userId: Int,
+    val displayName: String,
+    val totalPoints: Int,
+)
+
+@Serializable
 data class AppStatsMeResponse(
     val stats: UserStatsDto,
     val streak: StreakStatsDto,
     val achievements: AchievementsDto,
     val recentWalks: List<WalkLogEntryDto>,
+    val points: UserPointsDto? = null,
 )
 
 @Serializable
 data class WeeklyLeaderboardResponse(
     val userId: Int,
     val leaderboard: List<LeaderboardEntryDto>,
+)
+
+@Serializable
+data class PointsLeaderboardResponse(
+    val userId: Int,
+    val leaderboard: List<PointsLeaderboardEntryDto>,
 )
 

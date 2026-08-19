@@ -5,15 +5,25 @@ import android.annotation.SuppressLint
 import android.content.ClipData
 import android.content.pm.PackageManager
 import android.os.Looper
+import android.view.WindowManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
@@ -25,9 +35,13 @@ import androidx.compose.material3.ExposedDropdownMenuAnchorType
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -38,6 +52,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.ClipEntry
 import androidx.compose.ui.platform.LocalClipboard
@@ -45,8 +60,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
@@ -57,12 +70,14 @@ import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
 import com.routy.app.R
 import com.routy.app.RoutyApplication
+import com.routy.app.core.DeepLinkHolder
 import com.routy.app.logic.api.FavoriteEntry
 import com.routy.app.logic.api.GeoPoint
 import com.routy.app.logic.api.NodeDto
 import com.routy.app.logic.geo.LatLng
 import com.routy.app.logic.route.VoiceCue
 import com.routy.app.logic.route.VoiceCueTracker
+import com.routy.app.logic.route.WaypointProgressTracker
 import com.routy.app.map.BaseMapStyle
 import com.routy.app.map.MapStyleSwitcher
 import com.routy.app.map.RoutyMapView
@@ -71,196 +86,143 @@ import java.text.Collator
 @Composable
 fun RouteScreen(onStartRecording: () -> Unit, accountLocaleTag: String, modifier: Modifier = Modifier) {
     val app = LocalContext.current.applicationContext as RoutyApplication
+    val activity = LocalContext.current as? android.app.Activity
     val baseUrl = app.secureStorage.serverUrl.orEmpty()
     val viewModel: RouteViewModel = viewModel(
         factory = viewModelFactory {
-            initializer { RouteViewModel(app.apiClientProvider, baseUrl) }
+            initializer {
+                RouteViewModel(app.apiClientProvider, baseUrl, app.routeProgressStore, app.networkCache)
+            }
         },
     )
     val uiState by viewModel.uiState.collectAsState()
     val clipboard = LocalClipboard.current
+    var pendingShareToken by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(Unit) {
+        DeepLinkHolder.shareToken.collect { token ->
+            if (token != null) pendingShareToken = token
+        }
+    }
 
     LaunchedEffect(uiState.pendingShareUrl) {
         val url = uiState.pendingShareUrl ?: return@LaunchedEffect
-        // setClipEntry is suspend (LocalClipboard's replacement for the deprecated
-        // LocalClipboardManager.setText) — fine to call directly, already inside LaunchedEffect.
         clipboard.setClipEntry(ClipEntry(ClipData.newPlainText("Route link", url)))
         viewModel.clearPendingShareUrl()
     }
 
+    DisposableEffect(uiState.keepScreenOn, uiState.tracking) {
+        if (uiState.keepScreenOn && uiState.tracking) {
+            activity?.window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        } else {
+            activity?.window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        }
+        onDispose { activity?.window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) }
+    }
+
     if (uiState.loadingInitial) {
-        Column(modifier = modifier.fillMaxWidth().padding(24.dp), horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally) {
-            CircularProgressIndicator()
+        Box(modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
+        return
+    }
+
+    val route = uiState.route
+    if (route == null) {
+        Column(
+            modifier = modifier.fillMaxSize().padding(12.dp).verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            if (uiState.offlineCached) OfflineBanner()
+            if (uiState.mode == RouteMode.SUGGESTING && uiState.favorites.isNotEmpty()) {
+                FavoritesCard(uiState.favorites, uiState.status == RouteStatus.LOADING, viewModel)
+            }
+            SuggestForm(uiState, viewModel)
+            OutlinedButton(onClick = onStartRecording, modifier = Modifier.fillMaxWidth()) {
+                Text(stringResource(R.string.record_entry_point))
+            }
+            uiState.messageRes?.let { Text(stringResource(it), color = MaterialTheme.colorScheme.primary) }
         }
         return
     }
 
-    LazyColumn(modifier = modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        if (uiState.mode == RouteMode.SUGGESTING && uiState.favorites.isNotEmpty()) {
-            item { FavoritesCard(uiState.favorites, uiState.status == RouteStatus.LOADING, viewModel) }
+    Box(modifier = modifier.fillMaxSize()) {
+        var mapStyle by remember { mutableStateOf(BaseMapStyle.STREETS) }
+        RoutyMapView(
+            style = mapStyle,
+            nodes = uiState.nodes,
+            segments = uiState.segments,
+            routeGeometry = route.geometry,
+            stations = route.stations,
+            myLocation = uiState.myLocation,
+            fitKey = uiState.token.ifEmpty { route.nodeChain.joinToString("-") },
+            modifier = Modifier.fillMaxSize(),
+        )
+
+        if (uiState.showControls) {
+            Column(
+                modifier = Modifier.align(Alignment.TopStart).padding(8.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                if (uiState.offlineCached) OfflineBanner()
+                MapStyleSwitcher(selected = mapStyle, onSelect = { mapStyle = it })
+            }
         }
 
-        if (uiState.mode == RouteMode.SUGGESTING) {
-            item { SuggestForm(uiState, viewModel) }
-            item {
-                OutlinedButton(onClick = onStartRecording, modifier = Modifier.fillMaxWidth()) {
-                    Text(stringResource(R.string.record_entry_point))
+        IconButton(
+            onClick = viewModel::toggleControls,
+            modifier = Modifier.align(Alignment.TopEnd).padding(4.dp).background(MaterialTheme.colorScheme.surface.copy(alpha = 0.9f)),
+        ) {
+            Icon(Icons.Filled.Menu, contentDescription = null)
+        }
+
+        if (uiState.showControls) {
+            RouteOverlayPanel(
+                uiState = uiState,
+                route = route,
+                viewModel = viewModel,
+                accountLocaleTag = accountLocaleTag,
+                pendingShareToken = pendingShareToken,
+                onShareAccepted = { pendingShareToken = null },
+                modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth(),
+            )
+        }
+    }
+
+    uiState.completionStats?.let { stats ->
+        AlertDialog(
+            onDismissRequest = viewModel::dismissCompletionStats,
+            confirmButton = { TextButton(onClick = viewModel::dismissCompletionStats) { Text(stringResource(R.string.common_ok)) } },
+            title = { Text(stringResource(R.string.route_completion_title)) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    stats.points?.let { Text(stringResource(R.string.route_completion_points, it.totalPoints, it.streakMultiplier)) }
+                    Text(stringResource(R.string.route_completion_streak, stats.streak.currentStreak))
                 }
-            }
-        }
-
-        if (uiState.mode == RouteMode.ACTIVE) {
-            item {
-                Card(modifier = Modifier.fillMaxWidth()) {
-                    Text(
-                        stringResource(R.string.route_active_notice),
-                        modifier = Modifier.padding(12.dp),
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
-                }
-            }
-            item {
-                Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(
-                        value = uiState.nickname,
-                        onValueChange = viewModel::setNickname,
-                        placeholder = { Text(stringResource(R.string.route_nickname_placeholder)) },
-                        singleLine = true,
-                        modifier = Modifier.weight(1f),
-                    )
-                    TextButton(onClick = viewModel::saveNickname, enabled = !uiState.nicknameSaving) {
-                        Text(stringResource(R.string.common_save))
-                    }
-                }
-            }
-        }
-
-        uiState.messageRes?.let { res ->
-            item { Text(stringResource(res), color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.bodyMedium) }
-        }
-
-        uiState.route?.let { route ->
-            item {
-                RouteResultCard(
-                    uiState = uiState,
-                    route = route,
-                    nodes = uiState.nodes,
-                    viewModel = viewModel,
-                    accountLocaleTag = accountLocaleTag,
-                )
-            }
-        }
+            },
+        )
     }
 }
 
 @Composable
-private fun FavoritesCard(favorites: List<FavoriteEntry>, loading: Boolean, viewModel: RouteViewModel) {
-    var pendingDelete by remember { mutableStateOf<FavoriteEntry?>(null) }
-
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(stringResource(R.string.route_favorites_title), style = MaterialTheme.typography.titleSmall)
-            favorites.forEach { fav ->
-                Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text(
-                        "${fav.name} — ${"%.2f".format(fav.display.lengthM / 1000.0)} ${stringResource(R.string.common_km)}",
-                        modifier = Modifier.weight(1f),
-                        style = MaterialTheme.typography.bodySmall,
-                    )
-                    TextButton(onClick = { viewModel.takeFavorite(fav) }, enabled = !loading) {
-                        Text(stringResource(R.string.route_favorite_take))
-                    }
-                    TextButton(onClick = { viewModel.toggleShare(fav) }) {
-                        Text(stringResource(if (fav.shareToken != null) R.string.route_favorite_unshare else R.string.route_favorite_share))
-                    }
-                    TextButton(onClick = { pendingDelete = fav }) {
-                        Text(stringResource(R.string.route_favorite_delete))
-                    }
-                }
-            }
-        }
-    }
-
-    pendingDelete?.let { fav ->
-        AlertDialog(
-            onDismissRequest = { pendingDelete = null },
-            confirmButton = {
-                TextButton(onClick = { viewModel.deleteFavorite(fav.id); pendingDelete = null }) { Text(stringResource(R.string.route_favorite_delete)) }
-            },
-            dismissButton = { TextButton(onClick = { pendingDelete = null }) { Text(stringResource(R.string.route_cancel)) } },
-            text = { Text(stringResource(R.string.route_favorite_delete_confirm)) },
+private fun OfflineBanner() {
+    Surface(color = MaterialTheme.colorScheme.errorContainer, modifier = Modifier.fillMaxWidth()) {
+        Text(
+            stringResource(R.string.route_offline_cached),
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+            style = MaterialTheme.typography.labelMedium,
         )
     }
 }
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun SuggestForm(uiState: RouteUiState, viewModel: RouteViewModel) {
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            NodeDropdown(
-                label = stringResource(R.string.route_start),
-                nodes = uiState.nodes,
-                selectedId = uiState.startNodeId,
-                onSelect = viewModel::setStartNodeId,
-            )
-
-            Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                Checkbox(checked = uiState.isLoop, onCheckedChange = viewModel::setIsLoop)
-                Text(stringResource(R.string.route_loop))
-            }
-
-            if (!uiState.isLoop) {
-                NodeDropdown(
-                    label = stringResource(R.string.route_destination),
-                    nodes = uiState.nodes,
-                    selectedId = uiState.destinationNodeId,
-                    onSelect = viewModel::setDestinationNodeId,
-                )
-            }
-
-            NodeDropdown(
-                label = "${stringResource(R.string.route_waypoint)} (${stringResource(R.string.common_optional)})",
-                nodes = uiState.nodes,
-                selectedId = uiState.waypointNodeId,
-                onSelect = viewModel::setWaypointNodeId,
-                noneLabel = stringResource(R.string.route_waypoint_none),
-            )
-
-            Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                Checkbox(checked = uiState.explorerMode, onCheckedChange = viewModel::setExplorerMode)
-                Text(stringResource(R.string.route_explorer_mode))
-            }
-            Text(
-                stringResource(R.string.route_explorer_mode_hint),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-
-            val loading = uiState.status == RouteStatus.LOADING
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = { viewModel.suggest() }, enabled = !loading && uiState.startNodeId != null) {
-                    Text(stringResource(if (loading) R.string.route_generating else R.string.route_suggest))
-                }
-                OutlinedButton(onClick = { viewModel.suggest("short") }, enabled = !loading && uiState.startNodeId != null) {
-                    Text(stringResource(R.string.route_preset_short))
-                }
-                OutlinedButton(onClick = { viewModel.suggest("long") }, enabled = !loading && uiState.startNodeId != null) {
-                    Text(stringResource(R.string.route_preset_long))
-                }
-            }
-        }
-    }
-}
-
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
-private fun RouteResultCard(
+private fun RouteOverlayPanel(
     uiState: RouteUiState,
     route: com.routy.app.logic.api.RouteDisplayPayload,
-    nodes: List<NodeDto>,
     viewModel: RouteViewModel,
     accountLocaleTag: String,
+    pendingShareToken: String?,
+    onShareAccepted: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
     var hasLocationPermission by remember {
@@ -271,10 +233,102 @@ private fun RouteResultCard(
         if (granted) viewModel.setWatchingLocation(true)
     }
 
+    ActiveRouteLocationEffect(uiState, hasLocationPermission, viewModel)
+
+    if (uiState.mode == RouteMode.ACTIVE) {
+        ActiveTrackingEffects(uiState, route, viewModel, accountLocaleTag)
+    }
+
+    Card(modifier = modifier.padding(8.dp)) {
+        Column(modifier = Modifier.padding(10.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                AssistChip(onClick = {}, label = { Text("${"%.2f".format(route.lengthM / 1000.0)} km") })
+                AssistChip(onClick = {}, label = { Text("${route.durationMin} min") })
+                route.elevation?.let { AssistChip(onClick = {}, label = { Text("↗${it.gainM}m") }) }
+            }
+
+            pendingShareToken?.let { token ->
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(uiState.sharedRouteName ?: stringResource(R.string.route_share_preview), modifier = Modifier.weight(1f))
+                    Button(onClick = { viewModel.acceptSharedRoute(token); onShareAccepted() }) {
+                        Text(stringResource(R.string.route_accept))
+                    }
+                }
+            }
+
+            if (uiState.mode == RouteMode.ACTIVE && uiState.tracking) {
+                TrackProgressSection(uiState, route)
+            }
+
+            if (uiState.mode == RouteMode.SUGGESTING) {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    OutlinedButton(onClick = { viewModel.adjust("shorter") }) { Text(stringResource(R.string.route_shorter)) }
+                    OutlinedButton(onClick = { viewModel.adjust("longer") }) { Text(stringResource(R.string.route_longer)) }
+                    OutlinedButton(onClick = viewModel::another) { Text(stringResource(R.string.route_new_route)) }
+                    Button(onClick = viewModel::accept) { Text(stringResource(R.string.route_accept)) }
+                }
+            } else {
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                    OutlinedButton(onClick = {
+                        if (uiState.watchingLocation) viewModel.setWatchingLocation(false)
+                        else if (hasLocationPermission) viewModel.setWatchingLocation(true)
+                        else permissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+                    }) {
+                        Text(stringResource(if (uiState.watchingLocation) R.string.route_hide_location else R.string.route_show_location))
+                    }
+                    if (uiState.watchingLocation) {
+                        FilledTonalButton(onClick = { viewModel.setTracking(!uiState.tracking) }) {
+                            Text(stringResource(if (uiState.tracking) R.string.route_tracking_on else R.string.route_track))
+                        }
+                    }
+                    val canComplete = !uiState.tracking || uiState.completedWaypointIndex >= route.stations.lastIndex
+                    Button(onClick = viewModel::complete, enabled = canComplete) {
+                        Text(stringResource(R.string.route_complete_button))
+                    }
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(checked = uiState.voiceEnabled, onCheckedChange = viewModel::setVoiceEnabled)
+                    Text(stringResource(R.string.route_voice_on), style = MaterialTheme.typography.bodySmall)
+                    Checkbox(checked = uiState.keepScreenOn, onCheckedChange = viewModel::setKeepScreenOn)
+                    Text(stringResource(R.string.route_keep_screen_on), style = MaterialTheme.typography.bodySmall)
+                }
+            }
+
+            uiState.messageRes?.let { Text(stringResource(it), color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.bodySmall) }
+        }
+    }
+}
+
+@Composable
+private fun TrackProgressSection(uiState: RouteUiState, route: com.routy.app.logic.api.RouteDisplayPayload) {
+    val nextIdx = (uiState.completedWaypointIndex + 1).coerceAtMost(route.stations.lastIndex)
+    val next = route.stations.getOrNull(nextIdx)
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(
+            stringResource(R.string.route_track_progress, uiState.completedWaypointIndex + 1, route.stations.size),
+            style = MaterialTheme.typography.titleSmall,
+        )
+        next?.let {
+            Text(stringResource(R.string.route_next_waypoint, it.name ?: "#${it.nodeId}"), style = MaterialTheme.typography.bodyMedium)
+        }
+        if (uiState.completedWaypointIndex >= 0) {
+            LazyColumn(modifier = Modifier.fillMaxWidth().padding(top = 2.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                itemsIndexed(route.stations.take(uiState.completedWaypointIndex + 1).reversed().take(3)) { _, station ->
+                    Text("✓ ${station.name ?: "#${station.nodeId}"}", style = MaterialTheme.typography.bodySmall)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ActiveRouteLocationEffect(uiState: RouteUiState, hasLocationPermission: Boolean, viewModel: RouteViewModel) {
+    val context = LocalContext.current
     DisposableEffect(uiState.watchingLocation, hasLocationPermission) {
         if (!uiState.watchingLocation || !hasLocationPermission) return@DisposableEffect onDispose {}
         val client = LocationServices.getFusedLocationProviderClient(context)
-        val request = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 5000L).build()
+        val interval = if (uiState.tracking) 3000L else 5000L
+        val request = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, interval).build()
         val callback = object : LocationCallback() {
             override fun onLocationResult(result: LocationResult) {
                 result.lastLocation?.let { viewModel.setMyLocation(GeoPoint(it.latitude, it.longitude)) }
@@ -283,156 +337,110 @@ private fun RouteResultCard(
         requestLocationUpdatesIfPermitted(context, client, request, callback)
         onDispose { client.removeLocationUpdates(callback) }
     }
+}
 
-    var showDiscardConfirm by remember { mutableStateOf(false) }
-    val loading = uiState.status == RouteStatus.LOADING
+@Composable
+private fun ActiveTrackingEffects(
+    uiState: RouteUiState,
+    route: com.routy.app.logic.api.RouteDisplayPayload,
+    viewModel: RouteViewModel,
+    accountLocaleTag: String,
+) {
+    val context = LocalContext.current
+    val voiceController = rememberVoiceGuidanceController(accountLocaleTag)
+    val cueController = remember(context) { TrackCueController(context) }
+    DisposableEffect(Unit) { onDispose { cueController.release() } }
 
-    if (uiState.mode == RouteMode.ACTIVE) {
-        val voiceController = rememberVoiceGuidanceController(accountLocaleTag)
-        // Keyed on the route's own node chain, not on mode/voiceEnabled — a fresh tracker per
-        // accepted route, same as RouteGenerator.tsx resetting announcedStationIndexRef on
-        // accept/takeFavorite, so switching voice on/off mid-walk never skips or repeats a cue.
-        val tracker = remember(route.nodeChain) { VoiceCueTracker(route.stations) }
-        var pendingCue by remember(route.nodeChain) { mutableStateOf<VoiceCue?>(null) }
-        val location = uiState.myLocation
-        val voiceActive = uiState.voiceEnabled && uiState.watchingLocation
+    val voiceTracker = remember(route.nodeChain) { VoiceCueTracker(route.stations) }
+    val progressTracker = remember(route.nodeChain) {
+        WaypointProgressTracker(route.stations).also { it.restore(uiState.completedWaypointIndex) }
+    }
+    var pendingCue by remember(route.nodeChain) { mutableStateOf<VoiceCue?>(null) }
 
-        // tracker.onLocationUpdate() mutates the tracker's internal index — it must run exactly
-        // once per genuinely new location fix, never as a side effect of an unrelated
-        // recomposition, so it's isolated inside LaunchedEffect rather than called from the
-        // composable body directly.
-        LaunchedEffect(location, voiceActive) {
-            if (!voiceActive || location == null) return@LaunchedEffect
-            tracker.onLocationUpdate(LatLng(location.lat, location.lng))?.let { pendingCue = it }
-        }
+    LaunchedEffect(uiState.completedWaypointIndex, route.nodeChain) {
+        progressTracker.restore(uiState.completedWaypointIndex)
+    }
 
-        // toSpokenText() needs stringResource(), so it has to run here in the composable body —
-        // the actual speak() call (a suspend/side-effecting call, not composable) happens in its
-        // own LaunchedEffect once the text is resolved.
-        pendingCue?.let { cue ->
-            val spokenText = cue.toSpokenText()
-            LaunchedEffect(cue) {
-                voiceController.speak(spokenText)
-                pendingCue = null
+    val location = uiState.myLocation
+    val voiceActive = uiState.voiceEnabled && uiState.watchingLocation
+    LaunchedEffect(location, voiceActive, uiState.tracking) {
+        if (location == null) return@LaunchedEffect
+        val latLng = LatLng(location.lat, location.lng)
+        if (voiceActive) voiceTracker.onLocationUpdate(latLng)?.let { pendingCue = it }
+        if (uiState.tracking) {
+            progressTracker.onLocationUpdate(latLng)?.let { completed ->
+                if (completed > uiState.completedWaypointIndex) {
+                    viewModel.onWaypointCompleted(completed)
+                    cueController.waypointReached()
+                }
             }
         }
     }
 
-    var mapStyle by remember { mutableStateOf(BaseMapStyle.STREETS) }
+    pendingCue?.let { cue ->
+        val spokenText = cue.toSpokenText()
+        LaunchedEffect(cue) {
+            voiceController.speak(spokenText)
+            pendingCue = null
+        }
+    }
+}
 
+@Composable
+private fun FavoritesCard(favorites: List<FavoriteEntry>, loading: Boolean, viewModel: RouteViewModel) {
+    var pendingDelete by remember { mutableStateOf<FavoriteEntry?>(null) }
     Card(modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            MapStyleSwitcher(selected = mapStyle, onSelect = { mapStyle = it })
-            RoutyMapView(
-                style = mapStyle,
-                nodes = nodes,
-                segments = uiState.segments,
-                routeGeometry = route.geometry,
-                stations = route.stations,
-                myLocation = uiState.myLocation,
-                fitKey = uiState.token.ifEmpty { route.nodeChain.joinToString("-") },
-                modifier = Modifier.fillMaxWidth().height(280.dp),
-            )
-
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                AssistChip(onClick = {}, label = {
-                    Text("${stringResource(R.string.route_distance_label)}: ${"%.2f".format(route.lengthM / 1000.0)} ${stringResource(R.string.common_km)}")
-                })
-                AssistChip(onClick = {}, label = {
-                    Text("${stringResource(R.string.route_duration_label)}: ${route.durationMin} ${stringResource(R.string.common_min)}")
-                })
-                route.elevation?.let { elevation ->
-                    AssistChip(onClick = {}, label = { Text("↗ ${stringResource(R.string.route_elevation_gain, elevation.gainM)}") })
-                    AssistChip(onClick = {}, label = { Text("↘ ${stringResource(R.string.route_elevation_loss, elevation.lossM)}") })
-                }
-            }
-
-            Column {
-                Text(
-                    stringResource(R.string.route_station_list),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                // Built with buildString/forEachIndexed (both genuinely inline in the stdlib,
-                // unlike joinToString's *transform* parameter — which is non-inline because it's
-                // nullable) so stringResource() below stays in a valid @Composable context once
-                // inlined, and viaSegmentName gets a local val since a nullable val from another
-                // module (:logic's RouteDisplayPayload) can't be smart-cast across the boundary.
-                val stationText = buildString {
-                    route.shortStationGroups.forEachIndexed { index, group ->
-                        if (index > 0) append(" › ")
-                        val viaSegmentName = group.viaSegmentName
-                        if (viaSegmentName != null) {
-                            append(group.text)
-                            append(" (")
-                            append(stringResource(R.string.route_via, viaSegmentName))
-                            append(")")
-                        } else {
-                            append(group.text)
-                        }
+        Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text(stringResource(R.string.route_favorites_title), style = MaterialTheme.typography.titleSmall)
+            favorites.forEach { fav ->
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("${fav.name} — ${"%.2f".format(fav.display.lengthM / 1000.0)} km", modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
+                    TextButton(onClick = { viewModel.takeFavorite(fav) }, enabled = !loading) { Text(stringResource(R.string.route_favorite_take)) }
+                    TextButton(onClick = { viewModel.toggleShare(fav) }) {
+                        Text(stringResource(if (fav.shareToken != null) R.string.route_favorite_unshare else R.string.route_favorite_share))
                     }
+                    TextButton(onClick = { pendingDelete = fav }) { Text(stringResource(R.string.route_favorite_delete)) }
                 }
-                Text(stationText, style = MaterialTheme.typography.bodyMedium)
-            }
-
-            if (uiState.mode == RouteMode.SUGGESTING) {
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(onClick = { viewModel.adjust("shorter") }, enabled = !loading) { Text(stringResource(R.string.route_shorter)) }
-                    OutlinedButton(onClick = { viewModel.adjust("longer") }, enabled = !loading) { Text(stringResource(R.string.route_longer)) }
-                    OutlinedButton(onClick = viewModel::another, enabled = !loading) { Text(stringResource(R.string.route_new_route)) }
-                    Button(onClick = viewModel::accept, enabled = !loading) { Text(stringResource(R.string.route_accept)) }
-                    OutlinedButton(onClick = viewModel::cancel, enabled = !loading) { Text(stringResource(R.string.route_cancel)) }
-                }
-                Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(
-                        value = uiState.favoriteNameInput,
-                        onValueChange = viewModel::setFavoriteNameInput,
-                        placeholder = { Text(stringResource(R.string.route_favorite_name_placeholder)) },
-                        singleLine = true,
-                        modifier = Modifier.weight(1f),
-                    )
-                    TextButton(
-                        onClick = viewModel::saveFavorite,
-                        enabled = !uiState.savingFavorite && uiState.favoriteNameInput.isNotBlank(),
-                    ) { Text(stringResource(R.string.route_save_favorite)) }
-                }
-            } else {
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(onClick = {
-                        if (uiState.watchingLocation) {
-                            viewModel.setWatchingLocation(false)
-                        } else if (hasLocationPermission) {
-                            viewModel.setWatchingLocation(true)
-                        } else {
-                            permissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
-                        }
-                    }) {
-                        Text(stringResource(if (uiState.watchingLocation) R.string.route_hide_location else R.string.route_show_location))
-                    }
-                    OutlinedButton(onClick = { viewModel.setVoiceEnabled(!uiState.voiceEnabled) }) {
-                        Text(stringResource(if (uiState.voiceEnabled) R.string.route_voice_off else R.string.route_voice_on))
-                    }
-                    Button(onClick = viewModel::complete, enabled = !loading) { Text(stringResource(R.string.route_complete_button)) }
-                    OutlinedButton(onClick = { showDiscardConfirm = true }, enabled = !loading) { Text(stringResource(R.string.route_discard_button)) }
-                }
-                Text(
-                    stringResource(R.string.route_voice_hint),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
             }
         }
     }
-
-    if (showDiscardConfirm) {
+    pendingDelete?.let { fav ->
         AlertDialog(
-            onDismissRequest = { showDiscardConfirm = false },
-            confirmButton = {
-                TextButton(onClick = { viewModel.discardActive(); showDiscardConfirm = false }) { Text(stringResource(R.string.route_discard_button)) }
-            },
-            dismissButton = { TextButton(onClick = { showDiscardConfirm = false }) { Text(stringResource(R.string.route_cancel)) } },
-            text = { Text(stringResource(R.string.route_discard_confirm)) },
+            onDismissRequest = { pendingDelete = null },
+            confirmButton = { TextButton(onClick = { viewModel.deleteFavorite(fav.id); pendingDelete = null }) { Text(stringResource(R.string.route_favorite_delete)) } },
+            dismissButton = { TextButton(onClick = { pendingDelete = null }) { Text(stringResource(R.string.route_cancel)) } },
+            text = { Text(stringResource(R.string.route_favorite_delete_confirm)) },
         )
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
+@Composable
+private fun SuggestForm(uiState: RouteUiState, viewModel: RouteViewModel) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            NodeDropdown(stringResource(R.string.route_start), uiState.nodes, uiState.startNodeId, viewModel::setStartNodeId)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Checkbox(checked = uiState.isLoop, onCheckedChange = viewModel::setIsLoop)
+                Text(stringResource(R.string.route_loop))
+            }
+            if (!uiState.isLoop) {
+                NodeDropdown(stringResource(R.string.route_destination), uiState.nodes, uiState.destinationNodeId, viewModel::setDestinationNodeId)
+            }
+            NodeDropdown("${stringResource(R.string.route_waypoint)} (${stringResource(R.string.common_optional)})", uiState.nodes, uiState.waypointNodeId, viewModel::setWaypointNodeId, stringResource(R.string.route_waypoint_none))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Checkbox(checked = uiState.explorerMode, onCheckedChange = viewModel::setExplorerMode)
+                Text(stringResource(R.string.route_explorer_mode))
+            }
+            val loading = uiState.status == RouteStatus.LOADING
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Button(onClick = { viewModel.suggest() }, enabled = !loading && uiState.startNodeId != null) {
+                    Text(stringResource(if (loading) R.string.route_generating else R.string.route_suggest))
+                }
+                OutlinedButton(onClick = { viewModel.suggest("short") }, enabled = !loading) { Text(stringResource(R.string.route_preset_short)) }
+                OutlinedButton(onClick = { viewModel.suggest("long") }, enabled = !loading) { Text(stringResource(R.string.route_preset_long)) }
+            }
+        }
     }
 }
 
@@ -470,11 +478,6 @@ private fun NodeDropdown(
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
             modifier = Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
         )
-        // No import needed (and none exists — deliberately removed above): in the current stable
-        // Material3 (1.4.0), ExposedDropdownMenu is a *member* of ExposedDropdownMenuBoxScope,
-        // resolved automatically since this is inside ExposedDropdownMenuBox's trailing lambda.
-        // It only became a top-level-importable extension function in 1.5.0-alpha26 — a real
-        // top-level import (as this file originally had) is Unresolved reference against 1.4.0.
         ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
             sorted.forEach { node ->
                 DropdownMenuItem(text = { Text(node.name ?: "#${node.id}") }, onClick = { onSelect(node.id); expanded = false })

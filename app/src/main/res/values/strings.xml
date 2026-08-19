@@ -49,6 +49,21 @@
     <string name="common_km">km</string>
     <string name="common_min">Min.</string>
     <string name="common_error">Etwas ist schiefgelaufen.</string>
+    <string name="common_ok">OK</string>
+
+    <string name="route_offline_cached">Offline — zwischengespeicherte Netzwerkdaten</string>
+    <string name="route_track">Track</string>
+    <string name="route_tracking_on">Tracking an</string>
+    <string name="route_keep_screen_on">Bildschirm an</string>
+    <string name="route_track_progress">Fortschritt %1$d / %2$d</string>
+    <string name="route_next_waypoint">Nächste Station: %1$s</string>
+    <string name="route_share_preview">Geteilte Route</string>
+    <string name="route_share_not_found">Geteilte Route nicht gefunden.</string>
+    <string name="route_completion_title">Route abgeschlossen</string>
+    <string name="route_completion_points">+%1$d Punkte (×%2$.1f Serie)</string>
+    <string name="route_completion_streak">Aktuelle Serie: %1$d Tage</string>
+    <string name="stats_points">Punkte</string>
+    <string name="stats_points_leaderboard">Punkte-Rangliste</string>
 
     <string name="route_active_notice">Du hast eine aktive Route. Bestätige sie als gegangen, oder verwirf sie, um eine neue vorzuschlagen.</string>
     <string name="route_nickname_placeholder">Name für diesen Spaziergang (optional)</string>

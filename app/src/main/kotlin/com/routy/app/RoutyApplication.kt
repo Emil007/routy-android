@@ -11,11 +11,20 @@ class RoutyApplication : Application() {
         private set
     lateinit var apiClientProvider: ApiClientProvider
         private set
+    lateinit var routeProgressStore: com.routy.app.core.storage.RouteProgressStore
+        private set
+    lateinit var networkCache: com.routy.app.core.storage.NetworkCache
+        private set
+    lateinit var recordingSnapshotStore: com.routy.app.core.storage.RecordingSnapshotStore
+        private set
 
     override fun onCreate() {
         super.onCreate()
         secureStorage = SecureStorage(this)
         apiClientProvider = ApiClientProvider(secureStorage)
+        routeProgressStore = com.routy.app.core.storage.RouteProgressStore(this)
+        networkCache = com.routy.app.core.storage.NetworkCache(this)
+        recordingSnapshotStore = com.routy.app.core.storage.RecordingSnapshotStore(this)
         // Must run once before any MapView is created (native Route screen, M3) — mirrors the
         // MapLibre.getInstance(this) call every getting-started guide puts in Activity.onCreate,
         // just hoisted here so it's guaranteed to happen exactly once regardless of which screen

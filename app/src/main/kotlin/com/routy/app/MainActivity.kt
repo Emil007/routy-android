@@ -1,5 +1,7 @@
 package com.routy.app
 
+import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -13,6 +15,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.routy.app.auth.LoginScreen
+import com.routy.app.core.DeepLinkHolder
 import com.routy.app.onboarding.OnboardingScreen
 import com.routy.app.recording.RecordingScreen
 import com.routy.app.ui.theme.RoutyTheme
@@ -29,6 +32,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        handleDeepLink(intent)
 
         val app = application as RoutyApplication
         val startDestination = when {
@@ -44,6 +48,25 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleDeepLink(intent)
+    }
+
+    private fun handleDeepLink(intent: Intent?) {
+        val uri = intent?.data ?: return
+        extractShareToken(uri)?.let { DeepLinkHolder.setShareToken(it) }
+    }
+
+    private fun extractShareToken(uri: Uri): String? {
+        if (uri.scheme == "routy" && uri.host == "share") {
+            return uri.path?.trim('/')?.takeIf { it.isNotBlank() }
+        }
+        val match = Regex("/share/([a-f0-9]+)").find(uri.path.orEmpty()) ?: return null
+        return match.groupValues[1]
     }
 }
 

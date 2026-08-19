@@ -90,6 +90,23 @@ fun StatsScreen(modifier: Modifier = Modifier) {
                         StatChip("${stringResource(R.string.stats_streak_current)}: ${streak.currentStreak}")
                         StatChip("${stringResource(R.string.stats_streak_longest)}: ${streak.longestStreak}")
                     }
+                    uiState.points?.let { points ->
+                        StatChip("${stringResource(R.string.stats_points)}: ${points.totalPoints}")
+                    }
+                }
+            }
+        }
+
+        if (uiState.pointsLeaderboard.isNotEmpty()) {
+            item {
+                StatsSection(title = stringResource(R.string.stats_points_leaderboard)) {
+                    uiState.pointsLeaderboard.forEachIndexed { index, entry ->
+                        Text(
+                            text = "${index + 1}. ${entry.displayName} — ${entry.totalPoints}",
+                            style = MaterialTheme.typography.bodyMedium,
+                            modifier = Modifier.padding(vertical = 2.dp),
+                        )
+                    }
                 }
             }
         }

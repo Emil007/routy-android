@@ -49,6 +49,21 @@
     <string name="common_km">km</string>
     <string name="common_min">min</string>
     <string name="common_error">Something went wrong.</string>
+    <string name="common_ok">OK</string>
+
+    <string name="route_offline_cached">Offline — showing cached network data</string>
+    <string name="route_track">Track</string>
+    <string name="route_tracking_on">Tracking on</string>
+    <string name="route_keep_screen_on">Keep screen on</string>
+    <string name="route_track_progress">Progress %1$d / %2$d</string>
+    <string name="route_next_waypoint">Next station: %1$s</string>
+    <string name="route_share_preview">Shared route</string>
+    <string name="route_share_not_found">Shared route not found.</string>
+    <string name="route_completion_title">Route completed</string>
+    <string name="route_completion_points">+%1$d points (×%2$.1f streak)</string>
+    <string name="route_completion_streak">Current streak: %1$d days</string>
+    <string name="stats_points">Points</string>
+    <string name="stats_points_leaderboard">Points leaderboard</string>
 
     <string name="route_active_notice">You have an active route. Confirm it as walked, or discard it to get a new suggestion.</string>
     <string name="route_nickname_placeholder">Name for this walk (optional)</string>
