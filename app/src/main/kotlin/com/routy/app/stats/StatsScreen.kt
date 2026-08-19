@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
@@ -22,6 +23,9 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -53,6 +57,27 @@ fun StatsScreen(modifier: Modifier = Modifier) {
         },
     )
     val uiState by viewModel.uiState.collectAsState()
+    var pendingDeleteWalkId by remember { mutableStateOf<Int?>(null) }
+
+    pendingDeleteWalkId?.let { walkId ->
+        AlertDialog(
+            onDismissRequest = { pendingDeleteWalkId = null },
+            confirmButton = {
+                TextButton(onClick = {
+                    pendingDeleteWalkId = null
+                    viewModel.deleteWalk(walkId)
+                }) {
+                    Text(stringResource(R.string.map_delete))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingDeleteWalkId = null }) {
+                    Text(stringResource(R.string.common_cancel))
+                }
+            },
+            text = { Text(stringResource(R.string.stats_delete_walk_confirm)) },
+        )
+    }
 
     if (uiState.loading) {
         Column(
@@ -92,6 +117,16 @@ fun StatsScreen(modifier: Modifier = Modifier) {
     ) {
         if (uiState.offlineCached) {
             item { OfflineBanner() }
+        }
+        uiState.messageRes?.let { res ->
+            item {
+                Text(
+                    stringResource(res),
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.labelSmall,
+                    modifier = Modifier.padding(horizontal = 4.dp),
+                )
+            }
         }
         item {
             StatsSection(title = stringResource(R.string.stats_your_stats)) {
@@ -187,7 +222,13 @@ fun StatsScreen(modifier: Modifier = Modifier) {
         }
 
         items(uiState.recentWalks) { walk ->
-            WalkRow(walk, uiState.nodeCoords, uiState.segmentGeometry)
+            WalkRow(
+                walk = walk,
+                nodeCoords = uiState.nodeCoords,
+                segmentGeometry = uiState.segmentGeometry,
+                deleting = uiState.deletingWalkId == walk.id,
+                onDelete = { pendingDeleteWalkId = walk.id },
+            )
         }
     }
 }
@@ -212,6 +253,8 @@ private fun WalkRow(
     walk: WalkLogEntryDto,
     nodeCoords: Map<Int, GeoPoint>,
     segmentGeometry: Map<Int, List<GeoPoint>>,
+    deleting: Boolean,
+    onDelete: () -> Unit,
 ) {
     val pathPoints = walkPathPoints(
         segmentIds = walk.segmentIds,
@@ -234,6 +277,13 @@ private fun WalkRow(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+            }
+            if (deleting) {
+                CircularProgressIndicator(modifier = Modifier.padding(4.dp))
+            } else {
+                TextButton(onClick = onDelete) {
+                    Text(stringResource(R.string.map_delete), style = MaterialTheme.typography.labelSmall)
+                }
             }
         }
     }

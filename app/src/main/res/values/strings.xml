@@ -40,6 +40,7 @@
     <string name="stats_achievements">Erfolge</string>
     <string name="stats_recent_walks">Letzte Spaziergänge</string>
     <string name="stats_no_walks">Noch keine bestätigten Spaziergänge.</string>
+    <string name="stats_delete_walk_confirm">Spaziergang aus dem Verlauf löschen? Statistik wird entsprechend angepasst.</string>
     <string name="stats_retry">Erneut laden</string>
 
     <string name="route_station_fallback">die nächste Station</string>

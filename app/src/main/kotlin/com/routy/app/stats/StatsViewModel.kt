@@ -14,6 +14,7 @@ import com.routy.app.logic.api.StreakStatsDto
 import com.routy.app.logic.api.UserPointsDto
 import com.routy.app.logic.api.UserStatsDto
 import com.routy.app.logic.api.WalkLogEntryDto
+import com.routy.app.logic.api.WalkLogIdRequest
 import java.io.IOException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -38,6 +39,8 @@ data class StatsUiState(
     val currentUserId: Int? = null,
     val nodeCoords: Map<Int, GeoPoint> = emptyMap(),
     val segmentGeometry: Map<Int, List<GeoPoint>> = emptyMap(),
+    val deletingWalkId: Int? = null,
+    val messageRes: Int? = null,
 )
 
 class StatsViewModel(
@@ -92,6 +95,24 @@ class StatsViewModel(
                 }
             } catch (_: IOException) {
                 _uiState.value = _uiState.value.copy(loading = false, error = true, offlineCached = offline)
+            }
+        }
+    }
+
+    fun deleteWalk(walkId: Int) {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(deletingWalkId = walkId, messageRes = null)
+            val response = try {
+                apiClientProvider.service.deleteWalk(WalkLogIdRequest(walkId))
+            } catch (_: IOException) {
+                _uiState.value = _uiState.value.copy(deletingWalkId = null, messageRes = R.string.common_error)
+                return@launch
+            }
+            if (response.isSuccessful) {
+                StatsInvalidation.bump()
+                refresh()
+            } else {
+                _uiState.value = _uiState.value.copy(deletingWalkId = null, messageRes = R.string.common_error)
             }
         }
     }
