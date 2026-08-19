@@ -17,8 +17,10 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material3.AlertDialog
@@ -238,7 +240,10 @@ private fun SuggestingMapLayout(
                 .padding(8.dp),
         ) {
             Column(
-                modifier = Modifier.padding(10.dp).heightIn(max = 320.dp),
+                modifier = Modifier
+                    .padding(10.dp)
+                    .heightIn(max = 360.dp)
+                    .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 if (uiState.favorites.isNotEmpty()) {
@@ -455,34 +460,36 @@ private fun ActiveTrackingEffects(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun FavoritesCard(favorites: List<FavoriteEntry>, loading: Boolean, viewModel: RouteViewModel) {
     var pendingDelete by remember { mutableStateOf<FavoriteEntry?>(null) }
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Text(stringResource(R.string.route_favorites_title), style = MaterialTheme.typography.labelLarge)
         favorites.forEach { fav ->
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(
                     "${fav.name} — ${"%.2f".format(fav.display.lengthM / 1000.0)} km",
-                    modifier = Modifier.weight(1f),
                     style = MaterialTheme.typography.bodySmall,
                 )
-                TextButton(onClick = { viewModel.takeFavorite(fav) }, enabled = !loading) {
-                    Text(stringResource(R.string.route_favorite_take), style = MaterialTheme.typography.labelSmall)
-                }
-                TextButton(onClick = { viewModel.toggleShare(fav) }) {
-                    Text(
-                        stringResource(if (fav.shareToken != null) R.string.route_favorite_unshare else R.string.route_favorite_share),
-                        style = MaterialTheme.typography.labelSmall,
-                    )
-                }
-                if (fav.shareToken != null) {
-                    TextButton(onClick = { viewModel.copyFavoriteShareLink(fav) }) {
-                        Text(stringResource(R.string.route_favorite_copy_link), style = MaterialTheme.typography.labelSmall)
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    TextButton(onClick = { viewModel.takeFavorite(fav) }, enabled = !loading) {
+                        Text(stringResource(R.string.route_favorite_take), style = MaterialTheme.typography.labelSmall)
                     }
-                }
-                TextButton(onClick = { pendingDelete = fav }) {
-                    Text(stringResource(R.string.route_favorite_delete), style = MaterialTheme.typography.labelSmall)
+                    TextButton(onClick = { viewModel.toggleShare(fav) }) {
+                        Text(
+                            stringResource(if (fav.shareToken != null) R.string.route_favorite_unshare else R.string.route_favorite_share),
+                            style = MaterialTheme.typography.labelSmall,
+                        )
+                    }
+                    if (fav.shareToken != null) {
+                        TextButton(onClick = { viewModel.copyFavoriteShareLink(fav) }) {
+                            Text(stringResource(R.string.route_favorite_copy_link), style = MaterialTheme.typography.labelSmall)
+                        }
+                    }
+                    TextButton(onClick = { pendingDelete = fav }) {
+                        Text(stringResource(R.string.route_favorite_delete), style = MaterialTheme.typography.labelSmall)
+                    }
                 }
             }
         }

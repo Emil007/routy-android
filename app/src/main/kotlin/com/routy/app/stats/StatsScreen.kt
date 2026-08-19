@@ -1,5 +1,6 @@
 package com.routy.app.stats
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -48,7 +49,7 @@ fun StatsScreen(modifier: Modifier = Modifier) {
 
     if (uiState.loading) {
         Column(
-            modifier = modifier.fillMaxSize(),
+            modifier = modifier.fillMaxSize().background(MaterialTheme.colorScheme.background),
             verticalArrangement = Arrangement.Center,
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
@@ -59,7 +60,7 @@ fun StatsScreen(modifier: Modifier = Modifier) {
 
     if (uiState.error || uiState.stats == null) {
         Column(
-            modifier = modifier.fillMaxSize().padding(16.dp),
+            modifier = modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp),
             verticalArrangement = Arrangement.Center,
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
@@ -76,7 +77,10 @@ fun StatsScreen(modifier: Modifier = Modifier) {
     val achievements = uiState.achievements
 
     LazyColumn(
-        modifier = modifier.fillMaxSize().padding(horizontal = 12.dp, vertical = 8.dp),
+        modifier = modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+            .padding(horizontal = 12.dp, vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         item {
