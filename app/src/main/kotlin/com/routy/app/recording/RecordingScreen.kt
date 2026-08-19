@@ -290,6 +290,10 @@ private fun ActiveRecordingFullscreen(
 
         FloatingMapChrome(onBack = onBack, mapStyle = mapStyle, onMapStyle = { mapStyle = it })
 
+        if (uiState.offlineCached) {
+            OfflineBanner(modifier = Modifier.align(Alignment.TopCenter).padding(top = 56.dp))
+        }
+
         Surface(
             modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(8.dp),
             tonalElevation = 3.dp,
@@ -395,6 +399,12 @@ private fun ConfirmSection(
                 style = MaterialTheme.typography.labelSmall,
             )
         }
+
+        Text(
+            stringResource(R.string.record_proposals_hint),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
 
         FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             CompactPrimary(onClick = viewModel::save, enabled = !uiState.saving && !uiState.saved) {

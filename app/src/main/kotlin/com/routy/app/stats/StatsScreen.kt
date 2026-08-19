@@ -39,6 +39,7 @@ import com.routy.app.R
 import com.routy.app.RoutyApplication
 import com.routy.app.ui.OfflineBanner
 import com.routy.app.logic.api.GeoPoint
+import com.routy.app.logic.api.SegmentUsageStat
 import com.routy.app.logic.api.WalkLogEntryDto
 import com.routy.app.logic.geo.walkPathPoints
 import com.routy.app.logic.time.formatDurationHours
@@ -96,6 +97,9 @@ fun StatsScreen(modifier: Modifier = Modifier) {
             verticalArrangement = Arrangement.Center,
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
+            if (uiState.error && uiState.offlineCached) {
+                OfflineBanner(modifier = Modifier.padding(bottom = 12.dp))
+            }
             Text(stringResource(R.string.common_error))
             TextButton(onClick = viewModel::refresh) {
                 Text(stringResource(R.string.stats_retry))
@@ -144,6 +148,16 @@ fun StatsScreen(modifier: Modifier = Modifier) {
                         StatChip("${stringResource(R.string.stats_weekly_points)}: ${points.weeklyPoints}")
                     }
                 }
+            }
+        }
+
+        if (uiState.networkUsage.isNotEmpty()) {
+            item {
+                NetworkUsageSection(
+                    usage = uiState.networkUsage,
+                    segmentGeometry = uiState.segmentGeometry,
+                    nodeCoords = uiState.nodeCoords,
+                )
             }
         }
 
@@ -229,6 +243,48 @@ fun StatsScreen(modifier: Modifier = Modifier) {
                 deleting = uiState.deletingWalkId == walk.id,
                 onDelete = { pendingDeleteWalkId = walk.id },
             )
+        }
+    }
+}
+
+@Composable
+private fun NetworkUsageSection(
+    usage: List<SegmentUsageStat>,
+    segmentGeometry: Map<Int, List<GeoPoint>>,
+    nodeCoords: Map<Int, GeoPoint>,
+) {
+    val sorted = usage.sortedByDescending { it.usageCount }
+    val mostUsed = sorted.take(5)
+    val leastUsed = sorted.takeLast(5).reversed()
+
+    StatsSection(title = stringResource(R.string.stats_network_usage_title)) {
+        Text(stringResource(R.string.stats_network_most_used), style = MaterialTheme.typography.labelMedium)
+        mostUsed.forEach { stat ->
+            Text(
+                stringResource(
+                    R.string.stats_network_usage_row,
+                    stat.startNodeId,
+                    stat.endNodeId,
+                    stat.usageCount,
+                ),
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.padding(vertical = 2.dp),
+            )
+        }
+        if (sorted.size > 5) {
+            Text(stringResource(R.string.stats_network_least_used), style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(top = 8.dp))
+            leastUsed.forEach { stat ->
+                Text(
+                    stringResource(
+                        R.string.stats_network_usage_row,
+                        stat.startNodeId,
+                        stat.endNodeId,
+                        stat.usageCount,
+                    ),
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.padding(vertical = 2.dp),
+                )
+            }
         }
     }
 }

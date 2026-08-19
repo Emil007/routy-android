@@ -82,6 +82,7 @@ class RoutyApplication : Application() {
     private suspend fun uploadPendingCrashReport() {
         val pending = crashReportStore.load() ?: return
         if (secureStorage.token.isNullOrBlank()) return
+        if (!secureStorage.crashReportConsent) return
         val res = runCatching {
             apiClientProvider.service.reportCrash(
                 com.routy.app.logic.api.CrashReportRequest(
