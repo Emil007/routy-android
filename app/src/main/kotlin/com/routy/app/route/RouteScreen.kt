@@ -148,9 +148,12 @@ fun RouteScreen(onStartRecording: () -> Unit, accountLocaleTag: String, modifier
                 modifier = Modifier.align(Alignment.TopStart).padding(8.dp),
                 verticalArrangement = Arrangement.spacedBy(6.dp),
             ) {
-                if (uiState.offlineCached) OfflineBanner()
                 MapStyleSwitcher(selected = mapStyle, onSelect = { mapStyle = it })
             }
+        }
+
+        if (uiState.offlineCached) {
+            OfflineBanner(modifier = Modifier.align(Alignment.TopStart).padding(start = 8.dp, top = if (uiState.showControls) 56.dp else 8.dp))
         }
 
         IconButton(
@@ -410,6 +413,22 @@ private fun RouteOverlayPanel(
 
             if (uiState.mode == RouteMode.SUGGESTING && uiState.pendingShareToken == null) {
                 RoutePresetButtons(uiState, viewModel)
+                Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    OutlinedTextField(
+                        value = uiState.suggestFavoriteName,
+                        onValueChange = viewModel::setSuggestFavoriteName,
+                        label = { Text(stringResource(R.string.route_favorite_name_placeholder), style = MaterialTheme.typography.labelSmall) },
+                        singleLine = true,
+                        textStyle = MaterialTheme.typography.labelSmall,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    TextButton(
+                        onClick = { viewModel.saveFavoriteFromSuggestion(uiState.suggestFavoriteName) },
+                        enabled = !uiState.savingFavorite && uiState.suggestFavoriteName.isNotBlank(),
+                    ) {
+                        Text(stringResource(R.string.route_save_favorite), style = MaterialTheme.typography.labelSmall)
+                    }
+                }
                 val loading = uiState.status == RouteStatus.LOADING
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     CompactOutlinedButton(onClick = { viewModel.adjust("shorter") }, enabled = !loading) { Text(stringResource(R.string.route_shorter), style = MaterialTheme.typography.labelMedium) }

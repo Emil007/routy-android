@@ -7,7 +7,7 @@ import com.routy.app.core.BootstrapLoader
 import com.routy.app.core.BootstrapResult
 import com.routy.app.core.network.ApiClientProvider
 import com.routy.app.core.storage.NetworkCache
-import com.routy.app.logic.api.GeoPoint
+import com.routy.app.logic.api.ApiErrorBody
 import com.routy.app.logic.api.GpxCommitRequest
 import com.routy.app.logic.api.GpxEndpoint
 import com.routy.app.logic.api.GpxParseTrackPreview
@@ -42,7 +42,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.buildJsonObject
+import com.routy.app.logic.api.GeoPoint
 import kotlinx.serialization.json.put
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.MultipartBody
@@ -67,6 +69,9 @@ data class MapUiState(
     val segments: List<SegmentDto> = emptyList(),
     val segmentConditions: List<SegmentConditionDto> = emptyList(),
     val proposals: List<PathProposalDto> = emptyList(),
+    val segmentUsage: Map<Int, Int> = emptyMap(),
+    val deletedNodes: List<NodeDto> = emptyList(),
+    val deletedSegments: List<SegmentDto> = emptyList(),
     val reportingCondition: Boolean = false,
     val conditionReason: String = "muddy",
     val mode: MapMode = MapMode.View,
@@ -104,6 +109,7 @@ class MapViewModel(
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(MapUiState())
     val uiState: StateFlow<MapUiState> = _uiState.asStateFlow()
+    private val errorJson = Json { ignoreUnknownKeys = true }
 
     init {
         loadNetwork()
@@ -192,6 +198,13 @@ class MapViewModel(
         return canEdit(user.id, user.role == "admin", segment.submittedBy)
     }
 
+    fun canEditProposal(proposal: PathProposalDto): Boolean {
+        val segment = _uiState.value.segments.find { it.id == proposal.segmentId }
+            ?: _uiState.value.deletedSegments.find { it.id == proposal.segmentId }
+        val user = _uiState.value.user ?: return false
+        return canEdit(user.id, user.role == "admin", segment?.submittedBy)
+    }
+
     fun startRenameNode() {
         val node = _uiState.value.selectedNode ?: return
         _uiState.value = _uiState.value.copy(
@@ -273,11 +286,11 @@ class MapViewModel(
         }
     }
 
-    fun lockSegment(days: Int?) {
+    fun lockSegment(days: Int?, reason: String? = null) {
         val segment = _uiState.value.selectedSegment ?: return
         if (!canEditSegment(segment)) return denyNotAllowed()
         runMutation(R.string.map_saved) {
-            apiClientProvider.service.lockSegment(SegmentLockRequest(segment.id, days))
+            apiClientProvider.service.lockSegment(SegmentLockRequest(segment.id, days, reason?.trim()?.ifBlank { null }))
         }
     }
 
@@ -690,7 +703,13 @@ class MapViewModel(
                 refreshProposals()
                 _uiState.value = _uiState.value.copy(actionBusy = false, messageRes = R.string.map_proposal_accepted, isError = false)
             } else {
-                _uiState.value = _uiState.value.copy(actionBusy = false, messageRes = R.string.common_error, isError = true)
+                val code = parseErrorCode(res?.errorBody()?.string())
+                val messageRes = when {
+                    res?.code() == 403 || code == "not_owner" -> R.string.map_proposal_not_owner
+                    res?.code() == 409 || code == "segment_active" -> R.string.map_condition_active
+                    else -> R.string.common_error
+                }
+                _uiState.value = _uiState.value.copy(actionBusy = false, messageRes = messageRes, isError = true)
             }
         }
     }
@@ -704,8 +723,44 @@ class MapViewModel(
         }
     }
 
-    fun conditionsForSegment(segmentId: Int): List<SegmentConditionDto> =
-        _uiState.value.segmentConditions.filter { it.segmentId == segmentId }
+    fun restoreNode(nodeId: Int) {
+        runMutation(R.string.map_restored) { apiClientProvider.service.restoreNode(NodeIdRequest(nodeId)) }
+    }
+
+    fun purgeNode(nodeId: Int) {
+        runMutation(R.string.map_purged) { apiClientProvider.service.purgeNode(NodeIdRequest(nodeId)) }
+    }
+
+    fun restoreSegment(segmentId: Int) {
+        runMutation(R.string.map_restored) { apiClientProvider.service.restoreSegment(SegmentIdRequest(segmentId)) }
+    }
+
+    fun purgeSegment(segmentId: Int) {
+        runMutation(R.string.map_purged) { apiClientProvider.service.purgeSegment(SegmentIdRequest(segmentId)) }
+    }
+
+    private fun refreshTrash() {
+        viewModelScope.launch {
+            val res = runCatching { apiClientProvider.service.mapTrash() }.getOrNull()
+            if (res?.isSuccessful == true) {
+                val body = res.body()
+                _uiState.value = _uiState.value.copy(
+                    deletedNodes = body?.deletedNodes.orEmpty(),
+                    deletedSegments = body?.deletedSegments.orEmpty(),
+                )
+            }
+        }
+    }
+
+    private fun refreshSegmentUsage() {
+        viewModelScope.launch {
+            val res = runCatching { apiClientProvider.service.appStatsMe() }.getOrNull()
+            if (res?.isSuccessful == true) {
+                val usage = res.body()?.networkUsage?.associate { it.segmentId to it.usageCount }.orEmpty()
+                _uiState.value = _uiState.value.copy(segmentUsage = usage)
+            }
+        }
+    }
 
     private fun loadGpxConfig() {
         viewModelScope.launch {
@@ -739,6 +794,8 @@ class MapViewModel(
                 }
             }
             refreshProposals()
+            refreshTrash()
+            refreshSegmentUsage()
         }
     }
 
@@ -761,5 +818,13 @@ class MapViewModel(
             selectedNode = prev.selectedNode?.let { sel -> nodes.find { it.id == sel.id } },
             selectedSegment = prev.selectedSegment?.let { sel -> segments.find { it.id == sel.id && it.isCanonical() } },
         )
+    }
+
+    fun conditionsForSegment(segmentId: Int): List<SegmentConditionDto> =
+        _uiState.value.segmentConditions.filter { it.segmentId == segmentId }
+
+    private fun parseErrorCode(errorBodyJson: String?): String? {
+        if (errorBodyJson == null) return null
+        return try { errorJson.decodeFromString(ApiErrorBody.serializer(), errorBodyJson).error } catch (_: Exception) { null }
     }
 }

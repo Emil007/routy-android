@@ -58,5 +58,6 @@ fun MapStyleSwitcher(selected: BaseMapStyle, onSelect: (BaseMapStyle) -> Unit, m
 private fun BaseMapStyle.labelRes(): Int = when (this) {
     BaseMapStyle.STREETS -> R.string.map_style_streets
     BaseMapStyle.HIKING -> R.string.map_style_hiking
+    BaseMapStyle.WAYMARKED -> R.string.map_style_waymarked
     BaseMapStyle.SATELLITE -> R.string.map_style_satellite
 }
