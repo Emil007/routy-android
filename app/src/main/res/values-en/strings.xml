@@ -210,7 +210,11 @@
     <string name="map_hint_move_tap">Tap the map to place the node</string>
     <string name="map_hint_draw">Tap the map to add points along the path</string>
     <string name="map_hint_gpx">Confirm start/end junctions, then save</string>
-    <string name="map_hint_edit_shape">Tap a path segment to insert a point</string>
+    <string name="map_hint_edit_shape">Tap the path to add a point, or tap a vertex to select it</string>
+    <string name="map_hint_move_vertex">Tap the map to move the selected point</string>
+    <string name="map_draw_snap">Snap to nodes</string>
+    <string name="map_edit_vertex_move">Move point</string>
+    <string name="map_edit_vertex_delete">Delete point</string>
     <string name="map_hint_split">Tap the path where the new junction should go</string>
     <string name="map_draw_points">%1$d points</string>
     <string name="map_undo">Undo</string>
