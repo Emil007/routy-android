@@ -353,8 +353,15 @@ private fun RouteOverlayPanel(
         ActiveTrackingEffects(uiState, route, viewModel, accountLocaleTag)
     }
 
-    Card(modifier = modifier.padding(8.dp)) {
-        Column(modifier = Modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+    Card(modifier = modifier.fillMaxWidth().padding(8.dp)) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(8.dp)
+                .heightIn(max = 320.dp)
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
             FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 AssistChip(onClick = {}, label = { Text("${"%.2f".format(route.lengthM / 1000.0)} km", style = MaterialTheme.typography.labelSmall) })
                 AssistChip(onClick = {}, label = { Text("${route.durationMin} min", style = MaterialTheme.typography.labelSmall) })
@@ -388,7 +395,11 @@ private fun RouteOverlayPanel(
                     CompactButton(onClick = viewModel::accept) { Text(stringResource(R.string.route_accept), style = MaterialTheme.typography.labelMedium) }
                 }
             } else if (uiState.mode == RouteMode.ACTIVE) {
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), itemVerticalAlignment = Alignment.CenterVertically) {
+                FlowRow(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    itemVerticalAlignment = Alignment.CenterVertically,
+                ) {
                     CompactOutlinedButton(onClick = {
                         if (uiState.watchingLocation) viewModel.setWatchingLocation(false)
                         else if (hasLocationPermission) viewModel.setWatchingLocation(true)
@@ -409,38 +420,58 @@ private fun RouteOverlayPanel(
                         Text(stringResource(R.string.route_discard_button), style = MaterialTheme.typography.labelMedium)
                     }
                 }
-                Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
-                    OutlinedTextField(
-                        value = uiState.nickname,
-                        onValueChange = viewModel::setNickname,
-                        placeholder = { Text(stringResource(R.string.route_nickname_placeholder), style = MaterialTheme.typography.labelSmall) },
-                        singleLine = true,
-                        textStyle = MaterialTheme.typography.labelSmall,
-                        modifier = Modifier.weight(1f),
-                    )
-                    TextButton(onClick = viewModel::saveNickname, enabled = !uiState.nicknameSaving) {
-                        Text(stringResource(R.string.route_save_nickname), style = MaterialTheme.typography.labelSmall)
-                    }
-                    OutlinedTextField(
-                        value = uiState.favoriteNameInput,
-                        onValueChange = viewModel::setFavoriteNameInput,
-                        placeholder = { Text(stringResource(R.string.route_favorite_name_placeholder), style = MaterialTheme.typography.labelSmall) },
-                        singleLine = true,
-                        textStyle = MaterialTheme.typography.labelSmall,
-                        modifier = Modifier.weight(1f),
-                    )
-                    TextButton(
-                        onClick = viewModel::saveFavorite,
-                        enabled = !uiState.savingFavorite && uiState.favoriteNameInput.isNotBlank(),
+                Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Text(stringResource(R.string.route_save_favorite), style = MaterialTheme.typography.labelSmall)
+                        OutlinedTextField(
+                            value = uiState.nickname,
+                            onValueChange = viewModel::setNickname,
+                            placeholder = { Text(stringResource(R.string.route_nickname_placeholder), style = MaterialTheme.typography.labelSmall) },
+                            singleLine = true,
+                            textStyle = MaterialTheme.typography.labelSmall,
+                            modifier = Modifier.weight(1f),
+                        )
+                        TextButton(onClick = viewModel::saveNickname, enabled = !uiState.nicknameSaving) {
+                            Text(stringResource(R.string.route_save_nickname), style = MaterialTheme.typography.labelSmall)
+                        }
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        OutlinedTextField(
+                            value = uiState.favoriteNameInput,
+                            onValueChange = viewModel::setFavoriteNameInput,
+                            placeholder = { Text(stringResource(R.string.route_favorite_name_placeholder), style = MaterialTheme.typography.labelSmall) },
+                            singleLine = true,
+                            textStyle = MaterialTheme.typography.labelSmall,
+                            modifier = Modifier.weight(1f),
+                        )
+                        TextButton(
+                            onClick = viewModel::saveFavorite,
+                            enabled = !uiState.savingFavorite && uiState.favoriteNameInput.isNotBlank(),
+                        ) {
+                            Text(stringResource(R.string.route_save_favorite), style = MaterialTheme.typography.labelSmall)
+                        }
                     }
                 }
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Checkbox(checked = uiState.voiceEnabled, onCheckedChange = viewModel::setVoiceEnabled)
-                    Text(stringResource(R.string.route_voice_on), style = MaterialTheme.typography.labelSmall)
-                    Checkbox(checked = uiState.keepScreenOn, onCheckedChange = viewModel::setKeepScreenOn)
-                    Text(stringResource(R.string.route_keep_screen_on), style = MaterialTheme.typography.labelSmall)
+                FlowRow(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    itemVerticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Checkbox(checked = uiState.voiceEnabled, onCheckedChange = viewModel::setVoiceEnabled)
+                        Text(stringResource(R.string.route_voice_on), style = MaterialTheme.typography.labelSmall)
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Checkbox(checked = uiState.keepScreenOn, onCheckedChange = viewModel::setKeepScreenOn)
+                        Text(stringResource(R.string.route_keep_screen_on), style = MaterialTheme.typography.labelSmall)
+                    }
                 }
             }
 
