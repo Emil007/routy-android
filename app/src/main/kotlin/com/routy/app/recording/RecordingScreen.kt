@@ -55,6 +55,7 @@ import com.routy.app.logic.recording.EndpointDecision
 import com.routy.app.logic.recording.NodeCandidate
 import com.routy.app.logic.recording.RecordingPhase
 import com.routy.app.map.BaseMapStyle
+import com.routy.app.map.MapStyleSwitcher
 import com.routy.app.map.RoutyMapView
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -177,6 +178,7 @@ fun RecordingScreen(onDone: () -> Unit, modifier: Modifier = Modifier) {
                     }
                 }
                 else -> {
+                    item { BatteryOptimizationPrompt() }
                     item {
                         Text(stringResource(R.string.record_instructions), style = MaterialTheme.typography.bodyMedium)
                     }
@@ -207,10 +209,13 @@ private fun ActiveRecordingSection(
     onStop: () -> Unit,
     onDiscard: () -> Unit,
 ) {
+    var mapStyle by remember { mutableStateOf(BaseMapStyle.STREETS) }
+
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            MapStyleSwitcher(selected = mapStyle, onSelect = { mapStyle = it })
             RoutyMapView(
-                style = BaseMapStyle.STREETS,
+                style = mapStyle,
                 nodes = uiState.nodes,
                 segments = emptyList(),
                 routeGeometry = emptyList(),

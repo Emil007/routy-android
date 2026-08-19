@@ -124,6 +124,14 @@
     <string name="update_view">Ansehen</string>
     <string name="update_dismiss">Schließen</string>
 
+    <string name="battery_optimization_hint">Für zuverlässige Aufzeichnung im Hintergrund: Akku-Optimierung für Routy deaktivieren.</string>
+    <string name="battery_optimization_allow">Einstellungen öffnen</string>
+    <string name="battery_optimization_dismiss">Nicht jetzt</string>
+
+    <string name="map_style_streets">Straßenkarte</string>
+    <string name="map_style_hiking">Wanderkarte</string>
+    <string name="map_style_satellite">Satellit</string>
+
     <string name="notification_recording_channel_name">Wegaufzeichnung</string>
     <string name="notification_recording_title">Aufzeichnung läuft</string>
     <string name="notification_recording_text">%1$d Punkte, %2$s km</string>
