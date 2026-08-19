@@ -15,9 +15,10 @@ project being scaffolded and actually being opened that Android Gradle Plugin cr
 version (8.x → 9.x) in the meantime — AGP 9.0 removed the old Variant API wholesale
 (`BaseVariant` and everything built on it), which is exactly what that error means.
 
-**Seven attempts confirmed failed; an eighth is a deliberate diagnostic, not yet another claimed
-fix** (kept below, struck through in spirit rather than deleted, because the reasoning in each is
-real and each later attempt builds directly on what the previous ones ruled out):
+**Eight attempts confirmed failed (the eighth itself a deliberate diagnostic); a ninth closes a
+gap discovered in that diagnostic** (kept below, struck through in spirit rather than deleted,
+because the reasoning in each is real and each later attempt builds directly on what the previous
+ones ruled out):
 
 1. First attempt bumped AGP `8.7.2` → `9.2.1`, Gradle `8.14.3` → `9.7.0`, all four Kotlin
    plugins `2.0.21` → `2.2.10`, added `android.builtInKotlin=false` (opting out of AGP 9's new
@@ -200,18 +201,50 @@ now each individually failed to change the outcome at all.
 
    This is intentionally **not** presented as a fix — restoring real multi-module support (moving
    business logic back out of `:app`, however that ends up working once the actual mechanism is
-   understood) is deferred until the diagnostic result comes back. If the crash disappears with
-   `:logic` excluded, that confirms the multi-module structure itself as the trigger and narrows
-   the next real fix considerably (e.g. isolating `:logic`'s Kotlin Gradle Plugin classpath from
-   `:app`'s, or restructuring how `:logic` applies Kotlin). If the identical crash still happens
-   with `:logic` completely gone, that rules out multi-module-ness entirely and redirects the
-   search somewhere else — at that point worth checking: (a) whether Android Studio's Gradle JDK
-   setting (Settings → Build Tools → Gradle) points at the same JDK 17
-   `compileOptions`/`:logic`'s `jvmToolchain(21)` expect; (b) the `compileSdk { version = ... }` /
-   `optimization { enable = ... }` DSL forms the template's `android {}` block uses in place of
-   this project's `compileSdk = 36` / `isMinifyEnabled = true` — both still unlikely given the
-   crash's timing relative to the `android {}` block, but worth lining up once the
-   plugin-application phase itself goes clean.
+   understood) is deferred until the diagnostic result comes back.
+
+**Result: the identical crash still happened with `:logic` completely gone from
+`settings.gradle.kts`.** Same `NoClassDefFoundError: BaseVariant`, same
+`initBuiltInKotlinSupport` → `KotlinAndroidTarget` path, `CONFIGURE FAILED in 360ms` — failing on
+the very first plugin, same as every attempt since the fourth. This looks like it rules out
+multi-module-ness definitively... except the eighth attempt's diagnostic was actually incomplete,
+caught only on rereading it after this result: the root `build.gradle.kts` still declared
+`org.jetbrains.kotlin.jvm` and `org.jetbrains.kotlin.plugin.serialization` (both `apply false`)
+for `:logic`'s benefit, *even with `:logic` itself excluded from the build*. Root-level
+`plugins {}` entries get resolved onto the build's shared plugin classpath regardless of whether
+any project actually applies them — so the eighth attempt never actually tested ":app, completely
+alone." It tested ":app, plus two extra Kotlin Gradle Plugin artifact declarations resolving
+against a module that no longer exists to consume them" — which is still, structurally, a
+multiple-Kotlin-Gradle-Plugin-declaration scenario, just with the consuming module gone.
+
+9. **Ninth attempt: close that gap, still as diagnostic.** Removed
+   `org.jetbrains.kotlin.jvm`/`org.jetbrains.kotlin.plugin.serialization` from the root
+   `build.gradle.kts` (temporarily, alongside the eighth attempt's `:logic` exclusion — restore
+   all three together), leaving only `org.jetbrains.kotlin.plugin.compose` declared at root —
+   matching the verified-working template's root file, which only ever declared
+   `android-application` + `kotlin-compose`, byte-for-byte. While at it, closed the two other
+   remaining `settings.gradle.kts` gaps noted since the sixth attempt but never acted on: added
+   the template's `google { content { includeGroupByRegex(...) } }` filter (restricts `google()`
+   to the artifact groups it's actually authoritative for — `com.android.*`/`com.google.*`/
+   `androidx.*` — so Kotlin Gradle Plugin artifacts, not covered by any of those regexes, always
+   resolve unambiguously from `mavenCentral()`/`gradlePluginPortal()` instead of potentially
+   racing against `google()` first), and applied `org.gradle.toolchains.foojay-resolver-convention`
+   (JDK auto-provisioning for `jvmToolchain(...)` requests — present in the template, currently
+   unused by `:app` alone, added anyway to close the gap completely rather than partially).
+
+   With this, `settings.gradle.kts`'s `pluginManagement`/`dependencyResolutionManagement`, root
+   `build.gradle.kts`'s plugin declarations, and `app/build.gradle.kts`'s `plugins {}` block are
+   now a structural match for the verified-working template in every respect except the
+   cosmetic one (direct `id(...) version "..."` calls here vs. version-catalog `alias(...)`
+   there, which resolve to identical artifact coordinates either way). If the crash *still*
+   reproduces after this, multi-module-ness and root-level plugin co-declaration are both
+   genuinely ruled out, and whatever's left differs from the template only in namespace/
+   applicationId/signing/SDK-level specifics inside `android {}` — none of which should be
+   reachable by a crash that happens this early, which would mean the actual cause is something
+   about the *local machine* after all (matching Android Studio's own Gradle JDK, or a stale
+   Gradle/plugin cache specific to this project's history of having been synced — and failed —
+   under half a dozen different AGP/Kotlin/Gradle version combinations already) rather than
+   anything left to change in the repository's files.
 
 ## `:logic` — fully verified
 
