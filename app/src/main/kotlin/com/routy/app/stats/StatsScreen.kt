@@ -155,8 +155,7 @@ fun StatsScreen(modifier: Modifier = Modifier) {
             item {
                 NetworkUsageSection(
                     usage = uiState.networkUsage,
-                    segmentGeometry = uiState.segmentGeometry,
-                    nodeCoords = uiState.nodeCoords,
+                    nodeNames = uiState.nodeNames,
                 )
             }
         }
@@ -250,9 +249,9 @@ fun StatsScreen(modifier: Modifier = Modifier) {
 @Composable
 private fun NetworkUsageSection(
     usage: List<SegmentUsageStat>,
-    segmentGeometry: Map<Int, List<GeoPoint>>,
-    nodeCoords: Map<Int, GeoPoint>,
+    nodeNames: Map<Int, String>,
 ) {
+    fun nodeName(id: Int) = nodeNames[id] ?: "#$id"
     val sorted = usage.sortedByDescending { it.usageCount }
     val mostUsed = sorted.take(5)
     val leastUsed = sorted.takeLast(5).reversed()
@@ -263,8 +262,8 @@ private fun NetworkUsageSection(
             Text(
                 stringResource(
                     R.string.stats_network_usage_row,
-                    stat.startNodeId,
-                    stat.endNodeId,
+                    nodeName(stat.startNodeId),
+                    nodeName(stat.endNodeId),
                     stat.usageCount,
                 ),
                 style = MaterialTheme.typography.bodySmall,
@@ -277,8 +276,8 @@ private fun NetworkUsageSection(
                 Text(
                     stringResource(
                         R.string.stats_network_usage_row,
-                        stat.startNodeId,
-                        stat.endNodeId,
+                        nodeName(stat.startNodeId),
+                        nodeName(stat.endNodeId),
                         stat.usageCount,
                     ),
                     style = MaterialTheme.typography.bodySmall,

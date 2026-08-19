@@ -41,6 +41,7 @@ data class StatsUiState(
     val networkUsage: List<SegmentUsageStat> = emptyList(),
     val currentUserId: Int? = null,
     val nodeCoords: Map<Int, GeoPoint> = emptyMap(),
+    val nodeNames: Map<Int, String> = emptyMap(),
     val segmentGeometry: Map<Int, List<GeoPoint>> = emptyMap(),
     val deletingWalkId: Int? = null,
     val messageRes: Int? = null,
@@ -75,6 +76,7 @@ class StatsViewModel(
                     val body = meResponse.body()
                     val cached = networkCache.load()
                     val coords = cached?.nodes?.associate { it.id to GeoPoint(it.lat, it.lng) }.orEmpty()
+                    val names = cached?.nodes?.associate { it.id to (it.name ?: "#${it.id}") }.orEmpty()
                     val geometry = cached?.segments?.associate { it.id to it.geometry }.orEmpty()
                     _uiState.value = StatsUiState(
                         loading = false,
@@ -89,6 +91,7 @@ class StatsViewModel(
                         networkUsage = body?.networkUsage.orEmpty(),
                         pointsLeaderboard = pointsBoard?.takeIf { it.isSuccessful }?.body()?.leaderboard.orEmpty(),
                         nodeCoords = coords,
+                        nodeNames = names,
                         segmentGeometry = geometry,
                     )
                     val streak = body?.streak?.currentStreak ?: 0

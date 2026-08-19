@@ -222,6 +222,7 @@ private fun ConfirmFullscreen(
     modifier: Modifier = Modifier,
 ) {
     var mapStyle by remember { mutableStateOf(BaseMapStyle.STREETS) }
+    var waymarkedOverlay by remember { mutableStateOf(false) }
     val trackGeometry = remember(uiState.points) {
         uiState.points.map { GeoPoint(it.lat, it.lng) }
     }
@@ -229,6 +230,7 @@ private fun ConfirmFullscreen(
     Box(modifier = modifier) {
         RoutyMapView(
             style = mapStyle,
+            waymarkedOverlay = waymarkedOverlay,
             nodes = uiState.nodes,
             segments = emptyList(),
             routeGeometry = trackGeometry,
@@ -239,7 +241,13 @@ private fun ConfirmFullscreen(
             modifier = Modifier.fillMaxSize(),
         )
 
-        FloatingMapChrome(onBack = onBack, mapStyle = mapStyle, onMapStyle = { mapStyle = it })
+        FloatingMapChrome(
+            onBack = onBack,
+            mapStyle = mapStyle,
+            onMapStyle = { mapStyle = it },
+            waymarkedOverlay = waymarkedOverlay,
+            onWaymarkedOverlayChange = { waymarkedOverlay = it },
+        )
 
         if (uiState.offlineCached) {
             OfflineBanner(modifier = Modifier.align(Alignment.TopCenter).padding(top = 56.dp))
@@ -274,10 +282,12 @@ private fun ActiveRecordingFullscreen(
     modifier: Modifier = Modifier,
 ) {
     var mapStyle by remember { mutableStateOf(BaseMapStyle.STREETS) }
+    var waymarkedOverlay by remember { mutableStateOf(false) }
 
     Box(modifier = modifier) {
         RoutyMapView(
             style = mapStyle,
+            waymarkedOverlay = waymarkedOverlay,
             nodes = uiState.nodes,
             segments = emptyList(),
             routeGeometry = serviceState.trackGeometry,
@@ -288,7 +298,13 @@ private fun ActiveRecordingFullscreen(
             modifier = Modifier.fillMaxSize(),
         )
 
-        FloatingMapChrome(onBack = onBack, mapStyle = mapStyle, onMapStyle = { mapStyle = it })
+        FloatingMapChrome(
+            onBack = onBack,
+            mapStyle = mapStyle,
+            onMapStyle = { mapStyle = it },
+            waymarkedOverlay = waymarkedOverlay,
+            onWaymarkedOverlayChange = { waymarkedOverlay = it },
+        )
 
         if (uiState.offlineCached) {
             OfflineBanner(modifier = Modifier.align(Alignment.TopCenter).padding(top = 56.dp))
@@ -336,7 +352,13 @@ private fun ActiveRecordingFullscreen(
 }
 
 @Composable
-private fun FloatingMapChrome(onBack: () -> Unit, mapStyle: BaseMapStyle, onMapStyle: (BaseMapStyle) -> Unit) {
+private fun FloatingMapChrome(
+    onBack: () -> Unit,
+    mapStyle: BaseMapStyle,
+    onMapStyle: (BaseMapStyle) -> Unit,
+    waymarkedOverlay: Boolean,
+    onWaymarkedOverlayChange: (Boolean) -> Unit,
+) {
     Row(
         modifier = Modifier.fillMaxWidth().padding(8.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -348,7 +370,12 @@ private fun FloatingMapChrome(onBack: () -> Unit, mapStyle: BaseMapStyle, onMapS
         ) {
             Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null)
         }
-        MapStyleSwitcher(selected = mapStyle, onSelect = onMapStyle)
+        MapStyleSwitcher(
+            selected = mapStyle,
+            onSelect = onMapStyle,
+            waymarkedOverlay = waymarkedOverlay,
+            onWaymarkedOverlayChange = onWaymarkedOverlayChange,
+        )
     }
 }
 

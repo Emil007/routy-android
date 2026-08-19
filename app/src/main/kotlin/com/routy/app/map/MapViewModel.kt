@@ -716,10 +716,16 @@ class MapViewModel(
 
     fun dismissProposal(proposalId: Int) {
         viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(actionBusy = true)
             val res = runCatching {
                 apiClientProvider.service.dismissProposal(com.routy.app.logic.api.ProposalActionRequest(proposalId))
             }.getOrNull()
-            if (res?.isSuccessful == true) refreshProposals()
+            if (res?.isSuccessful == true) {
+                refreshProposals()
+                _uiState.value = _uiState.value.copy(actionBusy = false)
+            } else {
+                _uiState.value = _uiState.value.copy(actionBusy = false, messageRes = R.string.common_error, isError = true)
+            }
         }
     }
 
