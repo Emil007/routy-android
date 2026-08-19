@@ -16,3 +16,19 @@
 -keepclasseswithmembers class com.routy.app.** {
     kotlinx.serialization.KSerializer serializer(...);
 }
+
+# Room + WorkManager (R8 full mode / AGP 9 strips reflective no-arg constructors)
+# https://issuetracker.google.com/issues/243257364
+-keep class * extends androidx.room.RoomDatabase {
+    <init>();
+    public ** createInvalidationTracker();
+    public void clearAllTables();
+}
+-keep class androidx.room.RoomDatabase$JournalMode { *; }
+-keep class androidx.work.** {
+    <init>(...);
+    *;
+}
+-keep class * extends androidx.work.ListenableWorker {
+    public <init>(android.content.Context, androidx.work.WorkerParameters);
+}
