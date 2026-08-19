@@ -8,6 +8,7 @@ data class LoginRequest(
     val password: String,
     val deviceName: String? = null,
     val totpCode: String? = null,
+    val captchaToken: String? = null,
 )
 
 /** Mirrors SessionUser in src/lib/session.ts — the shape both /api/auth/login and /api/auth/me return. */
