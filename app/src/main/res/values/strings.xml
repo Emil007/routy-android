@@ -184,8 +184,7 @@
     <string name="map_offline_cached">Gecachte Netzwerkdaten</string>
     <string name="map_load_error">Wegnetz konnte nicht geladen werden.</string>
     <string name="map_record_track">Weg aufzeichnen</string>
-    <string name="map_edit_network">Netzwerk bearbeiten</string>
-    <string name="map_tap_hint">Tippe auf einen Knoten für Details. Mit „Netzwerk bearbeiten“ Wege zeichnen oder Knoten verschieben.</string>
+    <string name="map_tap_hint">Tippe auf einen Knoten für Details. Netzwerk bearbeiten: Web-Admin.</string>
     <string name="map_node_home">Startknoten</string>
 
     <string name="settings_title">Einstellungen</string>
