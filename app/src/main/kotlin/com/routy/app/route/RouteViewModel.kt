@@ -334,6 +334,8 @@ class RouteViewModel(
     fun suggest(preset: String? = null) {
         val state = _uiState.value
         val startNodeId = state.startNodeId ?: return
+        val surprise = preset == "surprise"
+        val explorerMode = if (surprise) false else state.explorerMode
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(status = RouteStatus.LOADING, messageRes = null)
             val response = try {
@@ -342,19 +344,30 @@ class RouteViewModel(
                         startNodeId = startNodeId,
                         destinationNodeId = if (state.isLoop) startNodeId else (state.destinationNodeId ?: startNodeId),
                         waypointNodeId = state.waypointNodeId,
-                        explorerMode = state.explorerMode,
+                        explorerMode = explorerMode,
+                        surpriseMode = surprise,
                         preset = preset,
                     ),
                 )
             } catch (_: IOException) {
-                _uiState.value = _uiState.value.copy(status = RouteStatus.ERROR, route = null, messageRes = R.string.route_no_route_found)
+                _uiState.value = _uiState.value.copy(
+                    status = RouteStatus.ERROR,
+                    route = state.route,
+                    token = state.token,
+                    messageRes = R.string.route_no_route_found,
+                )
                 return@launch
             }
             if (response.isSuccessful) {
                 val body = response.body()
                 _uiState.value = _uiState.value.copy(status = RouteStatus.IDLE, token = body?.token ?: "", route = body?.route)
             } else {
-                _uiState.value = _uiState.value.copy(status = RouteStatus.ERROR, route = null, messageRes = R.string.route_no_route_found)
+                _uiState.value = _uiState.value.copy(
+                    status = RouteStatus.ERROR,
+                    route = state.route,
+                    token = state.token,
+                    messageRes = R.string.route_no_route_found,
+                )
             }
         }
     }
