@@ -15,9 +15,9 @@ project being scaffolded and actually being opened that Android Gradle Plugin cr
 version (8.x → 9.x) in the meantime — AGP 9.0 removed the old Variant API wholesale
 (`BaseVariant` and everything built on it), which is exactly what that error means.
 
-**Six attempts failed before the actual fix landed** (kept below, struck through in spirit
-rather than deleted, because the reasoning in each is real and the eventual fix builds directly
-on what they ruled out):
+**Six attempts confirmed failed; a seventh is pushed and not yet confirmed** (kept below, struck
+through in spirit rather than deleted, because the reasoning in each is real and each later
+attempt builds directly on what the previous ones ruled out):
 
 1. First attempt bumped AGP `8.7.2` → `9.2.1`, Gradle `8.14.3` → `9.7.0`, all four Kotlin
    plugins `2.0.21` → `2.2.10`, added `android.builtInKotlin=false` (opting out of AGP 9's new
@@ -140,20 +140,55 @@ back its exact generated files — genuine ground truth instead of another infer
    from the template's file too), Kotlin `2.4.10` → `2.2.10` for the plugins `:app` still uses
    (`kotlin.plugin.compose`) as well as `:logic`'s (`kotlin.jvm`, `kotlin.plugin.serialization`).
 
-Verified for real again after this sixth attempt: `./gradlew :logic:test` passed clean against
-Gradle 9.5.0 + Kotlin 2.2.10 in this sandbox (39 tests, 0 failures, `GithubReleaseDto` compiling
-correctly in its new location). Whether AGP 9.3.1's built-in Kotlin support actually syncs clean
-in Android Studio now that the plugin set matches a verified-working project exactly is, as
-always, the one thing only a real sync (yours) can confirm — this sandbox has never been able to
-compile `:app` at all. If this is *still* wrong despite matching the template's plugin set and
-every version exactly, the remaining structural differences worth checking next are
-`org.gradle.parallel=true`/`org.gradle.configureondemand=true` in this project's
-`gradle.properties` (the template has neither enabled) and the `compileSdk { version = ... }` /
-`optimization { enable = ... }` DSL forms the template's `android {}` block uses in place of this
-project's `compileSdk = 36` / `isMinifyEnabled = true` — unlikely to cause *this* crash (it
-happens during plugin application, before the `android {}` block body even runs) but the next
-things to line up if the plugin-application phase itself finally goes clean and something else
-flags afterward.
+`./gradlew :logic:test` passed clean against Gradle 9.5.0 + Kotlin 2.2.10 in this sandbox after
+this sixth attempt (39 tests, 0 failures, `GithubReleaseDto` compiling correctly in its new
+location). **Still didn't fix it** — a real Android Studio sync hit the *exact same*
+`NoClassDefFoundError: com/android/build/gradle/api/BaseVariant`, through the *exact same*
+`initBuiltInKotlinSupport` → `createKotlinAndroidExtension` → `KotlinAndroidTarget` path as
+attempt 5, despite AGP/Gradle/Kotlin and the plugin set now matching the verified-working
+template *exactly*. That ruled out plugin choice and version pinning as variables entirely —
+before writing a seventh guess, it was worth confirming a premise that had gone unchecked: did
+the disposable Empty-Activity template actually **sync successfully itself**, or had its files
+only been extracted without confirming a clean sync? Asked, and confirmed: yes, that template
+synced clean, with these same exact versions — which rules out a broken local Gradle/AGP cache
+or environment as the explanation, and confirms this is genuinely something about
+*routy-android's project structure*, not a bad local setup.
+
+7. Seventh attempt: with plugins and versions now identical to a project that's confirmed to
+   sync, the one structural difference left was that routy-android is a **multi-module** build
+   (`:app` + `:logic`) while the template is single-module — and `gradle.properties` had
+   `org.gradle.configureondemand=true` set, a flag Gradle itself prints `Configuration on demand
+   is an incubating feature.` for on every single build, specifically because it changes how a
+   *multi-project* build orders and scopes subproject configuration. It had been added purely
+   for this sandbox's benefit (`./gradlew :logic:test` needs it to avoid configuring `:app`,
+   whose `com.android.application` plugin can't resolve at all with `dl.google.com` blocked) —
+   not something CI or a real Android Studio install needs, since both have full internet access
+   and (per `.github/workflows/ci.yml`'s own comment on its `app-build` job) `ubuntu-latest`
+   ships a real Android SDK already. Removed it, along with `org.gradle.parallel=true` (also
+   unset in the template) and added `org.gradle.configuration-cache=true` (present in the
+   template, a *stable*, non-incubating feature). `:logic:test` still runs fine in this
+   sandbox — just needs the same flag passed explicitly on the CLI now instead of defaulted from
+   the properties file: `./gradlew :logic:test --configure-on-demand`. Updated
+   `.github/workflows/ci.yml`'s `logic-test` job comment to match (it no longer *avoids*
+   configuring `:app` by design — it just happens not to need to fail there, since
+   `ubuntu-latest` has a real SDK and network access either way).
+
+Verified for real again after this seventh attempt: `./gradlew :logic:test --configure-on-demand`
+passed clean against Gradle 9.5.0 + Kotlin 2.2.10 in this sandbox (39 tests, 0 failures). Whether
+removing an incubating, multi-project-specific Gradle feature is what finally lets AGP 9.3.1's
+built-in Kotlin support construct `KotlinAndroidTarget` cleanly is, again, the one thing only a
+real sync can confirm. If this is *still* wrong, the next things worth checking, in order: (a)
+whether Android Studio's Gradle JDK setting (Settings → Build Tools → Gradle) points at the same
+JDK 17 this project's `compileOptions`/`:logic`'s `jvmToolchain(21)` expect — a JDK mismatch
+between the IDE's embedded JBR and what a multi-module build's per-project toolchains resolve to
+is a known source of exactly this kind of `ClassInspector`/class-generation failure in
+multi-project builds specifically, and is the other place (beyond configure-on-demand) where
+"single-module template works, multi-module project doesn't" difference could originate; (b) the
+`compileSdk { version = ... }` / `optimization { enable = ... }` DSL forms the template's
+`android {}` block uses in place of this project's `compileSdk = 36` / `isMinifyEnabled = true`
+— still unlikely to cause *this specific* crash (it happens during plugin application, before
+the `android {}` block body runs) but worth lining up once the plugin-application phase itself
+goes clean.
 
 ## `:logic` — fully verified
 

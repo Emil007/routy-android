@@ -6,7 +6,11 @@ on:
   pull_request:
 
 jobs:
-  # Runs everywhere, including this project's own dev sandbox — no Android SDK needed.
+  # Doesn't strictly need :app's Android SDK/plugin to resolve, but no longer avoids configuring
+  # it either (see gradle.properties for why org.gradle.configureondemand was removed) — harmless
+  # here since ubuntu-latest ships both a real SDK and full internet access, unlike this
+  # project's own dev sandbox, which can only run this specific task with
+  # `--configure-on-demand` passed explicitly on the CLI.
   logic-test:
     runs-on: ubuntu-latest
     steps:
