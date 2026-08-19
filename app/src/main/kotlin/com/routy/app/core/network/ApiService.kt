@@ -23,6 +23,9 @@ import com.routy.app.logic.api.ShareFavoriteResponse
 import com.routy.app.logic.api.ShareRouteResponse
 import com.routy.app.logic.api.WeeklyLeaderboardResponse
 import com.routy.app.logic.api.PointsLeaderboardResponse
+import com.routy.app.logic.api.ProfilePatchRequest
+import com.routy.app.logic.api.ProfilePatchResponse
+import com.routy.app.logic.api.RevokeOthersResponse
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.RequestBody
 import okhttp3.RequestBody.Companion.toRequestBody
@@ -31,6 +34,7 @@ import retrofit2.http.Body
 import retrofit2.http.DELETE
 import retrofit2.http.GET
 import retrofit2.http.Header
+import retrofit2.http.PATCH
 import retrofit2.http.POST
 import retrofit2.http.Path
 
@@ -138,4 +142,10 @@ interface ApiService {
 
     @GET("api/gpx/config")
     suspend fun gpxConfig(): Response<GpxConfigResponse>
+
+    @PATCH("api/app/profile")
+    suspend fun patchProfile(@Body body: ProfilePatchRequest): Response<ProfilePatchResponse>
+
+    @POST("api/auth/sessions/revoke-others")
+    suspend fun revokeOtherSessions(@Body body: RequestBody = EMPTY_JSON_BODY): Response<RevokeOthersResponse>
 }

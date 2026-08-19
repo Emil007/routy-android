@@ -18,7 +18,9 @@ import com.routy.app.auth.LoginScreen
 import com.routy.app.core.DeepLinkHolder
 import com.routy.app.onboarding.OnboardingScreen
 import com.routy.app.recording.RecordingScreen
+import com.routy.app.core.AccountTheme
 import com.routy.app.ui.theme.RoutyTheme
+import androidx.compose.foundation.isSystemInDarkTheme
 import com.routy.app.webview.RoutyShellScreen
 
 private object Routes {
@@ -42,7 +44,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         setContent {
-            RoutyTheme {
+            RoutyTheme(darkTheme = AccountTheme.isDarkTheme(isSystemInDarkTheme())) {
                 Surface(modifier = Modifier.fillMaxSize()) {
                     RoutyNavHost(startDestination)
                 }

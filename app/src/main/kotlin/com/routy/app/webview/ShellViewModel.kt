@@ -1,6 +1,7 @@
 package com.routy.app.webview
 
 import com.routy.app.core.AccountLocale
+import com.routy.app.core.AccountTheme
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.routy.app.core.BootstrapLoader
@@ -38,6 +39,7 @@ class ShellViewModel(
 
     private fun applyUser(user: SessionUser) {
         AccountLocale.apply(user.locale)
+        AccountTheme.apply(user.theme)
         _uiState.value = _uiState.value.copy(user = user)
     }
 
@@ -62,6 +64,7 @@ class ShellViewModel(
                     apiClientProvider.invalidate()
                     bootstrapLoader.invalidate()
                     AccountLocale.clear()
+            AccountTheme.clear()
                     _uiState.value = _uiState.value.copy(checkedSession = true, signedOut = true)
                 }
                 BootstrapResult.Failed -> {
@@ -82,6 +85,7 @@ class ShellViewModel(
             secureStorage.clearToken()
             apiClientProvider.invalidate()
             AccountLocale.clear()
+            AccountTheme.clear()
             _uiState.value = _uiState.value.copy(signedOut = true)
         }
     }
