@@ -1,10 +1,14 @@
 # Routy for Android
 
-Native companion for a **self-hosted [Routy](https://github.com/Emil007/routy) server**. Same household network of paths, same accounts — but with a proper map, GPS recording that keeps running while you walk, and cached data when the server is briefly unreachable.
+Companion app for a **self-hosted [Routy server](https://github.com/Emil007/routy)** — the server is a separate project and **must be running before this app is useful**. Install and run the server first (Docker); then install this APK and enter your server URL at onboarding.
 
-You need your own Routy server running first (Docker on a home box or VPS). This app does not include hosting.
+Same household network of paths, same accounts — but with a native map (MapLibre), GPS recording that keeps running while you walk, and cached data when the server is briefly unreachable. **There is no standalone mode:** no cloud backend, no bundled server.
 
-**Current release line:** **0.31b** (server is on a separate **0.33s** line — versions are independent).
+| | [Server (routy)](https://github.com/Emil007/routy) | This app (routy-android) |
+|---|---|---|
+| Role | Hosts data, web UI, API | Client for phones |
+| Required? | Yes — run this first | Optional (browser works too) |
+| Version line | **0.33s** | **0.31b** |
 
 ---
 
@@ -25,6 +29,8 @@ Release builds need signing secrets (see [.github/actions/build-signed-apk](.git
 ---
 
 ## First launch
+
+**Prerequisite:** [Routy server](https://github.com/Emil007/routy) up and reachable (see that repo's README for Docker quickstart).
 
 1. Enter your server URL (`https://…` — must match what you use in the browser).
 2. If the server has **no users yet**, complete first-time setup (setup token from `docker compose logs`, same as the web).
@@ -75,4 +81,4 @@ Gradle/Android Studio history and known device quirks: [NOTES.md](NOTES.md) (lon
 
 Android uses tags like **`v0.31b`**. CI `apk-publish` on `main` uses the version in [app/build.gradle.kts](app/build.gradle.kts) (and [apk-publish.yml](.github/workflows/apk-publish.yml)). Tagged releases override via the tag name.
 
-Server version (**0.33s**) is unrelated — deploy server updates on their own schedule.
+Server version (**0.33s**) is unrelated — deploy server updates on their own schedule. Server repo: [github.com/Emil007/routy](https://github.com/Emil007/routy).
