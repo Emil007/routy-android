@@ -30,6 +30,7 @@ import com.routy.app.logic.api.ShareFavoriteRequest
 import com.routy.app.logic.api.ShareFavoriteResponse
 import com.routy.app.logic.api.ShareRouteResponse
 import com.routy.app.logic.api.WalkLogIdRequest
+import com.routy.app.logic.api.WeeklyLeaderboardResponse
 import com.routy.app.logic.api.PointsLeaderboardResponse
 import com.routy.app.logic.api.ProfilePatchRequest
 import com.routy.app.logic.api.ProfilePatchResponse
