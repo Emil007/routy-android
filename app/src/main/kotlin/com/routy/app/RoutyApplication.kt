@@ -49,11 +49,9 @@ class RoutyApplication : Application() {
         networkCache.loadBootstrap()?.user?.locale?.let { AccountLocale.apply(it) }
         gpxCommitScheduler.schedulePending()
         GpxQueueNotifier.setPendingCount(gpxCommitQueueStore.listAll().size)
-        MapTileHttp.install(this)
-        // Must run once before any MapView is created (native Route screen, M3) — mirrors the
-        // MapLibre.getInstance(this) call every getting-started guide puts in Activity.onCreate,
-        // just hoisted here so it's guaranteed to happen exactly once regardless of which screen
-        // first shows a map.
+        // MapLibre must initialize before HttpRequestUtil.setOkHttpClient — the HTTP module
+        // static init calls MapLibre.getApplicationContext() internally.
         MapLibre.getInstance(this)
+        MapTileHttp.install(this)
     }
 }
