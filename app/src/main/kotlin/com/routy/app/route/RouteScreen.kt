@@ -300,10 +300,13 @@ private fun RouteOverlayPanel(
             }
 
             uiState.pendingShareToken?.let { token ->
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                     Text(uiState.sharedRouteName ?: stringResource(R.string.route_share_preview), modifier = Modifier.weight(1f))
                     Button(onClick = { viewModel.acceptSharedRoute(token) }) {
                         Text(stringResource(R.string.route_accept))
+                    }
+                    OutlinedButton(onClick = viewModel::dismissSharedRoute) {
+                        Text(stringResource(R.string.route_share_dismiss))
                     }
                 }
             }
@@ -312,7 +315,7 @@ private fun RouteOverlayPanel(
                 TrackProgressSection(uiState, route)
             }
 
-            if (uiState.mode == RouteMode.SUGGESTING) {
+            if (uiState.mode == RouteMode.SUGGESTING && uiState.pendingShareToken == null) {
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     OutlinedButton(onClick = { viewModel.adjust("shorter") }) { Text(stringResource(R.string.route_shorter)) }
                     OutlinedButton(onClick = { viewModel.adjust("longer") }) { Text(stringResource(R.string.route_longer)) }
@@ -336,6 +339,9 @@ private fun RouteOverlayPanel(
                     val canComplete = !uiState.tracking || uiState.completedWaypointIndex >= route.stations.lastIndex
                     Button(onClick = viewModel::complete, enabled = canComplete) {
                         Text(stringResource(R.string.route_complete_button))
+                    }
+                    OutlinedButton(onClick = viewModel::discardActive) {
+                        Text(stringResource(R.string.route_discard_button))
                     }
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -469,6 +475,11 @@ private fun FavoritesCard(favorites: List<FavoriteEntry>, loading: Boolean, view
                         stringResource(if (fav.shareToken != null) R.string.route_favorite_unshare else R.string.route_favorite_share),
                         style = MaterialTheme.typography.labelSmall,
                     )
+                }
+                if (fav.shareToken != null) {
+                    TextButton(onClick = { viewModel.copyFavoriteShareLink(fav) }) {
+                        Text(stringResource(R.string.route_favorite_copy_link), style = MaterialTheme.typography.labelSmall)
+                    }
                 }
                 TextButton(onClick = { pendingDelete = fav }) {
                     Text(stringResource(R.string.route_favorite_delete), style = MaterialTheme.typography.labelSmall)

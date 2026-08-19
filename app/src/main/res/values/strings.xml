@@ -58,6 +58,7 @@
     <string name="route_track_progress">Fortschritt %1$d / %2$d</string>
     <string name="route_next_waypoint">Nächste Station: %1$s</string>
     <string name="route_share_preview">Geteilte Route</string>
+    <string name="route_share_dismiss">Schließen</string>
     <string name="route_share_not_found">Geteilte Route nicht gefunden.</string>
     <string name="route_completion_title">Route abgeschlossen</string>
     <string name="route_completion_points">+%1$d Punkte (×%2$.1f Serie)</string>
@@ -75,6 +76,9 @@
     <string name="route_favorite_take">Diese Route nehmen</string>
     <string name="route_favorite_unshare">Teilen beenden</string>
     <string name="route_favorite_share">Teilen</string>
+    <string name="route_favorite_copy_link">Link kopieren</string>
+    <string name="route_favorite_share_copied">Link kopiert!</string>
+    <string name="route_favorite_unshared">Teilen beendet.</string>
     <string name="route_favorite_delete">Löschen</string>
     <string name="route_favorite_delete_confirm">Lieblingsroute löschen?</string>
     <string name="route_favorite_saved">Favorit gespeichert.</string>

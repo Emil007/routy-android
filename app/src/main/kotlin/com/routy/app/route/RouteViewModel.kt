@@ -346,6 +346,10 @@ class RouteViewModel(
     private fun adjustInternal(call: suspend () -> retrofit2.Response<com.routy.app.logic.api.GenerateRouteResponse>) {
         if (_uiState.value.route == null) return
         val token = _uiState.value.token
+        if (token.isBlank()) {
+            _uiState.value = _uiState.value.copy(messageRes = R.string.route_session_expired)
+            return
+        }
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(status = RouteStatus.LOADING)
             val response = try { call() } catch (_: IOException) {
@@ -519,6 +523,26 @@ class RouteViewModel(
         }
     }
 
+    fun dismissSharedRoute() {
+        _uiState.value = _uiState.value.copy(
+            route = null,
+            token = "",
+            pendingShareToken = null,
+            sharedRouteName = null,
+            mode = RouteMode.SUGGESTING,
+            status = RouteStatus.IDLE,
+            messageRes = null,
+        )
+    }
+
+    fun copyFavoriteShareLink(favorite: FavoriteEntry) {
+        val token = favorite.shareToken ?: return
+        _uiState.value = _uiState.value.copy(
+            pendingShareUrl = "routy://share/$token",
+            messageRes = R.string.route_favorite_share_copied,
+        )
+    }
+
     fun toggleShare(favorite: FavoriteEntry) {
         viewModelScope.launch {
             val response = try {
@@ -528,6 +552,7 @@ class RouteViewModel(
             val shareToken = response.body()?.shareToken
             _uiState.value = _uiState.value.copy(
                 pendingShareUrl = shareToken?.let { "routy://share/$it" },
+                messageRes = if (shareToken != null) R.string.route_favorite_share_copied else R.string.route_favorite_unshared,
             )
             refreshFavorites()
         }
