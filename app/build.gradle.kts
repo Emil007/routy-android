@@ -8,18 +8,28 @@ import java.util.Properties
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
-    // AGP jumped a major version (8.x -> 9.x) after this was first written, and 9.0 removed the
-    // old Variant API wholesale (com.android.build.gradle.api.BaseVariant and friends) — first
-    // attempt bumped straight to AGP 9.2.1, which broke a second way: org.jetbrains.kotlin.android
-    // (the traditional Kotlin<->Android integration this project uses) still hard-references
-    // BaseVariant internally, and no gradle.properties flag brought that class back — it's
-    // genuinely gone from AGP 9's jar, not just hidden behind a flag. Settled on AGP 8.13.2
-    // instead: the last stable 8.x release, where BaseVariant still exists for real, paired with
-    // the exact Kotlin version Google's own compatibility table
-    // (developer.android.com/build/kotlin-support) lists for it — see the root build.gradle.kts's
-    // Kotlin plugin version comment.
-    id("com.android.application") version "8.13.2"
-    id("org.jetbrains.kotlin.android")
+    // AGP 9's built-in Kotlin support (see gradle.properties's android.builtInKotlin), not the
+    // traditional org.jetbrains.kotlin.android plugin — this is the actual fix, after three
+    // failed attempts that were each solving the wrong problem:
+    //   1. AGP 9.2.1 + org.jetbrains.kotlin.android + android.builtInKotlin=false: wrong flag.
+    //      builtInKotlin=false doesn't opt back into the legacy DSL that kotlin-android needs —
+    //      android.newDsl (a *different* flag) defaults to true on AGP 9 regardless, so AGP still
+    //      exposed the new DSL's extension types, and kotlin-android's internal BaseVariant
+    //      references broke: NoClassDefFoundError: com/android/build/gradle/api/BaseVariant.
+    //   2. Same setup + android.enableLegacyVariantApi=true: doesn't address android.newDsl
+    //      either — identical error.
+    //   3. Reverted to AGP 8.13.2 to sidestep AGP 9 entirely: traded one conflict for another.
+    //      Kotlin Gradle Plugin 2.3.20's own AgpWithBuiltInKotlinAppliedCheck diagnostic (which
+    //      runs unconditionally whenever org.jetbrains.kotlin.android is applied, regardless of
+    //      AGP major version) tried to reference com.android.build.gradle.BaseExtension and hit
+    //      NoClassDefFoundError — a KGP-side check for exactly this legacy-plugin-vs-new-DSL
+    //      conflict, not a real absence of BaseExtension in AGP 8.13.2's jar.
+    // Removing org.jetbrains.kotlin.android outright (per
+    // developer.android.com/build/migrate-to-built-in-kotlin) sidesteps both: there's no second
+    // Kotlin-Android integration left to conflict with AGP 9's own, and AGP 9.3.0 (current stable
+    // as of Aug 2026, developer.android.com/build/releases/gradle-plugin) is the last thing that
+    // needed guessing — this file no longer picks a Kotlin-Android pairing at all.
+    id("com.android.application") version "9.3.0"
     id("org.jetbrains.kotlin.plugin.compose")
     id("org.jetbrains.kotlin.plugin.serialization")
 }
@@ -89,9 +99,11 @@ android {
     }
 }
 
-// android.kotlinOptions {} (used pre-fix) was deprecated in Kotlin 2.0 and removed outright in
-// 2.2 — this top-level kotlin {} block (a sibling of android {}, not nested inside it) is the
-// replacement the Kotlin Gradle plugin docs specify.
+// AGP's built-in Kotlin support (no org.jetbrains.kotlin.android applied — see the plugins
+// block above) registers this top-level `kotlin` extension itself; compilerOptions here works
+// the same as it would under the traditional plugin. Technically redundant — built-in Kotlin
+// defaults jvmTarget to compileOptions.targetCompatibility (JVM_17, set below) on its own — but
+// left explicit since that's what already matches this module's compileOptions.
 kotlin {
     compilerOptions {
         jvmTarget.set(JvmTarget.JVM_17)

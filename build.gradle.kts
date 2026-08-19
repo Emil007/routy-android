@@ -7,14 +7,19 @@
 // it out of the root means `./gradlew :logic:test` never needs Google's repo at all — only
 // building :app does.
 plugins {
-    // Pinned per developer.android.com/build/kotlin-support's official compatibility table,
-    // which maps Kotlin versions to the AGP range each one actually supports — not guessed, and
-    // not just "whatever's newest": that table lists Kotlin 2.3.x as supporting AGP 8.2.2-8.13
-    // (app/build.gradle.kts's 8.13.2), while Kotlin 2.2.x tops out at AGP 8.10 and Kotlin 2.1.x
-    // at AGP 8.7.2 — i.e. this exact version had to be looked up, not assumed, after two AGP-9
-    // attempts failed on exactly this kind of unverified pairing.
-    id("org.jetbrains.kotlin.jvm") version "2.3.20" apply false
-    id("org.jetbrains.kotlin.android") version "2.3.20" apply false
-    id("org.jetbrains.kotlin.plugin.compose") version "2.3.20" apply false
-    id("org.jetbrains.kotlin.plugin.serialization") version "2.3.20" apply false
+    // No org.jetbrains.kotlin.android here (deliberately — see app/build.gradle.kts): AGP 9
+    // has built-in Kotlin support and applies its own Kotlin-Android integration internally,
+    // which conflicts with the traditional kotlin-android plugin if both are applied at once.
+    // :logic still needs org.jetbrains.kotlin.jvm — it's a plain Kotlin/JVM module, not Android,
+    // so AGP's built-in Kotlin support doesn't cover it.
+    //
+    // 2.2.10 per developer.android.com/build/releases/agp-9-0-0-release-notes: "Android Gradle
+    // plugin 9.0 now has a runtime dependency on Kotlin Gradle plugin (KGP) 2.2.10 [...] if you
+    // use a KGP version lower than 2.2.10, Gradle will automatically upgrade your KGP version to
+    // 2.2.10" — i.e. this is the documented floor AGP 9 itself is built and tested against, so
+    // pinning compose/serialization to the same version keeps everything on one known-compatible
+    // Kotlin version instead of letting AGP silently upgrade just the built-in half.
+    id("org.jetbrains.kotlin.jvm") version "2.2.10" apply false
+    id("org.jetbrains.kotlin.plugin.compose") version "2.2.10" apply false
+    id("org.jetbrains.kotlin.plugin.serialization") version "2.2.10" apply false
 }
