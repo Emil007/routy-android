@@ -1,6 +1,6 @@
 name: Release
 
-# Pushing a version tag (e.g. `v1.2.3`) builds a signed release APK and attaches it to a new
+# Pushing a version tag (e.g. `v0.13a`) builds a signed release APK and attaches it to a new
 # GitHub Release. Requires repo secrets ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD,
 # ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD. Share links use routy:// (universal, no domain in APK).
 on:

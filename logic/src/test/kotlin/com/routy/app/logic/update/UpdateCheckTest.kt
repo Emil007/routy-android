@@ -26,6 +26,13 @@ class UpdateCheckTest {
     }
 
     @Test
+    fun `a suffix versions compare numerically`() {
+        assertTrue(isNewerVersion("0.14a", "0.13a"))
+        assertFalse(isNewerVersion("0.13a", "0.13a"))
+        assertFalse(isNewerVersion("0.13a", "0.14a"))
+    }
+
+    @Test
     fun `leading v prefix is ignored`() {
         assertTrue(isNewerVersion("v1.1.0", "1.0.0"))
     }

@@ -54,10 +54,10 @@ android {
         applicationId = "com.routy.app"
         minSdk = 26
         targetSdk = 36
-        // Overridden by CI from the pushed release tag (-PappVersionName=1.2.3 -PappVersionCode=N)
-        // — see .github/workflows/release.yml. Local/debug builds just get this placeholder.
-        versionCode = (project.findProperty("appVersionCode") as String?)?.toIntOrNull() ?: 1
-        versionName = (project.findProperty("appVersionName") as String?) ?: "0.1.0"
+        // Overridden by CI from the pushed release tag (-PappVersionName=0.13a -PappVersionCode=N)
+        // — see .github/workflows/release.yml. Tags use the `a` suffix (e.g. v0.13a).
+        versionCode = (project.findProperty("appVersionCode") as String?)?.toIntOrNull() ?: 13
+        versionName = (project.findProperty("appVersionName") as String?) ?: "0.13a"
     }
 
     signingConfigs {
