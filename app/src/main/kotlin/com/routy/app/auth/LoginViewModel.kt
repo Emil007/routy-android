@@ -8,6 +8,7 @@ import com.routy.app.core.AccountTheme
 import com.routy.app.core.network.ApiClientProvider
 import com.routy.app.core.storage.SecureStorage
 import com.routy.app.logic.api.ApiErrorBody
+import com.routy.app.logic.api.CaptchaConfig
 import com.routy.app.logic.api.LoginRequest
 import java.io.IOException
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -16,17 +17,14 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 
-/**
- * showTotpField and errorRes are independent on purpose (not one sealed "step"): after a wrong
- * TOTP code, the field must stay visible *with* an error shown, mirroring a bug that was found
- * and fixed on the web client (src/app/login/page.tsx) — losing the field after a wrong-code
- * attempt would strand the user with no way to retry short of restarting the whole login.
- */
 data class LoginUiState(
     val loading: Boolean = false,
     val showTotpField: Boolean = false,
     val errorRes: Int? = null,
     val loggedIn: Boolean = false,
+    val captcha: CaptchaConfig = CaptchaConfig(),
+    val captchaRequired: Boolean = false,
+    val captchaToken: String? = null,
 )
 
 class LoginViewModel(
@@ -38,7 +36,31 @@ class LoginViewModel(
 
     private val errorJson = Json { ignoreUnknownKeys = true }
 
+    init {
+        loadHealth()
+    }
+
+    fun loadHealth() {
+        viewModelScope.launch {
+            val response = runCatching { apiClientProvider.service.health() }.getOrNull()
+            val captcha = response?.takeIf { it.isSuccessful }?.body()?.captcha ?: CaptchaConfig()
+            _uiState.value = _uiState.value.copy(
+                captcha = captcha,
+                captchaRequired = captcha.isRequired(),
+            )
+        }
+    }
+
+    fun setCaptchaToken(token: String?) {
+        _uiState.value = _uiState.value.copy(captchaToken = token)
+    }
+
     fun login(username: String, password: String, totpCode: String, deviceName: String) {
+        val state = _uiState.value
+        if (state.captchaRequired && state.captchaToken.isNullOrBlank()) {
+            _uiState.value = state.copy(errorRes = R.string.login_captcha_required)
+            return
+        }
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(loading = true, errorRes = null)
 
@@ -49,6 +71,7 @@ class LoginViewModel(
                         password = password,
                         deviceName = deviceName.ifBlank { null },
                         totpCode = totpCode.ifBlank { null },
+                        captchaToken = state.captchaToken,
                     ),
                 )
             } catch (_: IOException) {
@@ -76,6 +99,7 @@ class LoginViewModel(
                 "invalid_credentials" -> _uiState.value.copy(loading = false, errorRes = R.string.login_error_invalid_credentials)
                 "inactive" -> _uiState.value.copy(loading = false, errorRes = R.string.login_error_inactive)
                 "locked" -> _uiState.value.copy(loading = false, errorRes = R.string.login_error_locked)
+                "captcha_failed" -> _uiState.value.copy(loading = false, captchaToken = null, errorRes = R.string.login_captcha_error)
                 else -> _uiState.value.copy(loading = false, errorRes = R.string.login_error_generic)
             }
         }

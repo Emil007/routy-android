@@ -45,8 +45,6 @@ fun LoginScreen(onLoggedIn: () -> Unit) {
     var username by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var totpCode by remember { mutableStateOf("") }
-    // Not user-editable for now — a sensible default (shown in Settings' device list on any
-    // client) beats adding another field to an already form-heavy first screen.
     val deviceName = remember { "${Build.MANUFACTURER} ${Build.MODEL}".trim() }
 
     LaunchedEffect(uiState.loggedIn) {
@@ -85,6 +83,19 @@ fun LoginScreen(onLoggedIn: () -> Unit) {
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
                 modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+            )
+        }
+
+        if (uiState.captchaRequired) {
+            Text(
+                stringResource(R.string.login_captcha_hint),
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.padding(top = 8.dp),
+            )
+            CaptchaWebView(
+                config = uiState.captcha,
+                onToken = viewModel::setCaptchaToken,
+                modifier = Modifier.padding(top = 4.dp),
             )
         }
 
