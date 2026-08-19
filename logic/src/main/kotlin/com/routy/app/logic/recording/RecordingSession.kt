@@ -11,7 +11,7 @@ import kotlinx.serialization.Serializable
 @Serializable
 enum class RecordingPhase { IDLE, RECORDING, PAUSED, CONFIRM }
 
-@kotlinx.serialization.Serializable
+@Serializable
 data class RecordingPoint(val lat: Double, val lng: Double, val ele: Double? = null, val timestampMs: Long)
 
 data class RecordingStats(val lengthM: Double, val durationMinutes: Int)
