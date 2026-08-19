@@ -29,7 +29,7 @@ import com.routy.app.logic.api.SessionsResponse
 import com.routy.app.logic.api.ShareFavoriteRequest
 import com.routy.app.logic.api.ShareFavoriteResponse
 import com.routy.app.logic.api.ShareRouteResponse
-import com.routy.app.logic.api.WeeklyLeaderboardResponse
+import com.routy.app.logic.api.WalkLogIdRequest
 import com.routy.app.logic.api.PointsLeaderboardResponse
 import com.routy.app.logic.api.ProfilePatchRequest
 import com.routy.app.logic.api.ProfilePatchResponse
@@ -115,6 +115,9 @@ interface ApiService {
 
     @GET("api/app/stats/leaderboard/points")
     suspend fun pointsLeaderboard(): Response<PointsLeaderboardResponse>
+
+    @POST("api/app/stats/walks/delete")
+    suspend fun deleteWalk(@Body body: WalkLogIdRequest): Response<Unit>
 
     @GET("api/share/{token}")
     suspend fun resolveShareToken(@Path("token") token: String): Response<ShareRouteResponse>

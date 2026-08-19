@@ -18,6 +18,9 @@ data class StreakStatsDto(
 )
 
 @Serializable
+data class WalkLogIdRequest(val walkId: Int)
+
+@Serializable
 data class WalkLogEntryDto(
     val id: Int,
     val nodeChain: List<Int>,

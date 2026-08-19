@@ -40,6 +40,7 @@
     <string name="stats_achievements">Achievements</string>
     <string name="stats_recent_walks">Recent walks</string>
     <string name="stats_no_walks">No confirmed walks yet.</string>
+    <string name="stats_delete_walk_confirm">Delete this walk from your history? Stats adjusted accordingly.</string>
     <string name="stats_retry">Retry</string>
 
     <string name="route_station_fallback">the next station</string>
