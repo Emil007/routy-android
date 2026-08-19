@@ -41,6 +41,7 @@ import com.routy.app.RoutyApplication
 @Composable
 fun MapScreen(
     onStartRecording: () -> Unit,
+    onEditNetwork: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     val app = LocalContext.current.applicationContext as RoutyApplication
@@ -162,6 +163,11 @@ fun MapScreen(
                     }
                     CompactButton(onClick = onStartRecording) {
                         Text(stringResource(R.string.map_record_track), style = MaterialTheme.typography.labelMedium)
+                    }
+                    if (onEditNetwork != null) {
+                        CompactOutlinedButton(onClick = onEditNetwork) {
+                            Text(stringResource(R.string.map_edit_network), style = MaterialTheme.typography.labelMedium)
+                        }
                     }
                 }
             }
