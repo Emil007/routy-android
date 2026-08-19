@@ -61,7 +61,7 @@ fun RoutyShellScreen(onSignedOut: () -> Unit, onStartRecording: () -> Unit) {
     val app = LocalContext.current.applicationContext as RoutyApplication
     val viewModel: ShellViewModel = viewModel(
         factory = viewModelFactory {
-            initializer { ShellViewModel(app.secureStorage, app.apiClientProvider) }
+            initializer { ShellViewModel(app.secureStorage, app.apiClientProvider, app.bootstrapLoader, app.networkCache) }
         },
     )
     val uiState by viewModel.uiState.collectAsState()

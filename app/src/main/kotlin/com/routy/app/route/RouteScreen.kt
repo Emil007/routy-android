@@ -90,7 +90,7 @@ fun RouteScreen(onStartRecording: () -> Unit, accountLocaleTag: String, modifier
     val viewModel: RouteViewModel = viewModel(
         factory = viewModelFactory {
             initializer {
-                RouteViewModel(app.apiClientProvider, baseUrl, app.routeProgressStore, app.networkCache)
+                RouteViewModel(app.apiClientProvider, baseUrl, app.routeProgressStore, app.networkCache, app.bootstrapLoader)
             }
         },
     )

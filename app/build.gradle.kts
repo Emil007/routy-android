@@ -58,6 +58,7 @@ android {
         // — see .github/workflows/release.yml. Local/debug builds just get this placeholder.
         versionCode = (project.findProperty("appVersionCode") as String?)?.toIntOrNull() ?: 1
         versionName = (project.findProperty("appVersionName") as String?) ?: "0.1.0"
+        manifestPlaceholders["deepLinkHost"] = (project.findProperty("deepLinkHost") as String?) ?: "localhost"
     }
 
     signingConfigs {

@@ -3,6 +3,8 @@ package com.routy.app
 import android.app.Application
 import com.routy.app.core.network.ApiClientProvider
 import com.routy.app.core.storage.SecureStorage
+import com.routy.app.core.BootstrapLoader
+import com.routy.app.core.storage.NetworkCache
 import org.maplibre.android.MapLibre
 
 /** Application-scoped container — see ApiClientProvider's kdoc for why this is manual instead of a DI framework. */
@@ -17,6 +19,8 @@ class RoutyApplication : Application() {
         private set
     lateinit var recordingSnapshotStore: com.routy.app.core.storage.RecordingSnapshotStore
         private set
+    lateinit var bootstrapLoader: BootstrapLoader
+        private set
 
     override fun onCreate() {
         super.onCreate()
@@ -25,6 +29,7 @@ class RoutyApplication : Application() {
         routeProgressStore = com.routy.app.core.storage.RouteProgressStore(this)
         networkCache = com.routy.app.core.storage.NetworkCache(this)
         recordingSnapshotStore = com.routy.app.core.storage.RecordingSnapshotStore(this)
+        bootstrapLoader = BootstrapLoader(apiClientProvider, networkCache)
         // Must run once before any MapView is created (native Route screen, M3) — mirrors the
         // MapLibre.getInstance(this) call every getting-started guide puts in Activity.onCreate,
         // just hoisted here so it's guaranteed to happen exactly once regardless of which screen

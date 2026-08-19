@@ -10,10 +10,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.viewinterop.AndroidView
 
 /**
- * One shared WebView per shell tab set, reused across tab switches by just changing the loaded
- * URL rather than recreating the view. Simple on purpose: each tab switch reloads the page (no
- * per-tab scroll-position/state preservation) — a deliberate trade-off for getting a fully
- * working shell quickly, not the ceiling of what's possible here.
+ * One WebView instance per shell tab (see `key(currentTab.path)` in RoutyShellScreen). Each tab
+ * keeps its own view across revisits; switching tabs does not reload unless the URL changes.
  *
  * [onNavigateToLogin] is the sign-out signal: the web app redirects to /login whenever its
  * session cookie is missing or invalid, which covers every way that can happen — the token

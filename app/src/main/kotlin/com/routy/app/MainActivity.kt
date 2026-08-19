@@ -65,6 +65,11 @@ class MainActivity : ComponentActivity() {
         if (uri.scheme == "routy" && uri.host == "share") {
             return uri.path?.trim('/')?.takeIf { it.isNotBlank() }
         }
+        if (uri.scheme == "https") {
+            val app = application as RoutyApplication
+            val serverHost = app.secureStorage.serverUrl?.let { runCatching { Uri.parse(it).host }.getOrNull() }
+            if (serverHost != null && uri.host != null && uri.host != serverHost) return null
+        }
         val match = Regex("/share/([a-f0-9]+)").find(uri.path.orEmpty()) ?: return null
         return match.groupValues[1]
     }

@@ -4,6 +4,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.routy.app.R
 import com.routy.app.core.DeepLinkHolder
+import com.routy.app.core.BootstrapLoader
+import com.routy.app.core.BootstrapResult
 import com.routy.app.core.network.ApiClientProvider
 import com.routy.app.core.storage.NetworkCache
 import com.routy.app.core.storage.RouteProgressStore
@@ -77,6 +79,7 @@ class RouteViewModel(
     private val baseUrl: String,
     private val routeProgressStore: RouteProgressStore,
     private val networkCache: NetworkCache,
+    private val bootstrapLoader: BootstrapLoader,
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(RouteUiState())
     val uiState: StateFlow<RouteUiState> = _uiState.asStateFlow()
@@ -91,37 +94,61 @@ class RouteViewModel(
 
     private fun loadInitial() {
         viewModelScope.launch {
-            val cached = networkCache.load()
-            if (cached != null) {
-                applyNetworkState(cached.nodes, cached.segments, null, offlineCached = true)
+            val cachedBootstrap = networkCache.loadBootstrap()
+            val cachedNetwork = networkCache.load()
+            if (cachedBootstrap != null) {
+                applyNetworkState(
+                    cachedBootstrap.nodes,
+                    cachedBootstrap.segments,
+                    cachedBootstrap.routeState,
+                    offlineCached = true,
+                )
+            } else if (cachedNetwork != null) {
+                applyNetworkState(cachedNetwork.nodes, cachedNetwork.segments, null, offlineCached = true)
             }
 
-            val service = apiClientProvider.service
-            val bootstrapResponse = runCatching { service.bootstrap() }.getOrNull()
-
-            if (bootstrapResponse?.isSuccessful == true) {
-                val body = bootstrapResponse.body() ?: return@launch
-                networkCache.save(body.networkVersion, body.nodes, body.segments)
-                applyNetworkState(body.nodes, body.segments, body.routeState, offlineCached = false)
-                restoreProgress(body.routeState.activeRoute)
-                consumeDeepLink()
-                return@launch
+            when (val result = bootstrapLoader.load()) {
+                is BootstrapResult.Fresh -> {
+                    applyNetworkState(result.body.nodes, result.body.segments, result.body.routeState, offlineCached = false)
+                    restoreProgress(result.body.routeState.activeRoute)
+                    consumeDeepLink()
+                }
+                is BootstrapResult.NotModified -> {
+                    applyNetworkState(result.cached.nodes, result.cached.segments, result.cached.routeState, offlineCached = false)
+                    restoreProgress(result.cached.routeState.activeRoute)
+                    consumeDeepLink()
+                }
+                is BootstrapResult.CachedOnly -> {
+                    applyNetworkState(result.cached.nodes, result.cached.segments, result.cached.routeState, offlineCached = true)
+                    restoreProgress(result.cached.routeState.activeRoute)
+                    consumeDeepLink()
+                }
+                BootstrapResult.Unauthorized, BootstrapResult.Failed -> fallbackLoad(cachedBootstrap, cachedNetwork)
             }
-
-            val nodesResponse = runCatching { service.nodes(cached?.etag) }.getOrNull()
-            val segmentsResponse = runCatching { service.segments(cached?.etag) }.getOrNull()
-            val stateResponse = runCatching { service.routeState() }.getOrNull()
-
-            val nodes = nodesResponse?.takeIf { it.isSuccessful }?.body()?.nodes ?: cached?.nodes.orEmpty()
-            val segments = segmentsResponse?.takeIf { it.isSuccessful }?.body()?.segments ?: cached?.segments.orEmpty()
-            val state = stateResponse?.takeIf { it.isSuccessful }?.body()
-            if (nodes.isNotEmpty() && segments.isNotEmpty()) {
-                networkCache.save("legacy", nodes, segments)
-            }
-            applyNetworkState(nodes, segments, state, offlineCached = nodesResponse?.isSuccessful != true)
-            restoreProgress(state?.activeRoute)
-            consumeDeepLink()
         }
+    }
+
+    private suspend fun fallbackLoad(
+        cachedBootstrap: NetworkCache.CachedBootstrap?,
+        cachedNetwork: NetworkCache.CachedNetwork?,
+    ) {
+        val service = apiClientProvider.service
+        val etag = cachedBootstrap?.networkVersion ?: cachedNetwork?.etag
+        val nodesResponse = runCatching { service.nodes(etag) }.getOrNull()
+        val segmentsResponse = runCatching { service.segments(etag) }.getOrNull()
+        val stateResponse = runCatching { service.routeState() }.getOrNull()
+
+        val nodes = nodesResponse?.takeIf { it.isSuccessful }?.body()?.nodes
+            ?: cachedBootstrap?.nodes ?: cachedNetwork?.nodes.orEmpty()
+        val segments = segmentsResponse?.takeIf { it.isSuccessful }?.body()?.segments
+            ?: cachedBootstrap?.segments ?: cachedNetwork?.segments.orEmpty()
+        val state = stateResponse?.takeIf { it.isSuccessful }?.body() ?: cachedBootstrap?.routeState
+        if (nodes.isNotEmpty() && segments.isNotEmpty()) {
+            networkCache.save(etag ?: "legacy", nodes, segments)
+        }
+        applyNetworkState(nodes, segments, state, offlineCached = nodesResponse?.isSuccessful != true)
+        restoreProgress(state?.activeRoute)
+        consumeDeepLink()
     }
 
     private fun consumeDeepLink() {
