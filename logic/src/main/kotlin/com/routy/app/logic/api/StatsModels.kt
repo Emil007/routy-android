@@ -77,12 +77,21 @@ data class PointsLeaderboardEntryDto(
 )
 
 @Serializable
+data class SegmentUsageStat(
+    val segmentId: Int,
+    val startNodeId: Int,
+    val endNodeId: Int,
+    val usageCount: Int,
+)
+
+@Serializable
 data class AppStatsMeResponse(
     val stats: UserStatsDto,
     val streak: StreakStatsDto,
     val achievements: AchievementsDto,
     val recentWalks: List<WalkLogEntryDto>,
     val points: UserPointsDto? = null,
+    val networkUsage: List<SegmentUsageStat> = emptyList(),
 )
 
 @Serializable

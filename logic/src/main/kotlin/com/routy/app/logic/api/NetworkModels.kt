@@ -19,6 +19,7 @@ data class NodeDto(
     val createdBy: Int? = null,
     val namePart1Text: String? = null,
     val namePart2Text: String? = null,
+    val deletedAt: String? = null,
 ) : MatchableNode
 
 @Serializable
@@ -41,10 +42,18 @@ data class SegmentDto(
     val endNodeId: Int,
     val geometry: List<GeoPoint>,
     val lengthM: Int,
+    val durationMin: Int = 0,
     val name: String? = null,
     val reverseOf: Int? = null,
     val lockedUntil: String? = null,
     val submittedBy: Int? = null,
+    val deletedAt: String? = null,
+)
+
+@Serializable
+data class MapTrashResponse(
+    val deletedNodes: List<NodeDto>,
+    val deletedSegments: List<SegmentDto>,
 )
 
 @Serializable

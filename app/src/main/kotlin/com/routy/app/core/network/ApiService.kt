@@ -10,8 +10,11 @@ import com.routy.app.logic.api.GenerateRouteRequest
 import com.routy.app.logic.api.GenerateRouteResponse
 import com.routy.app.logic.api.GpxCommitRequest
 import com.routy.app.logic.api.GpxConfigResponse
+import com.routy.app.logic.api.HealthResponse
 import com.routy.app.logic.api.LoginRequest
 import com.routy.app.logic.api.LoginResponse
+import com.routy.app.logic.api.MapTrashResponse
+import com.routy.app.logic.api.SetupRequest
 import com.routy.app.logic.api.MeResponse
 import com.routy.app.logic.api.NicknameRequest
 import com.routy.app.logic.api.NodesResponse
@@ -79,7 +82,10 @@ private val EMPTY_JSON_BODY: RequestBody = "{}".toRequestBody("application/json"
  */
 interface ApiService {
     @GET("api/health")
-    suspend fun health(): Response<Unit>
+    suspend fun health(): Response<HealthResponse>
+
+    @POST("api/auth/setup")
+    suspend fun setup(@Body body: SetupRequest): Response<LoginResponse>
 
     @POST("api/auth/login")
     suspend fun login(@Body body: LoginRequest): Response<LoginResponse>
@@ -195,6 +201,12 @@ interface ApiService {
     @POST("api/nodes/delete")
     suspend fun deleteNode(@Body body: NodeIdRequest): Response<Unit>
 
+    @POST("api/nodes/restore")
+    suspend fun restoreNode(@Body body: NodeIdRequest): Response<Unit>
+
+    @POST("api/nodes/purge")
+    suspend fun purgeNode(@Body body: NodeIdRequest): Response<Unit>
+
     @POST("api/segments/rename")
     suspend fun renameSegment(@Body body: SegmentRenameRequest): Response<Unit>
 
@@ -204,6 +216,12 @@ interface ApiService {
     @POST("api/segments/delete")
     suspend fun deleteSegment(@Body body: SegmentIdRequest): Response<Unit>
 
+    @POST("api/segments/restore")
+    suspend fun restoreSegment(@Body body: SegmentIdRequest): Response<Unit>
+
+    @POST("api/segments/purge")
+    suspend fun purgeSegment(@Body body: SegmentIdRequest): Response<Unit>
+
     @POST("api/segments/geometry")
     suspend fun updateSegmentGeometry(@Body body: SegmentGeometryRequest): Response<Unit>
 
@@ -212,6 +230,9 @@ interface ApiService {
 
     @POST("api/segments/condition")
     suspend fun reportSegmentCondition(@Body body: ReportConditionRequest): Response<ReportConditionResponse>
+
+    @GET("api/app/map/trash")
+    suspend fun mapTrash(): Response<MapTrashResponse>
 
     @GET("api/app/proposals")
     suspend fun proposals(): Response<ProposalsResponse>
