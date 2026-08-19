@@ -23,7 +23,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.ExposedDropdownMenu
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.OutlinedButton
@@ -461,6 +460,11 @@ private fun NodeDropdown(
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
             modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
         )
+        // No import needed (and none exists — deliberately removed above): in the current stable
+        // Material3 (1.4.0), ExposedDropdownMenu is a *member* of ExposedDropdownMenuBoxScope,
+        // resolved automatically since this is inside ExposedDropdownMenuBox's trailing lambda.
+        // It only became a top-level-importable extension function in 1.5.0-alpha26 — a real
+        // top-level import (as this file originally had) is Unresolved reference against 1.4.0.
         ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
             sorted.forEach { node ->
                 DropdownMenuItem(text = { Text(node.name ?: "#${node.id}") }, onClick = { onSelect(node.id); expanded = false })

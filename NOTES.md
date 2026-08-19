@@ -363,13 +363,19 @@ have caught without a compiler:
   correctly under this toolchain even though it packages fine (likely a Gradle Module Metadata
   gap; never fully diagnosed since the fix is unambiguous either way). Same package name in the
   new artifact (verified directly against the published jar), so no import changes needed.
-- **`compose-bom:2024.12.01` → `2026.06.01`**: `RouteScreen.kt`'s `NodeDropdown` uses Material3's
-  standalone `ExposedDropdownMenu` composable (distinct from the older `ExposedDropdownMenuBox`
-  it's nested inside), which didn't exist yet in whatever Material3 version `2024.12.01` pins —
-  another case of a *version* never having been checked, not the API usage itself. This file's
-  own "worth double-checking" note above flagged the exposed-dropdown-menu anchor API as a risk
-  area for exactly this reason and turned out to be right, just about a different part of the
-  same API.
+- **`compose-bom:2024.12.01` → `2026.06.01`**: fixed several errors outright, but not
+  `RouteScreen.kt`'s `NodeDropdown` — bumping the BOM alone left one `Unresolved reference
+  'ExposedDropdownMenu'`, at the *import* line specifically, not the actual call site further
+  down. Turned out to be a second, more precise version issue layered on top of the first:
+  Compose Material3's own release notes confirm `ExposedDropdownMenu` only became a
+  top-level-importable *extension function* on `ExposedDropdownMenuBoxScope` in `1.5.0-alpha26`
+  (Aug 12, 2026) — current *stable* Material3 is `1.4.0`, where it's still a plain *member*
+  function of that same scope, resolved automatically inside `ExposedDropdownMenuBox`'s trailing
+  lambda with no import needed at all (and no importable top-level symbol to import in the first
+  place). Fix was deleting the now-invalid `import androidx.compose.material3.ExposedDropdownMenu`
+  line — the call site itself needed no change. This file's own "worth double-checking" note
+  above flagged the exposed-dropdown-menu anchor API as a risk area for exactly this reason and
+  turned out to be right twice over, about two different parts of the same API.
 - **Two Compose-specific code bugs, not dependency issues**: `RouteScreen.kt`'s station-list
   text called `stringResource()` inside the `transform` lambda of `joinToString` — illegal,
   since that lambda is non-inline (nullable function types can't be inlined) and therefore not a
