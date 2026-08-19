@@ -32,7 +32,10 @@ import org.maplibre.android.style.layers.CircleLayer
 import org.maplibre.android.style.layers.LineLayer
 import org.maplibre.android.style.layers.Property
 import org.maplibre.android.style.layers.PropertyFactory
+import org.maplibre.android.style.layers.RasterLayer
 import org.maplibre.android.style.sources.GeoJsonSource
+import org.maplibre.android.style.sources.RasterSource
+import org.maplibre.android.style.sources.TileSet
 import org.maplibre.geojson.Feature
 import org.maplibre.geojson.FeatureCollection
 import org.maplibre.geojson.LineString
@@ -45,9 +48,12 @@ import org.maplibre.geojson.Point
 enum class BaseMapStyle(val assetUri: String) {
     STREETS("asset://styles/streets.json"),
     HIKING("asset://styles/hiking.json"),
-    WAYMARKED("asset://styles/waymarked.json"),
     SATELLITE("asset://styles/satellite.json"),
 }
+
+private const val WAYMARKED_SOURCE = "routy-waymarked"
+private const val WAYMARKED_LAYER = "routy-waymarked-layer"
+private const val WAYMARKED_TILE_URL = "https://tile.waymarkedtrails.org/hiking/{z}/{x}/{y}.png"
 
 private const val SEGMENTS_SOURCE = "routy-segments"
 private const val SEGMENTS_LAYER = "routy-segments-layer"
@@ -78,6 +84,7 @@ private const val ME_LAYER = "routy-me-layer"
 @Composable
 fun RoutyMapView(
     style: BaseMapStyle,
+    waymarkedOverlay: Boolean = false,
     nodes: List<NodeDto>,
     segments: List<SegmentDto>,
     routeGeometry: List<GeoPoint>,
@@ -142,8 +149,9 @@ fun RoutyMapView(
         }
     }
 
-    LaunchedEffect(loadedStyle, nodes, segments, routeGeometry, stations, myLocation, routeColor, completedWaypointIndex, selectedNodeId, moveNodeId, selectedSegmentId, overlayLine, editVertices, selectedEditVertexIndex, emphasizeNetworkSegments) {
+    LaunchedEffect(loadedStyle, nodes, segments, routeGeometry, stations, myLocation, routeColor, completedWaypointIndex, selectedNodeId, moveNodeId, selectedSegmentId, overlayLine, editVertices, selectedEditVertexIndex, emphasizeNetworkSegments, waymarkedOverlay) {
         val currentStyle = loadedStyle ?: return@LaunchedEffect
+        updateWaymarkedOverlay(currentStyle, waymarkedOverlay)
         updateSegmentsLayer(currentStyle, segments, emphasizeNetworkSegments)
         updateSelectedSegmentLayer(currentStyle, segments, selectedSegmentId)
         updateOverlayLayer(currentStyle, overlayLine)
@@ -172,6 +180,30 @@ fun RoutyMapView(
             points.size == 1 -> map.moveCamera(CameraUpdateFactory.newLatLngZoom(points[0], 15.0))
             else -> map.moveCamera(CameraUpdateFactory.newLatLngBounds(LatLngBounds.Builder().includes(points).build(), 64))
         }
+    }
+}
+
+private fun updateWaymarkedOverlay(style: Style, enabled: Boolean) {
+    if (!enabled) {
+        if (style.getLayer(WAYMARKED_LAYER) != null) {
+            style.removeLayer(WAYMARKED_LAYER)
+            style.removeSource(WAYMARKED_SOURCE)
+        }
+        return
+    }
+    if (style.getLayer(WAYMARKED_LAYER) != null) return
+    val tileSet = TileSet("tileset", WAYMARKED_TILE_URL)
+    style.addSource(RasterSource(WAYMARKED_SOURCE, tileSet, 256))
+    val layer = RasterLayer(WAYMARKED_LAYER, WAYMARKED_SOURCE)
+    layer.setProperties(PropertyFactory.rasterOpacity(0.85f))
+    val belowId = style.getLayer(SEGMENTS_LAYER)?.id
+        ?: style.getLayer(LOCKED_SEGMENTS_LAYER)?.id
+        ?: style.getLayer(ROUTE_LAYER)?.id
+        ?: style.getLayer(OVERLAY_LAYER)?.id
+    if (belowId != null) {
+        style.addLayerBelow(layer, belowId)
+    } else {
+        style.addLayer(layer)
     }
 }
 

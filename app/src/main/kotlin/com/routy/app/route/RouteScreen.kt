@@ -131,8 +131,10 @@ fun RouteScreen(onStartRecording: () -> Unit, accountLocaleTag: String, modifier
 
     Box(modifier = modifier.fillMaxSize()) {
         var mapStyle by remember { mutableStateOf(BaseMapStyle.STREETS) }
+        var waymarkedOverlay by remember { mutableStateOf(false) }
         RoutyMapView(
             style = mapStyle,
+            waymarkedOverlay = waymarkedOverlay,
             nodes = uiState.nodes,
             segments = uiState.segments,
             routeGeometry = route.geometry,
@@ -148,7 +150,12 @@ fun RouteScreen(onStartRecording: () -> Unit, accountLocaleTag: String, modifier
                 modifier = Modifier.align(Alignment.TopStart).padding(8.dp),
                 verticalArrangement = Arrangement.spacedBy(6.dp),
             ) {
-                MapStyleSwitcher(selected = mapStyle, onSelect = { mapStyle = it })
+                MapStyleSwitcher(
+                    selected = mapStyle,
+                    onSelect = { mapStyle = it },
+                    waymarkedOverlay = waymarkedOverlay,
+                    onWaymarkedOverlayChange = { waymarkedOverlay = it },
+                )
             }
         }
 
@@ -240,12 +247,14 @@ private fun SuggestingMapLayout(
     modifier: Modifier = Modifier,
 ) {
     var mapStyle by remember { mutableStateOf(BaseMapStyle.STREETS) }
+    var waymarkedOverlay by remember { mutableStateOf(false) }
     var expanded by remember { mutableStateOf(false) }
     val hasSecondary = uiState.favorites.isNotEmpty() || !uiState.isLoop || uiState.waypointNodeId != null
 
     Box(modifier = modifier.fillMaxSize()) {
         RoutyMapView(
             style = mapStyle,
+            waymarkedOverlay = waymarkedOverlay,
             nodes = uiState.nodes,
             segments = uiState.segments,
             routeGeometry = emptyList(),
@@ -261,7 +270,12 @@ private fun SuggestingMapLayout(
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             if (uiState.offlineCached) OfflineBanner()
-            MapStyleSwitcher(selected = mapStyle, onSelect = { mapStyle = it })
+            MapStyleSwitcher(
+                selected = mapStyle,
+                onSelect = { mapStyle = it },
+                waymarkedOverlay = waymarkedOverlay,
+                onWaymarkedOverlayChange = { waymarkedOverlay = it },
+            )
         }
 
         Column(

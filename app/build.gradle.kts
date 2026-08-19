@@ -59,8 +59,8 @@ android {
         targetSdk = 36
         // Overridden by CI from the pushed release tag (-PappVersionName=0.13a -PappVersionCode=N)
         // — see .github/workflows/release.yml. Tags use the `a` suffix (e.g. v0.13a).
-        versionCode = (project.findProperty("appVersionCode") as String?)?.toIntOrNull() ?: 21
-        versionName = (project.findProperty("appVersionName") as String?) ?: "0.30c"
+        versionCode = (project.findProperty("appVersionCode") as String?)?.toIntOrNull() ?: 22
+        versionName = (project.findProperty("appVersionName") as String?) ?: "0.31a"
         buildConfigField("String", "SENTRY_DSN", "\"${sentryDsn.replace("\"", "\\\"")}\"")
     }
 

@@ -80,6 +80,7 @@ fun MapScreen(onStartRecording: () -> Unit, modifier: Modifier = Modifier) {
     )
     val uiState by viewModel.uiState.collectAsState()
     var mapStyle by remember { mutableStateOf(BaseMapStyle.STREETS) }
+    var waymarkedOverlay by remember { mutableStateOf(false) }
     var showExtras by remember { mutableStateOf(false) }
 
     val gpxPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
@@ -124,6 +125,7 @@ fun MapScreen(onStartRecording: () -> Unit, modifier: Modifier = Modifier) {
     Box(modifier = modifier.fillMaxSize()) {
         RoutyMapView(
             style = mapStyle,
+            waymarkedOverlay = waymarkedOverlay,
             nodes = uiState.nodes,
             segments = uiState.segments,
             routeGeometry = emptyList(),
@@ -145,6 +147,8 @@ fun MapScreen(onStartRecording: () -> Unit, modifier: Modifier = Modifier) {
         MapStyleSwitcher(
             selected = mapStyle,
             onSelect = { mapStyle = it },
+            waymarkedOverlay = waymarkedOverlay,
+            onWaymarkedOverlayChange = { waymarkedOverlay = it },
             modifier = Modifier.align(Alignment.TopStart).padding(8.dp),
         )
 
@@ -318,9 +322,9 @@ private fun ProposalsPanel(state: MapUiState, viewModel: MapViewModel) {
                             CompactOutlinedButton({ viewModel.acceptProposal(proposal.id) }) {
                                 Text(stringResource(R.string.map_proposal_accept), style = MaterialTheme.typography.labelSmall)
                             }
-                        }
-                        CompactOutlinedButton({ viewModel.dismissProposal(proposal.id) }) {
-                            Text(stringResource(R.string.map_proposal_dismiss), style = MaterialTheme.typography.labelSmall)
+                            CompactOutlinedButton({ viewModel.dismissProposal(proposal.id) }) {
+                                Text(stringResource(R.string.map_proposal_dismiss), style = MaterialTheme.typography.labelSmall)
+                            }
                         }
                     }
                 }

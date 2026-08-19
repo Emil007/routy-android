@@ -88,7 +88,7 @@
     <string name="stats_network_usage_title">Network usage</string>
     <string name="stats_network_most_used">Most used</string>
     <string name="stats_network_least_used">Least used</string>
-    <string name="stats_network_usage_row">Node %1$d → %2$d · %3$d×</string>
+    <string name="stats_network_usage_row">%1$s — %2$s · %3$d×</string>
 
     <string name="route_active_notice">You have an active route. Confirm it as walked, or discard it to get a new suggestion.</string>
     <string name="route_name_label">Route name</string>
