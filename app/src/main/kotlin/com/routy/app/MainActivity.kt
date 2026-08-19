@@ -87,6 +87,9 @@ private fun RoutyNavHost(startDestination: String) {
                 onServerConfigured = {
                     navController.navigate(Routes.LOGIN) { popUpTo(Routes.ONBOARDING) { inclusive = true } }
                 },
+                onSetupComplete = {
+                    navController.navigate(Routes.SHELL) { popUpTo(Routes.ONBOARDING) { inclusive = true } }
+                },
             )
         }
         composable(Routes.LOGIN) {
