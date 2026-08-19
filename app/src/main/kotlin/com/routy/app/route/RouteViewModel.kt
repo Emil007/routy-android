@@ -321,6 +321,11 @@ class RouteViewModel(
         }
     }
 
+    fun discover() {
+        _uiState.value = _uiState.value.copy(explorerMode = true)
+        suggest()
+    }
+
     fun suggest(preset: String? = null) {
         val state = _uiState.value
         val startNodeId = state.startNodeId ?: return

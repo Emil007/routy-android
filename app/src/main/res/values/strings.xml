@@ -103,6 +103,7 @@
     <string name="route_suggest">Route vorschlagen</string>
     <string name="route_preset_short">Kurze Runde</string>
     <string name="route_preset_long">Lange Runde</string>
+    <string name="route_preset_discover">Entdecken</string>
     <string name="route_distance_label">Strecke</string>
     <string name="route_duration_label">Dauer</string>
     <string name="route_elevation_gain">%1$d m bergauf</string>
@@ -205,6 +206,9 @@
     <string name="map_saved">Gespeichert</string>
     <string name="map_deleted">Gelöscht</string>
     <string name="map_action_error">Speichern fehlgeschlagen</string>
+    <string name="map_not_allowed">Nicht erlaubt — nur eigene Wege bearbeiten</string>
+    <string name="widget_description">Routy-Streak und Gesamtstrecke</string>
+    <string name="widget_streak_label">Tage in Folge</string>
     <string name="map_gpx_parse_error">GPX-Datei konnte nicht gelesen werden</string>
     <string name="map_gpx_track">Track %1$d</string>
     <string name="map_gpx_skip">Track überspringen</string>

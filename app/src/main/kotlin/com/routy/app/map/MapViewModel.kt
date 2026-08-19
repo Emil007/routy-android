@@ -204,6 +204,7 @@ class MapViewModel(
 
     fun saveRenameNode() {
         val node = _uiState.value.selectedNode ?: return
+        if (!canEditNode(node)) return denyNotAllowed()
         if (_uiState.value.renamePart1.trim().isEmpty()) return
         runMutation(R.string.map_saved) {
             apiClientProvider.service.renameNode(
@@ -221,6 +222,7 @@ class MapViewModel(
 
     fun toggleMoveNode() {
         val node = _uiState.value.selectedNode ?: return
+        if (!canEditNode(node)) return denyNotAllowed()
         _uiState.value = _uiState.value.copy(
             moveNodeId = if (_uiState.value.moveNodeId == node.id) null else node.id,
         )
@@ -228,12 +230,15 @@ class MapViewModel(
 
     fun deleteSelectedNode() {
         val node = _uiState.value.selectedNode ?: return
+        if (!canEditNode(node)) return denyNotAllowed()
         runMutation(R.string.map_deleted) {
             apiClientProvider.service.deleteNode(NodeIdRequest(node.id))
         }
     }
 
     private fun moveNodeTo(nodeId: Int, lat: Double, lng: Double) {
+        val node = _uiState.value.nodes.find { it.id == nodeId } ?: return
+        if (!canEditNode(node)) return denyNotAllowed()
         runMutation(R.string.map_saved) {
             apiClientProvider.service.moveNode(NodeMoveRequest(nodeId, lat, lng))
         }
@@ -253,6 +258,7 @@ class MapViewModel(
 
     fun saveRenameSegment() {
         val segment = _uiState.value.selectedSegment ?: return
+        if (!canEditSegment(segment)) return denyNotAllowed()
         runMutation(R.string.map_saved) {
             apiClientProvider.service.renameSegment(
                 SegmentRenameRequest(segment.id, _uiState.value.renameSegmentName.trim()),
@@ -262,6 +268,7 @@ class MapViewModel(
 
     fun lockSegment(days: Int?) {
         val segment = _uiState.value.selectedSegment ?: return
+        if (!canEditSegment(segment)) return denyNotAllowed()
         runMutation(R.string.map_saved) {
             apiClientProvider.service.lockSegment(SegmentLockRequest(segment.id, days))
         }
@@ -269,6 +276,7 @@ class MapViewModel(
 
     fun deleteSelectedSegment() {
         val segment = _uiState.value.selectedSegment ?: return
+        if (!canEditSegment(segment)) return denyNotAllowed()
         runMutation(R.string.map_deleted) {
             apiClientProvider.service.deleteSegment(SegmentIdRequest(segment.id))
         }
@@ -276,6 +284,7 @@ class MapViewModel(
 
     fun startEditSegmentShape() {
         val segment = _uiState.value.selectedSegment ?: return
+        if (!canEditSegment(segment)) return denyNotAllowed()
         _uiState.value = _uiState.value.copy(
             mode = MapMode.EditSegment,
             editSegmentPoints = segment.geometry,
@@ -296,6 +305,7 @@ class MapViewModel(
 
     fun finishEditSegmentShape() {
         val segment = _uiState.value.selectedSegment ?: return
+        if (!canEditSegment(segment)) return denyNotAllowed()
         val points = _uiState.value.editSegmentPoints ?: return
         if (points.size < 2) return
         runMutation(R.string.map_saved) {
@@ -384,6 +394,7 @@ class MapViewModel(
 
     fun confirmSplit() {
         val segment = _uiState.value.selectedSegment ?: return
+        if (!canEditSegment(segment)) return denyNotAllowed()
         val target = _uiState.value.splitTarget ?: return
         val decision = _uiState.value.splitDecision ?: return
         val endpointJson = when (decision) {
@@ -565,6 +576,13 @@ class MapViewModel(
         is EndpointDecision.NewJunction -> GpxEndpoint.new(part1, part2)
     }
 
+    private fun denyNotAllowed() {
+        _uiState.value = _uiState.value.copy(
+            messageRes = R.string.map_not_allowed,
+            isError = true,
+        )
+    }
+
     private fun runMutation(successRes: Int, call: suspend () -> retrofit2.Response<Unit>) {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(actionBusy = true, messageRes = null)
@@ -596,9 +614,10 @@ class MapViewModel(
                 )
                 if (successRes == R.string.map_deleted) clearSelection()
             } else {
+                val errorRes = if (response?.code() == 403) R.string.map_not_allowed else R.string.map_action_error
                 _uiState.value = _uiState.value.copy(
                     actionBusy = false,
-                    messageRes = R.string.map_action_error,
+                    messageRes = errorRes,
                     isError = true,
                 )
             }

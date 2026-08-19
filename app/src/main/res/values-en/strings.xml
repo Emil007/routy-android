@@ -103,6 +103,7 @@
     <string name="route_suggest">Suggest a route</string>
     <string name="route_preset_short">Short loop</string>
     <string name="route_preset_long">Long loop</string>
+    <string name="route_preset_discover">Discover</string>
     <string name="route_distance_label">Distance</string>
     <string name="route_duration_label">Duration</string>
     <string name="route_elevation_gain">%1$d m uphill</string>
@@ -205,6 +206,9 @@
     <string name="map_saved">Saved</string>
     <string name="map_deleted">Deleted</string>
     <string name="map_action_error">Could not save — try again</string>
+    <string name="map_not_allowed">Not allowed — you can only edit your own paths</string>
+    <string name="widget_description">Routy streak and total distance</string>
+    <string name="widget_streak_label">day streak</string>
     <string name="map_gpx_parse_error">Could not read GPX file</string>
     <string name="map_gpx_track">Track %1$d</string>
     <string name="map_gpx_skip">Skip track</string>

@@ -5,7 +5,9 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
@@ -30,6 +32,7 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.routy.app.R
 import com.routy.app.RoutyApplication
+import com.routy.app.logic.api.GeoPoint
 import com.routy.app.logic.api.WalkLogEntryDto
 import com.routy.app.logic.time.formatDurationHours
 import com.routy.app.logic.time.parseServerInstant
@@ -43,7 +46,7 @@ fun StatsScreen(modifier: Modifier = Modifier) {
     val app = LocalContext.current.applicationContext as RoutyApplication
     val viewModel: StatsViewModel = viewModel(
         factory = viewModelFactory {
-            initializer { StatsViewModel(app.apiClientProvider) }
+            initializer { StatsViewModel(app.apiClientProvider, app.networkCache, app.applicationContext) }
         },
     )
     val uiState by viewModel.uiState.collectAsState()
@@ -178,7 +181,7 @@ fun StatsScreen(modifier: Modifier = Modifier) {
         }
 
         items(uiState.recentWalks) { walk ->
-            WalkRow(walk)
+            WalkRow(walk, uiState.nodeCoords)
         }
     }
 }
@@ -199,19 +202,23 @@ private fun StatChip(label: String) {
 }
 
 @Composable
-private fun WalkRow(walk: WalkLogEntryDto) {
+private fun WalkRow(walk: WalkLogEntryDto, nodeCoords: Map<Int, GeoPoint>) {
     Card(modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(10.dp)) {
-            Text(formatWalkDate(walk.acceptedAt), style = MaterialTheme.typography.labelMedium)
-            Text(
-                text = walk.nickname ?: "${walk.nodeChain.firstOrNull()} → ${walk.nodeChain.lastOrNull()}",
-                style = MaterialTheme.typography.bodyMedium,
-            )
-            Text(
-                text = "${formatKm(walk.lengthM)} ${stringResource(R.string.common_km)} · ${walk.durationMin} ${stringResource(R.string.common_min)}",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+        Row(modifier = Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
+            WalkPathThumbnail(nodeChain = walk.nodeChain, coords = nodeCoords)
+            Spacer(modifier = Modifier.width(8.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(formatWalkDate(walk.acceptedAt), style = MaterialTheme.typography.labelMedium)
+                Text(
+                    text = walk.nickname ?: "${walk.nodeChain.firstOrNull()} → ${walk.nodeChain.lastOrNull()}",
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                Text(
+                    text = "${formatKm(walk.lengthM)} ${stringResource(R.string.common_km)} · ${walk.durationMin} ${stringResource(R.string.common_min)}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
     }
 }
