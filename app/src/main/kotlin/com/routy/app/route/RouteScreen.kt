@@ -421,39 +421,22 @@ private fun RouteOverlayPanel(
                     }
                 }
                 Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Row(
+                    OutlinedTextField(
+                        value = uiState.nickname,
+                        onValueChange = viewModel::setNickname,
+                        label = { Text(stringResource(R.string.route_name_label), style = MaterialTheme.typography.labelSmall) },
+                        placeholder = { Text(stringResource(R.string.route_name_placeholder), style = MaterialTheme.typography.labelSmall) },
+                        singleLine = true,
+                        textStyle = MaterialTheme.typography.labelSmall,
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(4.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        OutlinedTextField(
-                            value = uiState.nickname,
-                            onValueChange = viewModel::setNickname,
-                            placeholder = { Text(stringResource(R.string.route_nickname_placeholder), style = MaterialTheme.typography.labelSmall) },
-                            singleLine = true,
-                            textStyle = MaterialTheme.typography.labelSmall,
-                            modifier = Modifier.weight(1f),
-                        )
+                    )
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         TextButton(onClick = viewModel::saveNickname, enabled = !uiState.nicknameSaving) {
-                            Text(stringResource(R.string.route_save_nickname), style = MaterialTheme.typography.labelSmall)
+                            Text(stringResource(R.string.route_save_name), style = MaterialTheme.typography.labelSmall)
                         }
-                    }
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(4.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        OutlinedTextField(
-                            value = uiState.favoriteNameInput,
-                            onValueChange = viewModel::setFavoriteNameInput,
-                            placeholder = { Text(stringResource(R.string.route_favorite_name_placeholder), style = MaterialTheme.typography.labelSmall) },
-                            singleLine = true,
-                            textStyle = MaterialTheme.typography.labelSmall,
-                            modifier = Modifier.weight(1f),
-                        )
                         TextButton(
                             onClick = viewModel::saveFavorite,
-                            enabled = !uiState.savingFavorite && uiState.favoriteNameInput.isNotBlank(),
+                            enabled = !uiState.savingFavorite && uiState.nickname.isNotBlank(),
                         ) {
                             Text(stringResource(R.string.route_save_favorite), style = MaterialTheme.typography.labelSmall)
                         }
