@@ -13,13 +13,18 @@ plugins {
     // :logic still needs org.jetbrains.kotlin.jvm — it's a plain Kotlin/JVM module, not Android,
     // so AGP's built-in Kotlin support doesn't cover it.
     //
-    // 2.2.10 per developer.android.com/build/releases/agp-9-0-0-release-notes: "Android Gradle
-    // plugin 9.0 now has a runtime dependency on Kotlin Gradle plugin (KGP) 2.2.10 [...] if you
-    // use a KGP version lower than 2.2.10, Gradle will automatically upgrade your KGP version to
-    // 2.2.10" — i.e. this is the documented floor AGP 9 itself is built and tested against, so
-    // pinning compose/serialization to the same version keeps everything on one known-compatible
-    // Kotlin version instead of letting AGP silently upgrade just the built-in half.
-    id("org.jetbrains.kotlin.jvm") version "2.2.10" apply false
-    id("org.jetbrains.kotlin.plugin.compose") version "2.2.10" apply false
-    id("org.jetbrains.kotlin.plugin.serialization") version "2.2.10" apply false
+    // 2.4.10, not 2.2.10 (tried first, see app/build.gradle.kts's plugins-block comment for why
+    // it failed): AGP 9.0's release notes name 2.2.10 as its runtime-dependency *floor*, but
+    // that's not the same as "cooperates with built-in Kotlin". Google's own compatibility table
+    // (developer.android.com/build/kotlin-support) caps Kotlin 2.2.x and 2.3.x at the *last 8.x*
+    // AGP release each (8.10 and 8.13 respectively) and leaves 2.4.x open-ended starting at
+    // 8.5.2+ — the first line actually validated against AGP 9. That distinction turned out to
+    // be load-bearing: Kotlin Gradle Plugin has always auto-applied org.jetbrains.kotlin.android
+    // the moment it sees com.android.application on a project (a decades-old convenience for
+    // people who forgot to apply kotlin-android explicitly), and at 2.2.10 that auto-apply
+    // doesn't know to back off when AGP's built-in Kotlin is already handling the Android target
+    // — so it fires anyway, and its legacy KotlinAndroidTarget still references BaseVariant.
+    id("org.jetbrains.kotlin.jvm") version "2.4.10" apply false
+    id("org.jetbrains.kotlin.plugin.compose") version "2.4.10" apply false
+    id("org.jetbrains.kotlin.plugin.serialization") version "2.4.10" apply false
 }
