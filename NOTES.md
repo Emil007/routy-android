@@ -15,9 +15,9 @@ project being scaffolded and actually being opened that Android Gradle Plugin cr
 version (8.x → 9.x) in the meantime — AGP 9.0 removed the old Variant API wholesale
 (`BaseVariant` and everything built on it), which is exactly what that error means.
 
-**Six attempts confirmed failed; a seventh is pushed and not yet confirmed** (kept below, struck
-through in spirit rather than deleted, because the reasoning in each is real and each later
-attempt builds directly on what the previous ones ruled out):
+**Seven attempts confirmed failed; an eighth is a deliberate diagnostic, not yet another claimed
+fix** (kept below, struck through in spirit rather than deleted, because the reasoning in each is
+real and each later attempt builds directly on what the previous ones ruled out):
 
 1. First attempt bumped AGP `8.7.2` → `9.2.1`, Gradle `8.14.3` → `9.7.0`, all four Kotlin
    plugins `2.0.21` → `2.2.10`, added `android.builtInKotlin=false` (opting out of AGP 9's new
@@ -173,22 +173,45 @@ or environment as the explanation, and confirms this is genuinely something abou
    configuring `:app` by design — it just happens not to need to fail there, since
    `ubuntu-latest` has a real SDK and network access either way).
 
-Verified for real again after this seventh attempt: `./gradlew :logic:test --configure-on-demand`
-passed clean against Gradle 9.5.0 + Kotlin 2.2.10 in this sandbox (39 tests, 0 failures). Whether
-removing an incubating, multi-project-specific Gradle feature is what finally lets AGP 9.3.1's
-built-in Kotlin support construct `KotlinAndroidTarget` cleanly is, again, the one thing only a
-real sync can confirm. If this is *still* wrong, the next things worth checking, in order: (a)
-whether Android Studio's Gradle JDK setting (Settings → Build Tools → Gradle) points at the same
-JDK 17 this project's `compileOptions`/`:logic`'s `jvmToolchain(21)` expect — a JDK mismatch
-between the IDE's embedded JBR and what a multi-module build's per-project toolchains resolve to
-is a known source of exactly this kind of `ClassInspector`/class-generation failure in
-multi-project builds specifically, and is the other place (beyond configure-on-demand) where
-"single-module template works, multi-module project doesn't" difference could originate; (b) the
-`compileSdk { version = ... }` / `optimization { enable = ... }` DSL forms the template's
-`android {}` block uses in place of this project's `compileSdk = 36` / `isMinifyEnabled = true`
-— still unlikely to cause *this specific* crash (it happens during plugin application, before
-the `android {}` block body runs) but worth lining up once the plugin-application phase itself
-goes clean.
+`./gradlew :logic:test --configure-on-demand` passed clean against Gradle 9.5.0 + Kotlin 2.2.10
+in this sandbox after this seventh attempt (39 tests, 0 failures). **Still didn't fix it** — a
+real Android Studio sync hit the *exact same* `NoClassDefFoundError: BaseVariant`, through the
+*exact same* `initBuiltInKotlinSupport` → `KotlinAndroidTarget` path as attempts 5 and 6, despite
+AGP/Gradle/Kotlin, the plugin set, *and* now `gradle.properties` all matching the verified-working
+template closely. Seven consecutive changes to `:app`'s and the project's build configuration had
+now each individually failed to change the outcome at all.
+
+8. **Eighth attempt: a deliberate diagnostic, not a fix.** With plugin choice, every version, and
+   now `gradle.properties` all ruled out one at a time, the one remaining structural difference
+   between routy-android and the verified-working single-module template is that routy-android is
+   **multi-module** (`:app` + `:logic`) at all. A web search independently turned up other people
+   hitting this exact class of failure — `KotlinAndroidTarget`/`BaseVariant`-related
+   `NoClassDefFoundError` during Android-target class generation — specifically when modularizing
+   a Kotlin project, with reports of "no issues when using only a single module." That + the
+   crash consistently happening during Gradle's **plugin-application phase** (before any script
+   body or Kotlin source — including `:app`'s own — ever gets touched) makes for a clean,
+   conclusive test: temporarily remove `:logic` from the build entirely
+   (`settings.gradle.kts`'s `include(":logic")` and `app/build.gradle.kts`'s
+   `implementation(project(":logic"))`, both commented out rather than deleted) and check whether
+   `:app` alone reaches a successful sync. `:app`'s Kotlin source still references `:logic`
+   classes and will fail to *compile* — irrelevant to this test, since compilation is a separate,
+   later phase that a sync attempt doesn't need to reach to answer the one question this is
+   asking: does the `BaseVariant` crash disappear once `:logic` is gone?
+
+   This is intentionally **not** presented as a fix — restoring real multi-module support (moving
+   business logic back out of `:app`, however that ends up working once the actual mechanism is
+   understood) is deferred until the diagnostic result comes back. If the crash disappears with
+   `:logic` excluded, that confirms the multi-module structure itself as the trigger and narrows
+   the next real fix considerably (e.g. isolating `:logic`'s Kotlin Gradle Plugin classpath from
+   `:app`'s, or restructuring how `:logic` applies Kotlin). If the identical crash still happens
+   with `:logic` completely gone, that rules out multi-module-ness entirely and redirects the
+   search somewhere else — at that point worth checking: (a) whether Android Studio's Gradle JDK
+   setting (Settings → Build Tools → Gradle) points at the same JDK 17
+   `compileOptions`/`:logic`'s `jvmToolchain(21)` expect; (b) the `compileSdk { version = ... }` /
+   `optimization { enable = ... }` DSL forms the template's `android {}` block uses in place of
+   this project's `compileSdk = 36` / `isMinifyEnabled = true` — both still unlikely given the
+   crash's timing relative to the `android {}` block, but worth lining up once the
+   plugin-application phase itself goes clean.
 
 ## `:logic` — fully verified
 
