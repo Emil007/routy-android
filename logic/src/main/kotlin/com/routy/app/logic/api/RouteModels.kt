@@ -1,6 +1,12 @@
 package com.routy.app.logic.api
 
+import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.builtins.ListSerializer
+import kotlinx.serialization.builtins.serializer
+import kotlinx.serialization.descriptors.SerialDescriptor
+import kotlinx.serialization.encoding.Decoder
+import kotlinx.serialization.encoding.Encoder
 
 @Serializable
 data class RouteStation(val nodeId: Int, val name: String? = null, val lat: Double, val lng: Double)
@@ -10,6 +16,28 @@ data class ShortStationGroup(val text: String, val viaSegmentName: String? = nul
 
 @Serializable
 data class RouteElevation(val gainM: Int, val lossM: Int)
+
+/**
+ * Unlike GeoPoint's default {lat, lng} object shape (used everywhere else, see NetworkModels.kt),
+ * src/lib/routeDisplay.ts's RouteDisplay.geometry is a deliberate local exception encoded as
+ * [lat, lng] tuple arrays (`geometry.push([p.lat, p.lng])`) — this serializer matches that one
+ * field's actual wire format without touching GeoPoint's default serialization elsewhere.
+ */
+private object GeoPointTupleSerializer : KSerializer<GeoPoint> {
+    private val delegate = ListSerializer(Double.serializer())
+    override val descriptor: SerialDescriptor = delegate.descriptor
+
+    override fun serialize(encoder: Encoder, value: GeoPoint) {
+        encoder.encodeSerializableValue(delegate, listOf(value.lat, value.lng))
+    }
+
+    override fun deserialize(decoder: Decoder): GeoPoint {
+        val (lat, lng) = decoder.decodeSerializableValue(delegate)
+        return GeoPoint(lat, lng)
+    }
+}
+
+private object GeoPointTupleListSerializer : KSerializer<List<GeoPoint>> by ListSerializer(GeoPointTupleSerializer)
 
 /** Mirrors RouteDisplayPayload in src/components/RouteGenerator.tsx. */
 @Serializable
@@ -21,6 +49,7 @@ data class RouteDisplayPayload(
     val stations: List<RouteStation>,
     val shortStationGroups: List<ShortStationGroup>,
     val elevation: RouteElevation? = null,
+    @Serializable(with = GeoPointTupleListSerializer::class)
     val geometry: List<GeoPoint>,
 )
 

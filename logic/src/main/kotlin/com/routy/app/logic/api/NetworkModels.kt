@@ -21,7 +21,12 @@ data class NodeDto(
 @Serializable
 data class NodesResponse(val nodes: List<NodeDto>)
 
-/** [lat, lng] pairs, matching src/lib/geo.ts's LatLng JSON shape on the wire. */
+/**
+ * Matches src/lib/geo.ts's LatLng JSON shape on the wire: a plain {lat, lng} object. This is the
+ * general point format used almost everywhere server-side (e.g. SegmentDto.geometry below). One
+ * deliberate exception exists — RouteDisplayPayload.geometry in RouteModels.kt is a [lat, lng]
+ * tuple array instead — see GeoPointTupleListSerializer there for that one field's own decoding.
+ */
 @Serializable
 data class GeoPoint(val lat: Double, val lng: Double)
 

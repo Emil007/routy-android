@@ -438,6 +438,38 @@ have it yet."
   file/DB as they arrive) to an already-large, entirely uncompiled milestone — but it's the one
   thing here that isn't just "might need a small fix," it's a real edge case to eventually close.
 
+## First real device run — one crash found and fixed
+
+The app built, installed over WiFi ADB, and ran on a real Pixel 10 Pro. Login → WebView tabs →
+native map all worked first try. Tapping "route vorschlagen" crashed immediately; Logcat's
+`FATAL EXCEPTION` (found via the package filter `com.routy.app.debug` + searching for
+`AndroidRuntime`, since Android Studio's Debug console only shows VM attach/detach events, not
+crash traces) pointed at a `kotlinx.serialization.json.internal.JsonDecodingException` while
+decoding `RouteDisplayPayload.geometry`.
+
+Root cause, confirmed by reading the server source directly rather than trusting this repo's own
+(wrong) comment: `logic/api/NetworkModels.kt`'s `GeoPoint` claimed to mirror `src/lib/geo.ts`'s
+`LatLng` as a `[lat, lng]` tuple on the wire. Actually wrong on both counts —
+`src/lib/geo.ts`'s `LatLng` is `{lat, lng, ele?}`, a plain object, and even if it weren't, a
+`@Serializable data class` with named properties defaults to object-shaped JSON regardless of
+what its source-side counterpart looks like. `GeoPoint`'s default (object) serialization is
+correct for every use *except* one: `src/lib/routeDisplay.ts`'s `RouteDisplay.geometry` is a
+genuine, deliberate local exception, built with `geometry.push([p.lat, p.lng])` — a real
+`[number, number][]` tuple array, unlike the general `LatLng` shape used everywhere else
+server-side (`SegmentRow.geometry`, node coordinates, etc.). `RouteDisplayPayload.geometry` in
+`RouteModels.kt` was decoding that tuple wire format using `GeoPoint`'s default object decoder,
+which is what actually threw.
+
+Fixed with a `KSerializer<GeoPoint>` scoped to just that one property rather than changing
+`GeoPoint`'s default shape (which stays correct for `SegmentDto.geometry`/`NodeDto` elsewhere):
+`GeoPointTupleSerializer` delegates to `ListSerializer(Double.serializer())` to read/write a
+2-element array, `GeoPointTupleListSerializer` wraps it for the `List<GeoPoint>` field, and
+`RouteDisplayPayload.geometry` picks it up via `@Serializable(with = GeoPointTupleListSerializer::
+class)`. Also corrected the misleading comment on `GeoPoint` itself. Not verified against
+`./gradlew :logic:test` in this sandbox (see the "verified via CI, not this sandbox" section
+above — still applies, unrelated to this change) — CI and the next real-device run are the real
+check.
+
 ## What's implemented so far (milestones, see the plan for the full M0-M7 list)
 
 - **M0** — Gradle/Kotlin project scaffold, `:logic`/`:app` module split (done specifically to
