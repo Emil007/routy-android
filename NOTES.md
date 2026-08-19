@@ -15,10 +15,10 @@ project being scaffolded and actually being opened that Android Gradle Plugin cr
 version (8.x → 9.x) in the meantime — AGP 9.0 removed the old Variant API wholesale
 (`BaseVariant` and everything built on it), which is exactly what that error means.
 
-**Eight attempts confirmed failed (the eighth itself a deliberate diagnostic); a ninth closes a
-gap discovered in that diagnostic** (kept below, struck through in spirit rather than deleted,
-because the reasoning in each is real and each later attempt builds directly on what the previous
-ones ruled out):
+**Nine attempts confirmed failed (the eighth and ninth themselves deliberate diagnostics); a
+tenth found the actual unverified gap** (kept below, struck through in spirit rather than
+deleted, because the reasoning in each is real and each later attempt builds directly on what the
+previous ones ruled out):
 
 1. First attempt bumped AGP `8.7.2` → `9.2.1`, Gradle `8.14.3` → `9.7.0`, all four Kotlin
    plugins `2.0.21` → `2.2.10`, added `android.builtInKotlin=false` (opting out of AGP 9's new
@@ -249,34 +249,45 @@ multiple-Kotlin-Gradle-Plugin-declaration scenario, just with the consuming modu
 **Result: the identical crash reproduced.** Same `NoClassDefFoundError: BaseVariant`, same
 `initBuiltInKotlinSupport` → `KotlinAndroidTarget` path, `CONFIGURE FAILED in 2s`, on a
 single-module build whose plugin declarations, `settings.gradle.kts`, and Gradle/AGP/Kotlin
-versions are now a structural match for a project confirmed to sync clean *on the same machine,
-in the same Android Studio install*. There is nothing left in this repository's files that
-plausibly differs from that working baseline in a way reachable by a crash this early in Gradle's
-plugin-application phase. **This closes the repository-configuration side of the
-investigation** — nine attempts across every axis that could matter (plugin choice, AGP version,
-Kotlin version ×3 separate rounds, Gradle version, `gradle.properties` flags, module structure,
-root-level plugin co-declaration, repository/resolver configuration) have been ruled out one at a
-time, each verified against the one thing that actually matters: a real Android Studio sync on
-the machine this has to work on.
+versions matched the template in every way that had actually been *verified* against the
+template's real files. This looked at the time like it closed the repository-configuration side
+of the investigation entirely, pointing at local machine/environment state instead: Android
+Studio's Gradle JDK setting (was on JBR 25 — an unusually new JetBrains Runtime, switched to
+JBR 21), and Gradle caches specific to a project directory that had now been synced (and failed)
+under six different AGP versions and four different Kotlin versions in quick succession.
 
-What's left is local machine/environment state, specifically:
-- **Android Studio's Gradle JDK setting** (Settings/Preferences → Build, Execution, Deployment →
-  Build Tools → Gradle → "Gradle JDK") — worth confirming it's pointed at a real JDK 17+, not
-  something stale or misconfigured left over from whichever AGP/Gradle version was current when
-  this project was first opened.
-- **Stale/corrupted Gradle caches specific to this project's history** — this exact project
-  directory has now been synced (and failed) under six different AGP versions (`9.2.1`, `8.13.2`,
-  `9.3.0`, `9.3.1` ×3) and four different Kotlin versions (`2.2.10` ×3, `2.3.20`, `2.4.10`) in
-  quick succession. Worth clearing both the project-local `.gradle/` folder (inside
-  `routy-android/`) and the global `~/.gradle/caches` (specifically anything under
-  `caches/modules-2/files-2.1/com.android.tools.build/` and
-  `caches/modules-2/files-2.1/org.jetbrains.kotlin/`) after stopping all Gradle daemons, then
-  syncing fresh. Android Studio's own "File → Invalidate Caches / Restart" covers IDE-level state
-  the Gradle cache clear doesn't.
-- If neither resolves it, the next real diagnostic step is a completely fresh clone into a new
-  directory (ruling out anything specific to this exact checkout's `.idea`/`.gradle` state) rather
-  than another change to a repository that's already been shown, structurally, to match a working
-  one.
+**Both of those were tested and ruled out too.** JDK switched from JBR 25 → JBR 21: identical
+crash. All Gradle caches (project-local `.gradle/`, global `~/.gradle/caches`, Android Studio's
+own IDE-level cache via "Invalidate Caches / Restart") cleared, project freshly re-cloned into a
+brand new directory (`routy-android-2`) entirely: identical crash. At this point a fresh
+Empty-Activity template was regenerated *again*, under this now-cleaned environment (post
+cache-clear, post-JDK-switch) — **and it synced clean**, immediately. That's the crucial fact:
+it rules the environment back *in* as fine, and rules the repository's files back *in* as the
+real remaining variable — contradicting the "closed, must be local machine" conclusion above.
+
+10. **Tenth attempt: the actual gap.** Re-reading the previous nine attempts' reasoning turned up
+    something that had been asserted but never actually verified: every claim of a "byte-for-byte
+    structural match" to the template's root `build.gradle.kts` was based on an *assumption* of
+    what that file contained — its literal content was never seen. Only its
+    `app/build.gradle.kts`, `settings.gradle.kts`, and `gradle/libs.versions.toml` had been sent.
+    This repository's root `build.gradle.kts` had, since the very first M0 scaffold, deliberately
+    kept `com.android.application` *out* of the root and declared it only in
+    `app/build.gradle.kts` with an explicit version (`id("com.android.application") version
+    "9.3.1"`) — reasoning at the time being that AGP is hosted on Google's Maven, and keeping it
+    off the root's `plugins {}` block meant `:logic:test` never needed that repository. Standard
+    Android Studio templates do it differently: *every* plugin, including
+    `com.android.application`, gets declared at the root with `apply false`, then applied *bare*
+    (no version) in each subproject that needs it — a different plugin-resolution path than a
+    subproject requesting an explicit version directly, even though both resolve to the identical
+    final artifact coordinates. This had been the actual, real, unverified gap in every previous
+    "matches the template" claim.
+
+    Moved `com.android.application version "9.3.1" apply false` into the root `build.gradle.kts`
+    (alongside the already-present `org.jetbrains.kotlin.plugin.compose`), and changed
+    `app/build.gradle.kts`'s `plugins {}` block to apply it bare
+    (`id("com.android.application")`, no version) — matching the standard template pattern for
+    real this time, on the theory that the resolution *path* itself, not just the final resolved
+    version, might matter to whatever produces the `BaseVariant` class-generation failure.
 
 ## `:logic` — fully verified
 
