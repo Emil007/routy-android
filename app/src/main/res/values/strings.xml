@@ -74,8 +74,9 @@
     <string name="stats_points_leaderboard">Punkte-Rangliste</string>
 
     <string name="route_active_notice">Du hast eine aktive Route. Bestätige sie als gegangen, oder verwirf sie, um eine neue vorzuschlagen.</string>
-    <string name="route_nickname_placeholder">Name für diesen Spaziergang (optional)</string>
-    <string name="route_save_nickname">Name speichern</string>
+    <string name="route_name_label">Routenname</string>
+    <string name="route_name_placeholder">Routenname (optional)</string>
+    <string name="route_save_name">Speichern</string>
     <string name="route_nickname_saved">Name gespeichert.</string>
     <string name="route_favorites_title">Lieblingsrouten</string>
     <string name="route_favorite_take">Diese Route nehmen</string>

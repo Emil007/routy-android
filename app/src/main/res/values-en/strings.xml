@@ -74,8 +74,9 @@
     <string name="stats_points_leaderboard">Points leaderboard</string>
 
     <string name="route_active_notice">You have an active route. Confirm it as walked, or discard it to get a new suggestion.</string>
-    <string name="route_nickname_placeholder">Name for this walk (optional)</string>
-    <string name="route_save_nickname">Save name</string>
+    <string name="route_name_label">Route name</string>
+    <string name="route_name_placeholder">Route name (optional)</string>
+    <string name="route_save_name">Save</string>
     <string name="route_nickname_saved">Name saved.</string>
     <string name="route_favorites_title">Favorite routes</string>
     <string name="route_favorite_take">Take this route</string>

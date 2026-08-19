@@ -61,7 +61,6 @@ data class RouteUiState(
     val nickname: String = "",
     val nicknameSaving: Boolean = false,
 
-    val favoriteNameInput: String = "",
     val savingFavorite: Boolean = false,
 
     val myLocation: GeoPoint? = null,
@@ -214,7 +213,6 @@ class RouteViewModel(
     fun setWaypointNodeId(id: Int?) { _uiState.value = _uiState.value.copy(waypointNodeId = id) }
     fun setExplorerMode(enabled: Boolean) { _uiState.value = _uiState.value.copy(explorerMode = enabled) }
     fun setNickname(value: String) { _uiState.value = _uiState.value.copy(nickname = value) }
-    fun setFavoriteNameInput(value: String) { _uiState.value = _uiState.value.copy(favoriteNameInput = value) }
     fun setMyLocation(point: GeoPoint?) { _uiState.value = _uiState.value.copy(myLocation = point) }
     fun setWatchingLocation(watching: Boolean) {
         _uiState.value = _uiState.value.copy(
@@ -484,7 +482,7 @@ class RouteViewModel(
     fun saveFavorite() {
         val state = _uiState.value
         val route = state.route ?: return
-        val name = state.favoriteNameInput.trim()
+        val name = state.nickname.trim()
         if (name.isEmpty()) return
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(savingFavorite = true)
@@ -498,7 +496,7 @@ class RouteViewModel(
             }
             _uiState.value = _uiState.value.copy(savingFavorite = false)
             if (response.isSuccessful) {
-                _uiState.value = _uiState.value.copy(favoriteNameInput = "", messageRes = R.string.route_favorite_saved)
+                _uiState.value = _uiState.value.copy(messageRes = R.string.route_favorite_saved)
                 refreshFavorites()
             }
         }
