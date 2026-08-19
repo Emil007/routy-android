@@ -19,13 +19,17 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuAnchorType
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -54,6 +58,7 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.routy.app.R
 import com.routy.app.RoutyApplication
+import com.routy.app.logic.api.GeoPoint
 import com.routy.app.logic.recording.EndpointDecision
 import com.routy.app.logic.recording.NodeCandidate
 import com.routy.app.logic.recording.RecordingPhase
@@ -174,43 +179,81 @@ fun RecordingScreen(onDone: () -> Unit, modifier: Modifier = Modifier) {
                     modifier = modifier.padding(padding).fillMaxSize(),
                 )
             }
-            else -> LazyColumn(
+            serviceState.phase == RecordingPhase.CONFIRM -> {
+                ConfirmFullscreen(
+                    uiState = uiState,
+                    viewModel = viewModel,
+                    onDiscard = {
+                        service?.stopAfterCommitOrDiscard()
+                        viewModel.reset()
+                    },
+                    modifier = modifier.padding(padding).fillMaxSize(),
+                )
+            }
+            else -> Column(
                 modifier = modifier.fillMaxWidth().padding(padding).padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                when {
-                    serviceState.phase == RecordingPhase.CONFIRM -> {
-                        item {
-                            ConfirmSection(
-                                uiState = uiState,
-                                viewModel = viewModel,
-                                onDiscard = {
-                                    service?.stopAfterCommitOrDiscard()
-                                    viewModel.reset()
-                                },
-                            )
-                        }
-                    }
-                    else -> {
-                        item { BatteryOptimizationPrompt() }
-                        item {
-                            Text(stringResource(R.string.record_instructions), style = MaterialTheme.typography.bodyMedium)
-                        }
-                        item {
-                            Text(
-                                stringResource(R.string.record_background_capability),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                        item {
-                            Button(onClick = { requestStart() }, modifier = Modifier.fillMaxWidth()) {
-                                Text(stringResource(R.string.record_start))
-                            }
-                        }
-                    }
+                BatteryOptimizationPrompt()
+                Text(stringResource(R.string.record_instructions), style = MaterialTheme.typography.bodyMedium)
+                Text(
+                    stringResource(R.string.record_background_capability),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Button(onClick = { requestStart() }, modifier = Modifier.fillMaxWidth()) {
+                    Text(stringResource(R.string.record_start))
                 }
             }
+        }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
+@Composable
+private fun ConfirmFullscreen(
+    uiState: RecordingUiState,
+    viewModel: RecordingViewModel,
+    onDiscard: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var mapStyle by remember { mutableStateOf(BaseMapStyle.STREETS) }
+    val trackGeometry = remember(uiState.points) {
+        uiState.points.map { GeoPoint(it.lat, it.lng) }
+    }
+
+    Box(modifier = modifier) {
+        RoutyMapView(
+            style = mapStyle,
+            nodes = uiState.nodes,
+            segments = emptyList(),
+            routeGeometry = trackGeometry,
+            stations = emptyList(),
+            myLocation = null,
+            fitKey = uiState.points.size,
+            routeColor = "#9a3b29",
+            modifier = Modifier.fillMaxSize(),
+        )
+
+        Column(
+            modifier = Modifier.align(Alignment.TopStart).padding(8.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            MapStyleSwitcher(selected = mapStyle, onSelect = { mapStyle = it })
+        }
+
+        Card(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .padding(8.dp),
+        ) {
+            ConfirmSection(
+                uiState = uiState,
+                viewModel = viewModel,
+                onDiscard = onDiscard,
+                modifier = Modifier.padding(10.dp).heightIn(max = 280.dp),
+            )
         }
     }
 }
@@ -289,54 +332,57 @@ private fun ActiveRecordingFullscreen(
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun ConfirmSection(uiState: RecordingUiState, viewModel: RecordingViewModel, onDiscard: () -> Unit) {
+private fun ConfirmSection(
+    uiState: RecordingUiState,
+    viewModel: RecordingViewModel,
+    onDiscard: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     val start = uiState.points.firstOrNull()
     val end = uiState.points.lastOrNull()
     val startDecision = uiState.startDecision
     val endDecision = uiState.endDecision
 
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text(stringResource(R.string.record_confirm_title), style = MaterialTheme.typography.titleMedium)
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(stringResource(R.string.record_confirm_title), style = MaterialTheme.typography.titleSmall)
 
-            if (start != null && startDecision != null) {
-                EndpointDecisionSection(
-                    label = stringResource(R.string.record_start_node),
-                    candidates = viewModel.startCandidates(),
-                    decision = startDecision,
-                    onDecisionChange = viewModel::setStartDecision,
-                )
+        if (start != null && startDecision != null) {
+            EndpointDecisionSection(
+                label = stringResource(R.string.record_start_node),
+                candidates = viewModel.startCandidates(),
+                decision = startDecision,
+                onDecisionChange = viewModel::setStartDecision,
+            )
+        }
+
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Checkbox(checked = uiState.markStartAsHome, onCheckedChange = viewModel::setMarkStartAsHome)
+            Text(stringResource(R.string.record_mark_as_home), style = MaterialTheme.typography.bodySmall)
+        }
+
+        if (end != null && endDecision != null) {
+            EndpointDecisionSection(
+                label = stringResource(R.string.record_end_node),
+                candidates = viewModel.endCandidates(),
+                decision = endDecision,
+                onDecisionChange = viewModel::setEndDecision,
+            )
+        }
+
+        uiState.messageRes?.let { res ->
+            Text(
+                stringResource(res),
+                color = if (uiState.isError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+                style = MaterialTheme.typography.bodySmall,
+            )
+        }
+
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Button(onClick = viewModel::save, enabled = !uiState.saving) {
+                Text(stringResource(if (uiState.saving) R.string.record_saving else R.string.record_save))
             }
-
-            Row {
-                Checkbox(checked = uiState.markStartAsHome, onCheckedChange = viewModel::setMarkStartAsHome)
-                Text(stringResource(R.string.record_mark_as_home))
-            }
-
-            if (end != null && endDecision != null) {
-                EndpointDecisionSection(
-                    label = stringResource(R.string.record_end_node),
-                    candidates = viewModel.endCandidates(),
-                    decision = endDecision,
-                    onDecisionChange = viewModel::setEndDecision,
-                )
-            }
-
-            uiState.messageRes?.let { res ->
-                Text(
-                    stringResource(res),
-                    color = if (uiState.isError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
-                    style = MaterialTheme.typography.bodySmall,
-                )
-            }
-
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = viewModel::save, enabled = !uiState.saving) {
-                    Text(stringResource(if (uiState.saving) R.string.record_saving else R.string.record_save))
-                }
-                OutlinedButton(onClick = onDiscard, enabled = !uiState.saving) {
-                    Text(stringResource(R.string.record_discard))
-                }
+            OutlinedButton(onClick = onDiscard, enabled = !uiState.saving) {
+                Text(stringResource(R.string.record_discard))
             }
         }
     }
@@ -369,42 +415,49 @@ private fun EndpointDecisionSection(
         when (decision) {
             is EndpointDecision.Existing -> CandidateDropdown(candidates, decision.nodeId) { onDecisionChange(EndpointDecision.Existing(it)) }
             is EndpointDecision.NewJunction -> {
-                OutlinedTextField(
-                    value = decision.part1,
-                    onValueChange = { onDecisionChange(decision.copy(part1 = it)) },
-                    placeholder = { Text(stringResource(R.string.record_name_part1)) },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                OutlinedTextField(
-                    value = decision.part2,
-                    onValueChange = { onDecisionChange(decision.copy(part2 = it)) },
-                    placeholder = { Text(stringResource(R.string.record_name_part2)) },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                )
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    OutlinedTextField(
+                        value = decision.part1,
+                        onValueChange = { onDecisionChange(decision.copy(part1 = it)) },
+                        placeholder = { Text(stringResource(R.string.record_name_part1)) },
+                        singleLine = true,
+                        modifier = Modifier.weight(1f),
+                    )
+                    OutlinedTextField(
+                        value = decision.part2,
+                        onValueChange = { onDecisionChange(decision.copy(part2 = it)) },
+                        placeholder = { Text(stringResource(R.string.record_name_part2)) },
+                        singleLine = true,
+                        modifier = Modifier.weight(1f),
+                    )
+                }
             }
         }
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun CandidateDropdown(candidates: List<NodeCandidate>, selectedId: Int?, onSelect: (Int) -> Unit) {
     var expanded by remember { mutableStateOf(false) }
     val selected = candidates.firstOrNull { it.id == selectedId }
-    Column {
-        OutlinedButton(onClick = { expanded = true }, enabled = candidates.isNotEmpty()) {
-            Text(
-                selected?.let { "${it.name ?: "#${it.id}"} (${it.distanceM.toInt()} m)" } ?: "",
-            )
-        }
-        if (expanded) {
-            Column {
-                candidates.forEach { candidate ->
-                    OutlinedButton(onClick = { onSelect(candidate.id); expanded = false }, modifier = Modifier.fillMaxWidth()) {
-                        Text("${candidate.name ?: "#${candidate.id}"} (${candidate.distanceM.toInt()} m)")
-                    }
-                }
+    val label = selected?.let { "${it.name ?: "#${it.id}"} (${it.distanceM.toInt()} m)" } ?: ""
+
+    ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = it }) {
+        OutlinedTextField(
+            value = label,
+            onValueChange = {},
+            readOnly = true,
+            enabled = candidates.isNotEmpty(),
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+            modifier = Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
+        )
+        ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            candidates.forEach { candidate ->
+                DropdownMenuItem(
+                    text = { Text("${candidate.name ?: "#${candidate.id}"} (${candidate.distanceM.toInt()} m)") },
+                    onClick = { onSelect(candidate.id); expanded = false },
+                )
             }
         }
     }
