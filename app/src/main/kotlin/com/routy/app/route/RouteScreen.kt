@@ -124,7 +124,6 @@ fun RouteScreen(onStartRecording: () -> Unit, accountLocaleTag: String, modifier
         SuggestingMapLayout(
             uiState = uiState,
             viewModel = viewModel,
-            onStartRecording = onStartRecording,
             modifier = modifier,
         )
         return
@@ -167,6 +166,7 @@ fun RouteScreen(onStartRecording: () -> Unit, accountLocaleTag: String, modifier
                 route = route,
                 viewModel = viewModel,
                 accountLocaleTag = accountLocaleTag,
+                onStartRecording = onStartRecording,
                 modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth(),
             )
         }
@@ -207,10 +207,33 @@ fun RouteScreen(onStartRecording: () -> Unit, accountLocaleTag: String, modifier
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
+private fun RoutePresetButtons(uiState: RouteUiState, viewModel: RouteViewModel) {
+    val loading = uiState.status == RouteStatus.LOADING
+    val hasStart = uiState.startNodeId != null
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        CompactButton(onClick = { viewModel.suggest() }, enabled = !loading && hasStart) {
+            Text(stringResource(if (loading) R.string.route_generating else R.string.route_suggest), style = MaterialTheme.typography.labelMedium)
+        }
+        CompactOutlinedButton(onClick = { viewModel.suggest("short") }, enabled = !loading && hasStart) {
+            Text(stringResource(R.string.route_preset_short), style = MaterialTheme.typography.labelMedium)
+        }
+        CompactOutlinedButton(onClick = { viewModel.suggest("long") }, enabled = !loading && hasStart) {
+            Text(stringResource(R.string.route_preset_long), style = MaterialTheme.typography.labelMedium)
+        }
+        CompactOutlinedButton(onClick = { viewModel.discover() }, enabled = !loading && hasStart) {
+            Text(stringResource(R.string.route_preset_discover), style = MaterialTheme.typography.labelMedium)
+        }
+        CompactOutlinedButton(onClick = { viewModel.surprise() }, enabled = !loading && hasStart) {
+            Text(stringResource(R.string.route_preset_surprise), style = MaterialTheme.typography.labelMedium)
+        }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
 private fun SuggestingMapLayout(
     uiState: RouteUiState,
     viewModel: RouteViewModel,
-    onStartRecording: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var mapStyle by remember { mutableStateOf(BaseMapStyle.STREETS) }
@@ -287,27 +310,7 @@ private fun SuggestingMapLayout(
                             Text(stringResource(R.string.route_explorer_mode), style = MaterialTheme.typography.labelSmall)
                         }
                     }
-                    val loading = uiState.status == RouteStatus.LOADING
-                    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        CompactButton(onClick = { viewModel.suggest() }, enabled = !loading && uiState.startNodeId != null) {
-                            Text(stringResource(if (loading) R.string.route_generating else R.string.route_suggest), style = MaterialTheme.typography.labelMedium)
-                        }
-                        CompactOutlinedButton(onClick = { viewModel.suggest("short") }, enabled = !loading) {
-                            Text(stringResource(R.string.route_preset_short), style = MaterialTheme.typography.labelMedium)
-                        }
-                        CompactOutlinedButton(onClick = { viewModel.suggest("long") }, enabled = !loading) {
-                            Text(stringResource(R.string.route_preset_long), style = MaterialTheme.typography.labelMedium)
-                        }
-                        CompactOutlinedButton(onClick = { viewModel.discover() }, enabled = !loading && uiState.startNodeId != null) {
-                            Text(stringResource(R.string.route_preset_discover), style = MaterialTheme.typography.labelMedium)
-                        }
-                        CompactOutlinedButton(onClick = { viewModel.surprise() }, enabled = !loading && uiState.startNodeId != null) {
-                            Text(stringResource(R.string.route_preset_surprise), style = MaterialTheme.typography.labelMedium)
-                        }
-                        CompactOutlinedButton(onClick = onStartRecording) {
-                            Text(stringResource(R.string.record_entry_point), style = MaterialTheme.typography.labelMedium)
-                        }
-                    }
+                    RoutePresetButtons(uiState, viewModel)
                     if (hasSecondary || uiState.favorites.isNotEmpty()) {
                         TextButton(onClick = { expanded = !expanded }) {
                             Text(
@@ -332,6 +335,7 @@ private fun RouteOverlayPanel(
     route: com.routy.app.logic.api.RouteDisplayPayload,
     viewModel: RouteViewModel,
     accountLocaleTag: String,
+    onStartRecording: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -405,6 +409,7 @@ private fun RouteOverlayPanel(
             }
 
             if (uiState.mode == RouteMode.SUGGESTING && uiState.pendingShareToken == null) {
+                RoutePresetButtons(uiState, viewModel)
                 val loading = uiState.status == RouteStatus.LOADING
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     CompactOutlinedButton(onClick = { viewModel.adjust("shorter") }, enabled = !loading) { Text(stringResource(R.string.route_shorter), style = MaterialTheme.typography.labelMedium) }
@@ -412,6 +417,9 @@ private fun RouteOverlayPanel(
                     CompactOutlinedButton(onClick = viewModel::another, enabled = !loading) { Text(stringResource(R.string.route_new_route), style = MaterialTheme.typography.labelMedium) }
                     CompactButton(onClick = viewModel::accept, enabled = !loading) { Text(stringResource(R.string.route_accept), style = MaterialTheme.typography.labelMedium) }
                     CompactOutlinedButton(onClick = viewModel::cancel, enabled = !loading) { Text(stringResource(R.string.route_cancel), style = MaterialTheme.typography.labelMedium) }
+                    CompactOutlinedButton(onClick = onStartRecording, enabled = !loading) {
+                        Text(stringResource(R.string.record_entry_point), style = MaterialTheme.typography.labelMedium)
+                    }
                 }
             } else if (uiState.mode == RouteMode.ACTIVE) {
                 FlowRow(
