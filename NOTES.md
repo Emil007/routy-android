@@ -172,19 +172,70 @@ any IDE inspection. What to expect on first sync:
     now) held generic placeholder text ("Station") rather than the web's actual fallback
     ("die nächste Station"/"the next station", used when an unnamed station's name is needed in
     a voice cue) — corrected to match `src/lib/i18n/{de,en}.json`'s real `route.station` text.
+- **M6** — CI + a signed-release pipeline. **This is the one milestone with a real action item
+  for you** — see "Before the first release" below, nothing here works until you do it.
+  - `.github/workflows/ci.yml`: two jobs on every push/PR. `logic-test` runs `:logic:test`
+    (works anywhere, including this sandbox). `app-build` runs `:app:assembleDebug` +
+    `:app:lintDebug` — this is the actual **first real compiler check** all the `:app` code in
+    this repo gets, since GitHub-hosted `ubuntu-latest` runners ship a working, pre-licensed
+    Android SDK (unlike this project's own dev sandbox, which blocks `dl.google.com`
+    entirely — see the top of this file). Whatever CI flags on the first push is the truth about
+    everything marked "compiler-unverified" above.
+  - `.github/workflows/release.yml`: pushing a tag matching `v*` builds a **signed** release
+    APK and attaches it to a new GitHub Release via `softprops/action-gh-release`.
+    `versionName`/`versionCode` come from the tag and the run number
+    (`-PappVersionName=... -PappVersionCode=...`, read in `app/build.gradle.kts`) rather than
+    the placeholders checked into `defaultConfig`.
+  - `app/build.gradle.kts` gained a conditional `signingConfigs { release { ... } }` reading
+    from a `keystore.properties` file at the repo root (gitignored, never committed) —
+    deliberately *not* using AGP's `-Pandroid.injected.signing.*` Gradle-property mechanism
+    some CI guides use instead, because I could not pin down its exact property names (they
+    vary between guides — `android.injected.signing.key.alias` vs
+    `android.injected.signing.store.key.alias`) closely enough to be confident writing it
+    blind. `keystore.properties` is the same file-based pattern Android's own official signing
+    guide recommends, and every field in it is a plain Kotlin property name I control directly
+    rather than a magic CLI flag string — much lower risk for code I can't compile-check.
+  - `app/build.gradle.kts` also turned on `buildFeatures.buildConfig` (off by default in
+    AGP 8+) so `BuildConfig.VERSION_NAME` is readable at runtime.
+  - `logic/update/UpdateCheck.kt` (+ tests) and `update/GithubReleaseClient.kt` +
+    `update/UpdateBanner.kt` port the plan's suggested "update available" check
+    (`src/lib/updateCheck.ts`'s `parseVersion`/`isNewer`, ported and tested in `:logic`) against
+    `Emil007/routy-android`'s own releases instead of the server's. Shown to any signed-in user
+    (not admin-gated like the web's version, which checks the *server's* own updates — an
+    out-of-date sideloaded APK is everyone's problem, not just the sysop's), as a dismissible
+    banner above whichever tab is open. Dismissal is session-only, not persisted.
+
+### Before the first release — what you need to do that I can't
+
+Generate a release keystore and add these four repo secrets (Settings → Secrets and
+variables → Actions, on `Emil007/routy-android`) before pushing a `v*` tag — `release.yml`
+will fail without them:
+
+- `ANDROID_KEYSTORE_BASE64` — a release `.jks`, base64-encoded (`keytool -genkeypair ...` to
+  create one, then `base64 -w0 your.jks` to encode it; keep the original `.jks` somewhere safe
+  outside git — losing it means every future release needs a new signing identity, and Android
+  won't accept an update signed by a different key over an existing sideloaded install).
+- `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD` — whatever you set
+  when generating the keystore.
+
+Once those exist, `git tag v0.1.0 && git push origin v0.1.0` should produce a signed
+`app-release.apk` on a new GitHub Release. First one will also be the first real end-to-end
+proof this whole app compiles.
 
 ## Not started yet
 
-M6 (CI + signed releases — needs a keystore you generate and add as repo secrets, not something
-I can do), M7 (polish: battery-optimization prompt, network-drop retry during recording, locale
-following the account's server-side setting — both the UI strings, which currently follow the
-*device* locale via Android's own resource system, and M5's TTS language, which does the same —
+M7 (polish: battery-optimization prompt, network-drop retry during recording, locale following
+the account's server-side setting — both the UI strings, which currently follow the *device*
+locale via Android's own resource system, and M5's TTS language, which does the same —
 base-map-style switcher UI for the native Route/Recording screens, since the three style assets
 exist but `RoutyMapView` callers are hardcoded to `BaseMapStyle.STREETS`).
 
 ## First things to do in Android Studio
 
 1. Let Gradle sync. Fix whatever it flags — most likely a version bump on one of the
-   "worth double-checking" dependencies above.
-2. Run on an emulator or device, walk through onboarding → login → each WebView tab once.
-3. From there, M3 onward can continue.
+   "worth double-checking" dependencies above. Or just push to `main` and let CI (M6) tell you
+   first, if you'd rather not wait on a local sync.
+2. Run on an emulator or device, walk through onboarding → login → each tab once, then a short
+   real walk exercising Route (accept a route, voice cues) and Record (start, stop, confirm,
+   save).
+3. Generate a release keystore and add the four repo secrets above, then tag a release.

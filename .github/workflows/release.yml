@@ -1,0 +1,63 @@
+name: Release
+
+# Pushing a version tag (e.g. `v1.2.3`) builds a signed release APK and attaches it to a new
+# GitHub Release — the whole point of the sideload-only distribution model this app uses instead
+# of the Play Store. Needs four repo secrets that don't exist yet and can't be added by an
+# assistant — see NOTES.md for exactly what to generate and where to add them.
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up JDK
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Derive version from the tag
+        id: version
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          echo "name=${TAG#v}" >> "$GITHUB_OUTPUT"
+          echo "code=${GITHUB_RUN_NUMBER}" >> "$GITHUB_OUTPUT"
+
+      - name: Decode signing keystore
+        run: echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 --decode > "${{ github.workspace }}/release.jks"
+
+      - name: Write keystore.properties
+        # Read by app/build.gradle.kts's conditional signingConfig — never committed (gitignored),
+        # written fresh on every run, removed again in the cleanup step below regardless of outcome.
+        run: |
+          cat > "${{ github.workspace }}/keystore.properties" <<PROPS
+          storeFile=${{ github.workspace }}/release.jks
+          storePassword=${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          keyAlias=${{ secrets.ANDROID_KEY_ALIAS }}
+          keyPassword=${{ secrets.ANDROID_KEY_PASSWORD }}
+          PROPS
+
+      - name: Build signed release APK
+        run: |
+          ./gradlew :app:assembleRelease \
+            -PappVersionName=${{ steps.version.outputs.name }} \
+            -PappVersionCode=${{ steps.version.outputs.code }}
+
+      - name: Remove keystore and credentials from the runner
+        if: always()
+        run: rm -f "${{ github.workspace }}/release.jks" "${{ github.workspace }}/keystore.properties"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v3
+        with:
+          files: app/build/outputs/apk/release/app-release.apk
+          generate_release_notes: true

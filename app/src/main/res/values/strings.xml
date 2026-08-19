@@ -120,6 +120,10 @@
     <string name="route_compass_w">Westen</string>
     <string name="route_compass_nw">Nordwesten</string>
 
+    <string name="update_available">Neue Version verfügbar: %1$s</string>
+    <string name="update_view">Ansehen</string>
+    <string name="update_dismiss">Schließen</string>
+
     <string name="notification_recording_channel_name">Wegaufzeichnung</string>
     <string name="notification_recording_title">Aufzeichnung läuft</string>
     <string name="notification_recording_text">%1$d Punkte, %2$s km</string>

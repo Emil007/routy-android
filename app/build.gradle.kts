@@ -4,11 +4,23 @@
 // Services artifact, and there's no Android SDK installed either. First thing to do in
 // Android Studio: let it sync, then fix whatever it flags — see NOTES.md at the repo root
 // for the full rundown of what's verified vs. not.
+import java.util.Properties
+
 plugins {
     id("com.android.application") version "8.7.2"
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
     id("org.jetbrains.kotlin.plugin.serialization")
+}
+
+// Release signing: keystore.properties (gitignored — see .gitignore) at the repo root, written
+// by .github/workflows/release.yml from repo secrets right before assembleRelease runs. Never
+// committed, and simply absent for any local/debug build, which is exactly why the signingConfig
+// below is conditional rather than assumed to exist.
+val keystorePropertiesFile = rootProject.file("keystore.properties")
+val hasKeystoreProperties = keystorePropertiesFile.exists()
+val keystoreProperties = Properties().apply {
+    if (hasKeystoreProperties) load(keystorePropertiesFile.inputStream())
 }
 
 android {
@@ -19,16 +31,28 @@ android {
         applicationId = "com.routy.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.1.0"
+        // Overridden by CI from the pushed release tag (-PappVersionName=1.2.3 -PappVersionCode=N)
+        // — see .github/workflows/release.yml. Local/debug builds just get this placeholder.
+        versionCode = (project.findProperty("appVersionCode") as String?)?.toIntOrNull() ?: 1
+        versionName = (project.findProperty("appVersionName") as String?) ?: "0.1.0"
+    }
+
+    signingConfigs {
+        if (hasKeystoreProperties) {
+            create("release") {
+                storeFile = file(keystoreProperties.getProperty("storeFile"))
+                storePassword = keystoreProperties.getProperty("storePassword")
+                keyAlias = keystoreProperties.getProperty("keyAlias")
+                keyPassword = keystoreProperties.getProperty("keyPassword")
+            }
+        }
     }
 
     buildTypes {
         release {
             isMinifyEnabled = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            // Signing config is injected by CI from repo secrets (see .github/workflows/release.yml) —
-            // deliberately not declared here so there's nothing signing-related to accidentally commit.
+            if (hasKeystoreProperties) signingConfig = signingConfigs.getByName("release")
         }
         debug {
             applicationIdSuffix = ".debug"
@@ -46,6 +70,9 @@ android {
 
     buildFeatures {
         compose = true
+        // Off by default in AGP 8+ — turned on so the update checker (M6) can read
+        // BuildConfig.VERSION_NAME to compare the running app against the latest GitHub release.
+        buildConfig = true
     }
 
     packaging {
