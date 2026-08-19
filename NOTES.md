@@ -15,7 +15,7 @@ project being scaffolded and actually being opened that Android Gradle Plugin cr
 version (8.x → 9.x) in the meantime — AGP 9.0 removed the old Variant API wholesale
 (`BaseVariant` and everything built on it), which is exactly what that error means.
 
-**Three attempts failed before the actual fix landed** (kept below, struck through in spirit
+**Four attempts failed before the actual fix landed** (kept below, struck through in spirit
 rather than deleted, because the reasoning in each is real and the eventual fix builds directly
 on what they ruled out):
 
@@ -49,7 +49,7 @@ on what they ruled out):
    real absence of `BaseExtension` in AGP 8.13.2's jar — a KGP-side check tripping over the
    conflict it exists to catch.
 
-**What actually fixed it**: attempts 1–3 all shared one bug, invisible until reading AGP 9's own
+Attempts 1–3 all shared one bug, invisible until reading AGP 9's own
 [release notes](https://developer.android.com/build/releases/agp-9-0-0-release-notes) instead of
 migration guides and compatibility tables. AGP 9 ships **two** independent flags, not one:
 `android.builtInKotlin` (default `true` — enables AGP's own Kotlin-Android integration) and
@@ -63,40 +63,50 @@ but ran into KGP 2.3.20's `AgpWithBuiltInKotlinAppliedCheck`, a check that (per 
 purely to catch this same kotlin-android/built-in-Kotlin conflict — on an AGP version that
 predates the conflict entirely, but the check itself doesn't know that.
 
-Rather than juggle a third flag combination, the actual fix is the one
-[developer.android.com/build/migrate-to-built-in-kotlin](https://developer.android.com/build/migrate-to-built-in-kotlin)
-describes: **remove `org.jetbrains.kotlin.android` outright** and let AGP 9's built-in Kotlin
-support (on by default) own the Kotlin-Android integration — there's no second integration left
-to conflict with it, so neither `BaseVariant` nor `BaseExtension` ever needs to resolve. Landed
-on:
+4. Fourth attempt, following
+   [developer.android.com/build/migrate-to-built-in-kotlin](https://developer.android.com/build/migrate-to-built-in-kotlin):
+   removed `org.jetbrains.kotlin.android` outright and let AGP 9's built-in Kotlin support (on by
+   default) own the Kotlin-Android integration, reasoning there'd be no second integration left
+   to conflict with it. Bumped to AGP `9.3.0` (current stable, per
+   [developer.android.com/build/releases/gradle-plugin](https://developer.android.com/build/releases/gradle-plugin)
+   — no longer guessing a version) and Gradle `9.7.0`, and pinned the remaining compiler plugins
+   (`org.jetbrains.kotlin.plugin.compose`/`.serialization`, plus `:logic`'s
+   `org.jetbrains.kotlin.jvm`) to `2.2.10` — the version
+   [AGP 9.0's release notes](https://developer.android.com/build/releases/agp-9-0-0-release-notes)
+   name as AGP 9's own runtime-dependency floor. Also made `android.builtInKotlin=true` explicit
+   in `gradle.properties` (redundant with AGP 9's default, but attempt 1 set the *sibling* flag
+   to `false` by mistake, so spelling it out guards against that regression coming back
+   silently). `./gradlew :logic:test` passed clean against Gradle 9.7.0 + Kotlin 2.2.10.
+   **Still didn't fix it** — the *exact same* `BaseVariant` `NoClassDefFoundError` came back, but
+   through a different code path this time:
+   `KotlinAndroidPlugin.Companion.dynamicallyApplyWhenAndroidPluginIsApplied` — a decades-old
+   Kotlin Gradle Plugin convenience
+   that auto-applies `org.jetbrains.kotlin.android` the instant it sees `com.android.application`
+   on a project, *regardless of whether anyone declared it*, for people who forgot to apply
+   `kotlin-android` explicitly by hand. Nothing in `app/build.gradle.kts` asked for it — the
+   `org.jetbrains.kotlin.plugin.compose`/`.serialization` compiler plugins pull in enough of
+   KGP's common machinery to trigger this convenience on their own. At `2.2.10`, it doesn't yet
+   know to back off when AGP's built-in Kotlin is already handling the Android target, so it
+   fired anyway and hit the same legacy `BaseVariant` reference.
 
-- AGP → `9.3.0` (current stable as of Aug 2026, per
-  [developer.android.com/build/releases/gradle-plugin](https://developer.android.com/build/releases/gradle-plugin)
-  — no longer guessing a version, this is the one documented as current).
-- Gradle wrapper → `9.7.0` (current stable; AGP 9.3.0's own documented minimum is 9.5.0).
-- `org.jetbrains.kotlin.android` **removed** from both `app/build.gradle.kts`'s plugins block
-  and the root `build.gradle.kts`'s version declarations — no longer needed or wanted.
-- `org.jetbrains.kotlin.plugin.compose`/`.serialization` (still needed as separate compiler
-  plugins — the migration guide confirms these aren't part of built-in Kotlin) and `:logic`'s
-  `org.jetbrains.kotlin.jvm` → `2.2.10`, the version
-  [AGP 9.0's release notes](https://developer.android.com/build/releases/agp-9-0-0-release-notes)
-  name as AGP 9's own runtime-dependency floor ("if you use a KGP version lower than 2.2.10,
-  Gradle will automatically upgrade your KGP version to 2.2.10") — picked to match what AGP
-  itself is built and tested against, rather than the newest available patch.
-- `gradle.properties` gained one explicit line, `android.builtInKotlin=true` — redundant with
-  AGP 9's own default, but spelled out on purpose: attempt 1 set the *sibling* flag to `false` by
-  mistake, and an explicit `true` here makes sure that particular regression can't come back
-  silently.
-- `app/build.gradle.kts`'s `kotlin { compilerOptions { jvmTarget.set(...) } }` block **kept
-  as-is** — AGP's built-in Kotlin support registers the same top-level `kotlin` extension the
-  traditional plugin used to, so this needed no changes despite the plugin it used to belong to
-  being gone.
+**What actually fixed it**: attempt 4's *architecture* (built-in Kotlin, no `kotlin-android`,
+AGP 9.3.0) was correct — only the Kotlin version was wrong. AGP 9.0's release notes name
+`2.2.10` as AGP's runtime-dependency *floor*, which is not the same claim as "this version
+cooperates with built-in Kotlin." Re-reading
+[Google's Kotlin/AGP compatibility table](https://developer.android.com/build/kotlin-support)
+with that distinction in mind: it caps Kotlin `2.2.x` and `2.3.x` at the *last 8.x* AGP release
+each (`8.10` and `8.13` respectively) and leaves `2.4.x` alone as the first line with no upper
+bound (`8.5.2+`) — i.e. the first version actually validated against AGP 9, and evidently the
+one where KGP's auto-apply convenience was taught to check for and skip built-in Kotlin. Bumped
+`org.jetbrains.kotlin.jvm`/`.plugin.compose`/`.plugin.serialization` from `2.2.10` → `2.4.10`
+(latest stable `2.4.x` patch) and nothing else — AGP `9.3.0`, Gradle `9.7.0`, and everything else
+from attempt 4 stayed as-is, since none of it was ever the actual problem.
 
-Verified for real again after this fourth attempt: `./gradlew :logic:test` passed clean against
-Gradle 9.7.0 + Kotlin 2.2.10 in this sandbox (39 tests, 0 failures). Whether AGP 9.3.0's
+Verified for real again after this fifth attempt: `./gradlew :logic:test` passed clean against
+Gradle 9.7.0 + Kotlin 2.4.10 in this sandbox (39 tests, 0 failures). Whether AGP 9.3.0's
 built-in Kotlin support actually syncs clean in Android Studio is, as always, the one thing only
 a real sync (yours) can confirm — this sandbox has never been able to compile `:app` at all. If
-this is still wrong, the next thing worth checking is whether Android Studio's own bundled
+this is *still* wrong, the next thing worth checking is whether Android Studio's own bundled
 Gradle/AGP version (visible in its "AGP Upgrade Assistant" or a fresh scratch project) disagrees
 with what's pinned here — that would be IDE-side ground truth no amount of documentation
 cross-referencing from this sandbox can substitute for.

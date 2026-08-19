@@ -9,7 +9,7 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
     // AGP 9's built-in Kotlin support (see gradle.properties's android.builtInKotlin), not the
-    // traditional org.jetbrains.kotlin.android plugin — this is the actual fix, after three
+    // traditional org.jetbrains.kotlin.android plugin — this is the actual fix, after four
     // failed attempts that were each solving the wrong problem:
     //   1. AGP 9.2.1 + org.jetbrains.kotlin.android + android.builtInKotlin=false: wrong flag.
     //      builtInKotlin=false doesn't opt back into the legacy DSL that kotlin-android needs —
@@ -24,11 +24,20 @@ plugins {
     //      AGP major version) tried to reference com.android.build.gradle.BaseExtension and hit
     //      NoClassDefFoundError — a KGP-side check for exactly this legacy-plugin-vs-new-DSL
     //      conflict, not a real absence of BaseExtension in AGP 8.13.2's jar.
-    // Removing org.jetbrains.kotlin.android outright (per
-    // developer.android.com/build/migrate-to-built-in-kotlin) sidesteps both: there's no second
-    // Kotlin-Android integration left to conflict with AGP 9's own, and AGP 9.3.0 (current stable
-    // as of Aug 2026, developer.android.com/build/releases/gradle-plugin) is the last thing that
-    // needed guessing — this file no longer picks a Kotlin-Android pairing at all.
+    //   4. Removed org.jetbrains.kotlin.android entirely, AGP 9.3.0, Kotlin 2.2.10 for the
+    //      remaining compiler plugins (compose/serialization) — right idea, wrong Kotlin
+    //      version. The *exact same* BaseVariant NoClassDefFoundError came back anyway, from a
+    //      different code path: KotlinAndroidPlugin.Companion.dynamicallyApplyWhenAndroidPluginIsApplied,
+    //      a decades-old Kotlin Gradle Plugin convenience that auto-applies kotlin-android the
+    //      moment it sees com.android.application on a project — regardless of whether anyone
+    //      declared it — for people who forgot to apply kotlin-android explicitly. At 2.2.10
+    //      that mechanism doesn't yet know to back off when AGP's built-in Kotlin is already
+    //      handling the target, so it fired anyway and hit the same legacy BaseVariant reference.
+    // Fix: bump Kotlin to 2.4.10 (see root build.gradle.kts's comment for why — Google's own
+    // compatibility table caps 2.2.x/2.3.x at the last 8.x AGP release each and only leaves
+    // 2.4.x open-ended into AGP 9, which is the version where KGP's auto-apply was actually
+    // taught to cooperate with built-in Kotlin). AGP 9.3.0 (current stable as of Aug 2026,
+    // developer.android.com/build/releases/gradle-plugin) was never the wrong part of attempt 4.
     id("com.android.application") version "9.3.0"
     id("org.jetbrains.kotlin.plugin.compose")
     id("org.jetbrains.kotlin.plugin.serialization")
