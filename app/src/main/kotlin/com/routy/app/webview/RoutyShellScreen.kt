@@ -18,8 +18,11 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import com.routy.app.core.GpxUploadNotifier
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -96,7 +99,17 @@ fun RoutyShellScreen(onSignedOut: () -> Unit, onStartRecording: () -> Unit) {
         webViews[currentTab.path]?.goBack()
     }
 
+    val snackbarHostState = remember { SnackbarHostState() }
+    val gpxUploadedMessage = stringResource(R.string.record_upload_completed_background)
+
+    LaunchedEffect(Unit) {
+        GpxUploadNotifier.successes.collect {
+            snackbarHostState.showSnackbar(gpxUploadedMessage)
+        }
+    }
+
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         bottomBar = {
             NavigationBar {
                 visibleTabs.forEachIndexed { index, tab ->

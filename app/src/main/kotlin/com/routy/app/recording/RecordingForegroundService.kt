@@ -27,6 +27,7 @@ import com.routy.app.logic.recording.RecordingPhase
 import com.routy.app.logic.recording.RecordingPoint
 import com.routy.app.logic.recording.RecordingSession
 import com.routy.app.logic.recording.appendedPointsAfterSnapshot
+import com.routy.app.logic.recording.recordingLocationIntervalMs
 import com.routy.app.logic.recording.shouldRecordPoint
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -106,10 +107,16 @@ class RecordingForegroundService : Service() {
         startLocationUpdates()
     }
 
+    private var locationIntervalMs: Long = 3_000L
+
     @SuppressLint("MissingPermission")
     private fun startLocationUpdates() {
-        if (locationCallback != null) return
-        val request = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 3000L).build()
+        stopLocationUpdates()
+        val intervalMs = recordingLocationIntervalMs(session.points)
+        locationIntervalMs = intervalMs
+        val request = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, intervalMs)
+            .setMinUpdateIntervalMillis(intervalMs)
+            .build()
         val callback = object : LocationCallback() {
             override fun onLocationResult(result: LocationResult) {
                 val location = result.lastLocation ?: return
@@ -134,6 +141,10 @@ class RecordingForegroundService : Service() {
                         currentPosition = currentPosition,
                     )
                     updateNotification()
+                    val nextInterval = recordingLocationIntervalMs(session.points)
+                    if (nextInterval != locationIntervalMs && session.phase == RecordingPhase.RECORDING) {
+                        startLocationUpdates()
+                    }
                 } else {
                     _state.value = _state.value.copy(currentPosition = currentPosition)
                 }

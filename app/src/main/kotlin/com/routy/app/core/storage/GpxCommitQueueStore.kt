@@ -2,31 +2,18 @@ package com.routy.app.core.storage
 
 import android.content.Context
 import com.routy.app.logic.api.PendingGpxCommit
+import com.routy.app.logic.storage.GpxCommitQueueFileStore
 import java.io.File
-import kotlinx.serialization.encodeToString
-import kotlinx.serialization.json.Json
 
 /** Durable queue for failed GPX commits — drained by [com.routy.app.recording.GpxCommitWorker]. */
 class GpxCommitQueueStore(context: Context) {
-    private val dir = File(context.filesDir, "gpx_commit_queue").apply { mkdirs() }
-    private val json = Json { ignoreUnknownKeys = true }
+    private val store = GpxCommitQueueFileStore(File(context.filesDir, "gpx_commit_queue"))
 
-    fun enqueue(pending: PendingGpxCommit) {
-        File(dir, "${pending.id}.json").writeText(json.encodeToString(pending))
-    }
+    fun enqueue(pending: PendingGpxCommit) = store.enqueue(pending)
 
-    fun load(id: String): PendingGpxCommit? {
-        val file = File(dir, "$id.json")
-        if (!file.exists()) return null
-        return runCatching { json.decodeFromString<PendingGpxCommit>(file.readText()) }.getOrNull()
-    }
+    fun load(id: String): PendingGpxCommit? = store.load(id)
 
-    fun listAll(): List<PendingGpxCommit> =
-        dir.listFiles()?.mapNotNull { file ->
-            runCatching { json.decodeFromString<PendingGpxCommit>(file.readText()) }.getOrNull()
-        }.orEmpty().sortedBy { it.enqueuedAtMs }
+    fun listAll(): List<PendingGpxCommit> = store.listAll()
 
-    fun remove(id: String) {
-        File(dir, "$id.json").delete()
-    }
+    fun remove(id: String) = store.remove(id)
 }

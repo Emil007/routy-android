@@ -327,7 +327,7 @@ private fun RouteOverlayPanel(
                     OutlinedButton(onClick = viewModel::another) { Text(stringResource(R.string.route_new_route)) }
                     Button(onClick = viewModel::accept) { Text(stringResource(R.string.route_accept)) }
                 }
-            } else {
+            } else if (uiState.mode == RouteMode.ACTIVE) {
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
                     OutlinedButton(onClick = {
                         if (uiState.watchingLocation) viewModel.setWatchingLocation(false)
@@ -347,6 +347,33 @@ private fun RouteOverlayPanel(
                     }
                     OutlinedButton(onClick = viewModel::discardActive) {
                         Text(stringResource(R.string.route_discard_button))
+                    }
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                    OutlinedTextField(
+                        value = uiState.nickname,
+                        onValueChange = viewModel::setNickname,
+                        placeholder = { Text(stringResource(R.string.route_nickname_placeholder)) },
+                        singleLine = true,
+                        modifier = Modifier.weight(1f),
+                    )
+                    OutlinedButton(onClick = viewModel::saveNickname, enabled = !uiState.nicknameSaving) {
+                        Text(stringResource(R.string.route_save_nickname))
+                    }
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                    OutlinedTextField(
+                        value = uiState.favoriteNameInput,
+                        onValueChange = viewModel::setFavoriteNameInput,
+                        placeholder = { Text(stringResource(R.string.route_favorite_name_placeholder)) },
+                        singleLine = true,
+                        modifier = Modifier.weight(1f),
+                    )
+                    OutlinedButton(
+                        onClick = viewModel::saveFavorite,
+                        enabled = !uiState.savingFavorite && uiState.favoriteNameInput.isNotBlank(),
+                    ) {
+                        Text(stringResource(R.string.route_save_favorite))
                     }
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {

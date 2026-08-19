@@ -20,6 +20,8 @@ class RoutyApplication : Application() {
         private set
     lateinit var recordingSnapshotStore: com.routy.app.core.storage.RecordingSnapshotStore
         private set
+    lateinit var recordingConfirmStore: com.routy.app.core.storage.RecordingConfirmStore
+        private set
     lateinit var gpxCommitQueueStore: com.routy.app.core.storage.GpxCommitQueueStore
         private set
     lateinit var gpxCommitScheduler: com.routy.app.recording.GpxCommitScheduler
@@ -34,6 +36,7 @@ class RoutyApplication : Application() {
         routeProgressStore = com.routy.app.core.storage.RouteProgressStore(this)
         networkCache = com.routy.app.core.storage.NetworkCache(this)
         recordingSnapshotStore = com.routy.app.core.storage.RecordingSnapshotStore(this)
+        recordingConfirmStore = com.routy.app.core.storage.RecordingConfirmStore(this)
         gpxCommitQueueStore = com.routy.app.core.storage.GpxCommitQueueStore(this)
         gpxCommitScheduler = com.routy.app.recording.GpxCommitScheduler(this, gpxCommitQueueStore)
         bootstrapLoader = BootstrapLoader(apiClientProvider, networkCache)

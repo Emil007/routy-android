@@ -3,7 +3,9 @@ package com.routy.app.recording
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.routy.app.R
+import com.routy.app.core.StatsInvalidation
 import com.routy.app.core.network.ApiClientProvider
+import com.routy.app.core.storage.RecordingConfirmStore
 import com.routy.app.logic.api.GpxCommitRequest
 import com.routy.app.logic.api.GpxEndpoint
 import com.routy.app.logic.api.GpxPoint
@@ -14,7 +16,9 @@ import com.routy.app.logic.geo.estimateMinutes
 import com.routy.app.logic.geo.pathLengthMeters
 import com.routy.app.logic.recording.EndpointDecision
 import com.routy.app.logic.recording.NodeCandidate
+import com.routy.app.logic.recording.RecordingConfirmDraft
 import com.routy.app.logic.recording.RecordingPoint
+import com.routy.app.logic.recording.matchesTrack
 import com.routy.app.logic.recording.findNodeCandidates
 import com.routy.app.logic.recording.initialEndpointDecision
 import java.io.IOException
@@ -55,6 +59,7 @@ data class RecordingUiState(
 class RecordingViewModel(
     private val apiClientProvider: ApiClientProvider,
     private val gpxCommitScheduler: GpxCommitScheduler,
+    private val confirmStore: RecordingConfirmStore,
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(RecordingUiState())
     val uiState: StateFlow<RecordingUiState> = _uiState.asStateFlow()
@@ -93,30 +98,55 @@ class RecordingViewModel(
 
     /** Called once RecordingForegroundService.finish() returns the recorded points. */
     fun setRecordedPoints(points: List<RecordingPoint>) {
+        if (points.size < 2) return
         val state = _uiState.value
+        val draft = confirmStore.load()?.takeIf { it.matchesTrack(points) }
         val start = points.first()
         val end = points.last()
         _uiState.value = state.copy(
             points = points,
-            startDecision = initialEndpointDecision(LatLng(start.lat, start.lng), state.nodes, state.mergeRadiusM),
-            endDecision = initialEndpointDecision(LatLng(end.lat, end.lng), state.nodes, state.mergeRadiusM),
+            startDecision = draft?.startDecision
+                ?: initialEndpointDecision(LatLng(start.lat, start.lng), state.nodes, state.mergeRadiusM),
+            endDecision = draft?.endDecision
+                ?: initialEndpointDecision(LatLng(end.lat, end.lng), state.nodes, state.mergeRadiusM),
+            markStartAsHome = draft?.markStartAsHome ?: false,
+        )
+        persistConfirmDraft()
+    }
+
+    private fun persistConfirmDraft() {
+        val state = _uiState.value
+        val start = state.startDecision ?: return
+        val end = state.endDecision ?: return
+        if (state.points.size < 2) return
+        confirmStore.save(
+            RecordingConfirmDraft(
+                points = state.points,
+                startDecision = start,
+                endDecision = end,
+                markStartAsHome = state.markStartAsHome,
+            ),
         )
     }
 
     fun setStartDecision(decision: EndpointDecision) {
         _uiState.value = _uiState.value.copy(startDecision = decision)
+        persistConfirmDraft()
     }
 
     fun setEndDecision(decision: EndpointDecision) {
         _uiState.value = _uiState.value.copy(endDecision = decision)
+        persistConfirmDraft()
     }
 
     fun setMarkStartAsHome(value: Boolean) {
         _uiState.value = _uiState.value.copy(markStartAsHome = value)
+        persistConfirmDraft()
     }
 
     /** Resets to a clean slate — called after a successful save, or when discarding from the confirm step. */
     fun reset() {
+        confirmStore.clear()
         _uiState.value = _uiState.value.copy(
             points = emptyList(),
             startDecision = null,
@@ -160,6 +190,8 @@ class RecordingViewModel(
                 return@launch
             }
             if (response.isSuccessful) {
+                confirmStore.clear()
+                StatsInvalidation.bump()
                 _uiState.value = _uiState.value.copy(saving = false, isError = false, messageRes = R.string.record_saved, saved = true)
             } else if (response.code() in 500..599) {
                 gpxCommitScheduler.enqueue(request)
