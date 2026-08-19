@@ -85,6 +85,8 @@ fun RoutyMapView(
      * distinct reddish-brown ("#9a3b29") for a track being recorded, matching MapView.tsx's
      * own color choice for the same distinction (RecordTrackWizard.tsx's trackLine). */
     routeColor: String = "#2e6b49",
+    /** Strong green strokes for the map overview tab; faint grey when a route is drawn on top. */
+    emphasizeNetworkSegments: Boolean = false,
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -125,9 +127,9 @@ fun RoutyMapView(
         }
     }
 
-    LaunchedEffect(loadedStyle, nodes, segments, routeGeometry, stations, myLocation, routeColor, completedWaypointIndex, selectedNodeId) {
+    LaunchedEffect(loadedStyle, nodes, segments, routeGeometry, stations, myLocation, routeColor, completedWaypointIndex, selectedNodeId, emphasizeNetworkSegments) {
         val currentStyle = loadedStyle ?: return@LaunchedEffect
-        updateSegmentsLayer(currentStyle, segments)
+        updateSegmentsLayer(currentStyle, segments, emphasizeNetworkSegments)
         updateRouteLayer(currentStyle, routeGeometry, routeColor)
         updateNodesLayer(currentStyle, nodes, selectedNodeId)
         updateStationsLayer(currentStyle, stations, completedWaypointIndex)
@@ -155,22 +157,34 @@ fun RoutyMapView(
     }
 }
 
-private fun updateSegmentsLayer(style: Style, segments: List<SegmentDto>) {
+private fun updateSegmentsLayer(style: Style, segments: List<SegmentDto>, emphasize: Boolean) {
     val features = segments.filter { it.isCanonical() }.map { seg ->
         Feature.fromGeometry(LineString.fromLngLats(seg.geometry.map { Point.fromLngLat(it.lng, it.lat) }))
     }
     val collection = FeatureCollection.fromFeatures(features)
+    val color = if (emphasize) "#2e6b49" else "#9a9a90"
+    val width = if (emphasize) 4f else 2f
+    val opacity = if (emphasize) 0.92f else 0.7f
     val existing = style.getSourceAs<GeoJsonSource>(SEGMENTS_SOURCE)
     if (existing != null) {
         existing.setGeoJson(collection)
+        (style.getLayer(SEGMENTS_LAYER) as? LineLayer)?.setProperties(
+            PropertyFactory.lineColor(color),
+            PropertyFactory.lineWidth(width),
+            PropertyFactory.lineOpacity(opacity),
+            PropertyFactory.lineCap(Property.LINE_CAP_ROUND),
+            PropertyFactory.lineJoin(Property.LINE_JOIN_ROUND),
+        )
         return
     }
     style.addSource(GeoJsonSource(SEGMENTS_SOURCE, collection))
     val layer = LineLayer(SEGMENTS_LAYER, SEGMENTS_SOURCE)
     layer.setProperties(
-        PropertyFactory.lineColor("#9a9a90"),
-        PropertyFactory.lineWidth(2f),
-        PropertyFactory.lineOpacity(0.7f),
+        PropertyFactory.lineColor(color),
+        PropertyFactory.lineWidth(width),
+        PropertyFactory.lineOpacity(opacity),
+        PropertyFactory.lineCap(Property.LINE_CAP_ROUND),
+        PropertyFactory.lineJoin(Property.LINE_JOIN_ROUND),
     )
     style.addLayer(layer)
 }
