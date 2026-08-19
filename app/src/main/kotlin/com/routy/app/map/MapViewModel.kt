@@ -20,6 +20,7 @@ import com.routy.app.logic.api.NodeRenameRequest
 import com.routy.app.logic.api.PathProposalDto
 import com.routy.app.logic.api.ReportConditionRequest
 import com.routy.app.logic.api.SegmentConditionDto
+import com.routy.app.logic.api.SegmentDto
 import com.routy.app.logic.api.SegmentGeometryRequest
 import com.routy.app.logic.api.SegmentIdRequest
 import com.routy.app.logic.api.SegmentLockRequest
