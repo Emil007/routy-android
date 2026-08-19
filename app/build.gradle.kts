@@ -5,9 +5,15 @@
 // Android Studio: let it sync, then fix whatever it flags — see NOTES.md at the repo root
 // for the full rundown of what's verified vs. not.
 import java.util.Properties
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
-    id("com.android.application") version "8.7.2"
+    // AGP jumped a major version (8.x -> 9.x) after this was first written — 9.0 removed the
+    // old Variant API wholesale (com.android.build.gradle.api.BaseVariant and friends), which is
+    // exactly what "Unable to load class BaseVariant" during sync means. 9.2.1 is the current
+    // stable patch release as of this fix. See gradle.properties's android.builtInKotlin=false
+    // comment for the other AGP-9-driven change this pulled in.
+    id("com.android.application") version "9.2.1"
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
     id("org.jetbrains.kotlin.plugin.serialization")
@@ -25,12 +31,12 @@ val keystoreProperties = Properties().apply {
 
 android {
     namespace = "com.routy.app"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.routy.app"
         minSdk = 26
-        targetSdk = 35
+        targetSdk = 36
         // Overridden by CI from the pushed release tag (-PappVersionName=1.2.3 -PappVersionCode=N)
         // — see .github/workflows/release.yml. Local/debug builds just get this placeholder.
         versionCode = (project.findProperty("appVersionCode") as String?)?.toIntOrNull() ?: 1
@@ -64,10 +70,6 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
-    kotlinOptions {
-        jvmTarget = "17"
-    }
-
     buildFeatures {
         compose = true
         // Off by default in AGP 8+ — turned on so the update checker (M6) can read
@@ -79,6 +81,15 @@ android {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
         }
+    }
+}
+
+// android.kotlinOptions {} (used pre-fix) was deprecated in Kotlin 2.0 and removed outright in
+// 2.2 — this top-level kotlin {} block (a sibling of android {}, not nested inside it) is the
+// replacement the Kotlin Gradle plugin docs specify.
+kotlin {
+    compilerOptions {
+        jvmTarget.set(JvmTarget.JVM_17)
     }
 }
 
