@@ -8,13 +8,16 @@ import android.os.Looper
 import android.view.WindowManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
@@ -34,7 +37,6 @@ import androidx.compose.material3.ExposedDropdownMenuAnchorType
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -211,6 +213,8 @@ private fun SuggestingMapLayout(
     modifier: Modifier = Modifier,
 ) {
     var mapStyle by remember { mutableStateOf(BaseMapStyle.STREETS) }
+    var expanded by remember { mutableStateOf(false) }
+    val hasSecondary = uiState.favorites.isNotEmpty() || !uiState.isLoop || uiState.waypointNodeId != null
 
     Box(modifier = modifier.fillMaxSize()) {
         RoutyMapView(
@@ -233,28 +237,81 @@ private fun SuggestingMapLayout(
             MapStyleSwitcher(selected = mapStyle, onSelect = { mapStyle = it })
         }
 
-        Card(
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .fillMaxWidth()
-                .padding(8.dp),
+        Column(
+            modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(8.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            Column(
-                modifier = Modifier
-                    .padding(10.dp)
-                    .heightIn(max = 360.dp)
-                    .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+            AnimatedVisibility(visible = expanded) {
+                Card(modifier = Modifier.fillMaxWidth()) {
+                    Column(
+                        modifier = Modifier
+                            .padding(8.dp)
+                            .heightIn(max = 180.dp)
+                            .verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        if (uiState.favorites.isNotEmpty()) {
+                            FavoritesCard(uiState.favorites, uiState.status == RouteStatus.LOADING, viewModel)
+                        }
+                        if (!uiState.isLoop) {
+                            NodeDropdown(stringResource(R.string.route_destination), uiState.nodes, uiState.destinationNodeId, viewModel::setDestinationNodeId, dense = true)
+                        }
+                        NodeDropdown(
+                            "${stringResource(R.string.route_waypoint)} (${stringResource(R.string.common_optional)})",
+                            uiState.nodes,
+                            uiState.waypointNodeId,
+                            viewModel::setWaypointNodeId,
+                            stringResource(R.string.route_waypoint_none),
+                            dense = true,
+                        )
+                    }
+                }
+            }
+
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                tonalElevation = 3.dp,
+                shadowElevation = 4.dp,
+                shape = MaterialTheme.shapes.medium,
             ) {
-                if (uiState.favorites.isNotEmpty()) {
-                    FavoritesCard(uiState.favorites, uiState.status == RouteStatus.LOADING, viewModel)
-                }
-                SuggestForm(uiState, viewModel)
-                OutlinedButton(onClick = onStartRecording, modifier = Modifier.fillMaxWidth()) {
-                    Text(stringResource(R.string.record_entry_point))
-                }
-                uiState.messageRes?.let {
-                    Text(stringResource(it), color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.bodySmall)
+                Column(modifier = Modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    NodeDropdown(stringResource(R.string.route_start), uiState.nodes, uiState.startNodeId, viewModel::setStartNodeId, dense = true)
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.Center) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Checkbox(checked = uiState.isLoop, onCheckedChange = viewModel::setIsLoop)
+                            Text(stringResource(R.string.route_loop), style = MaterialTheme.typography.labelSmall)
+                        }
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Checkbox(checked = uiState.explorerMode, onCheckedChange = viewModel::setExplorerMode)
+                            Text(stringResource(R.string.route_explorer_mode), style = MaterialTheme.typography.labelSmall)
+                        }
+                    }
+                    val loading = uiState.status == RouteStatus.LOADING
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        CompactButton(onClick = { viewModel.suggest() }, enabled = !loading && uiState.startNodeId != null) {
+                            Text(stringResource(if (loading) R.string.route_generating else R.string.route_suggest), style = MaterialTheme.typography.labelMedium)
+                        }
+                        CompactOutlinedButton(onClick = { viewModel.suggest("short") }, enabled = !loading) {
+                            Text(stringResource(R.string.route_preset_short), style = MaterialTheme.typography.labelMedium)
+                        }
+                        CompactOutlinedButton(onClick = { viewModel.suggest("long") }, enabled = !loading) {
+                            Text(stringResource(R.string.route_preset_long), style = MaterialTheme.typography.labelMedium)
+                        }
+                        CompactOutlinedButton(onClick = onStartRecording) {
+                            Text(stringResource(R.string.record_entry_point), style = MaterialTheme.typography.labelMedium)
+                        }
+                    }
+                    if (hasSecondary || uiState.favorites.isNotEmpty()) {
+                        TextButton(onClick = { expanded = !expanded }) {
+                            Text(
+                                stringResource(if (expanded) R.string.route_less_options else R.string.route_more_options),
+                                style = MaterialTheme.typography.labelSmall,
+                            )
+                        }
+                    }
+                    uiState.messageRes?.let {
+                        Text(stringResource(it), color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelSmall)
+                    }
                 }
             }
         }
@@ -297,119 +354,110 @@ private fun RouteOverlayPanel(
     }
 
     Card(modifier = modifier.padding(8.dp)) {
-        Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Column(modifier = Modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                AssistChip(onClick = {}, label = { Text("${"%.2f".format(route.lengthM / 1000.0)} km") })
-                AssistChip(onClick = {}, label = { Text("${route.durationMin} min") })
-                route.elevation?.let { AssistChip(onClick = {}, label = { Text("↗${it.gainM}m") }) }
-            }
-
-            uiState.pendingShareToken?.let { token ->
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text(uiState.sharedRouteName ?: stringResource(R.string.route_share_preview), modifier = Modifier.weight(1f))
-                    Button(onClick = { viewModel.acceptSharedRoute(token) }) {
-                        Text(stringResource(R.string.route_accept))
-                    }
-                    OutlinedButton(onClick = viewModel::dismissSharedRoute) {
-                        Text(stringResource(R.string.route_share_dismiss))
-                    }
+                AssistChip(onClick = {}, label = { Text("${"%.2f".format(route.lengthM / 1000.0)} km", style = MaterialTheme.typography.labelSmall) })
+                AssistChip(onClick = {}, label = { Text("${route.durationMin} min", style = MaterialTheme.typography.labelSmall) })
+                route.elevation?.let { AssistChip(onClick = {}, label = { Text("↗${it.gainM}m", style = MaterialTheme.typography.labelSmall) }) }
+                if (uiState.mode == RouteMode.ACTIVE && uiState.tracking) {
+                    TrackProgressChip(uiState, route)
                 }
             }
 
-            if (uiState.mode == RouteMode.ACTIVE && uiState.tracking) {
-                TrackProgressSection(uiState, route)
+            uiState.pendingShareToken?.let { token ->
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        uiState.sharedRouteName ?: stringResource(R.string.route_share_preview),
+                        style = MaterialTheme.typography.labelSmall,
+                        modifier = Modifier.weight(1f),
+                    )
+                    CompactButton(onClick = { viewModel.acceptSharedRoute(token) }) {
+                        Text(stringResource(R.string.route_accept), style = MaterialTheme.typography.labelMedium)
+                    }
+                    CompactOutlinedButton(onClick = viewModel::dismissSharedRoute) {
+                        Text(stringResource(R.string.route_share_dismiss), style = MaterialTheme.typography.labelMedium)
+                    }
+                }
             }
 
             if (uiState.mode == RouteMode.SUGGESTING && uiState.pendingShareToken == null) {
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    OutlinedButton(onClick = { viewModel.adjust("shorter") }) { Text(stringResource(R.string.route_shorter)) }
-                    OutlinedButton(onClick = { viewModel.adjust("longer") }) { Text(stringResource(R.string.route_longer)) }
-                    OutlinedButton(onClick = viewModel::another) { Text(stringResource(R.string.route_new_route)) }
-                    Button(onClick = viewModel::accept) { Text(stringResource(R.string.route_accept)) }
+                    CompactOutlinedButton(onClick = { viewModel.adjust("shorter") }) { Text(stringResource(R.string.route_shorter), style = MaterialTheme.typography.labelMedium) }
+                    CompactOutlinedButton(onClick = { viewModel.adjust("longer") }) { Text(stringResource(R.string.route_longer), style = MaterialTheme.typography.labelMedium) }
+                    CompactOutlinedButton(onClick = viewModel::another) { Text(stringResource(R.string.route_new_route), style = MaterialTheme.typography.labelMedium) }
+                    CompactButton(onClick = viewModel::accept) { Text(stringResource(R.string.route_accept), style = MaterialTheme.typography.labelMedium) }
                 }
             } else if (uiState.mode == RouteMode.ACTIVE) {
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-                    OutlinedButton(onClick = {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), itemVerticalAlignment = Alignment.CenterVertically) {
+                    CompactOutlinedButton(onClick = {
                         if (uiState.watchingLocation) viewModel.setWatchingLocation(false)
                         else if (hasLocationPermission) viewModel.setWatchingLocation(true)
                         else permissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
                     }) {
-                        Text(stringResource(if (uiState.watchingLocation) R.string.route_hide_location else R.string.route_show_location))
+                        Text(stringResource(if (uiState.watchingLocation) R.string.route_hide_location else R.string.route_show_location), style = MaterialTheme.typography.labelMedium)
                     }
                     if (uiState.watchingLocation) {
-                        FilledTonalButton(onClick = { viewModel.setTracking(!uiState.tracking) }) {
-                            Text(stringResource(if (uiState.tracking) R.string.route_tracking_on else R.string.route_track))
+                        CompactOutlinedButton(onClick = { viewModel.setTracking(!uiState.tracking) }) {
+                            Text(stringResource(if (uiState.tracking) R.string.route_tracking_on else R.string.route_track), style = MaterialTheme.typography.labelMedium)
                         }
                     }
                     val canComplete = !uiState.tracking || uiState.completedWaypointIndex >= route.stations.lastIndex
-                    Button(onClick = viewModel::complete, enabled = canComplete) {
-                        Text(stringResource(R.string.route_complete_button))
+                    CompactButton(onClick = viewModel::complete, enabled = canComplete) {
+                        Text(stringResource(R.string.route_complete_button), style = MaterialTheme.typography.labelMedium)
                     }
-                    OutlinedButton(onClick = viewModel::discardActive) {
-                        Text(stringResource(R.string.route_discard_button))
+                    CompactOutlinedButton(onClick = viewModel::discardActive) {
+                        Text(stringResource(R.string.route_discard_button), style = MaterialTheme.typography.labelMedium)
                     }
                 }
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
                     OutlinedTextField(
                         value = uiState.nickname,
                         onValueChange = viewModel::setNickname,
-                        placeholder = { Text(stringResource(R.string.route_nickname_placeholder)) },
+                        placeholder = { Text(stringResource(R.string.route_nickname_placeholder), style = MaterialTheme.typography.labelSmall) },
                         singleLine = true,
+                        textStyle = MaterialTheme.typography.labelSmall,
                         modifier = Modifier.weight(1f),
                     )
-                    OutlinedButton(onClick = viewModel::saveNickname, enabled = !uiState.nicknameSaving) {
-                        Text(stringResource(R.string.route_save_nickname))
+                    TextButton(onClick = viewModel::saveNickname, enabled = !uiState.nicknameSaving) {
+                        Text(stringResource(R.string.route_save_nickname), style = MaterialTheme.typography.labelSmall)
                     }
-                }
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
                     OutlinedTextField(
                         value = uiState.favoriteNameInput,
                         onValueChange = viewModel::setFavoriteNameInput,
-                        placeholder = { Text(stringResource(R.string.route_favorite_name_placeholder)) },
+                        placeholder = { Text(stringResource(R.string.route_favorite_name_placeholder), style = MaterialTheme.typography.labelSmall) },
                         singleLine = true,
+                        textStyle = MaterialTheme.typography.labelSmall,
                         modifier = Modifier.weight(1f),
                     )
-                    OutlinedButton(
+                    TextButton(
                         onClick = viewModel::saveFavorite,
                         enabled = !uiState.savingFavorite && uiState.favoriteNameInput.isNotBlank(),
                     ) {
-                        Text(stringResource(R.string.route_save_favorite))
+                        Text(stringResource(R.string.route_save_favorite), style = MaterialTheme.typography.labelSmall)
                     }
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Checkbox(checked = uiState.voiceEnabled, onCheckedChange = viewModel::setVoiceEnabled)
-                    Text(stringResource(R.string.route_voice_on), style = MaterialTheme.typography.bodySmall)
+                    Text(stringResource(R.string.route_voice_on), style = MaterialTheme.typography.labelSmall)
                     Checkbox(checked = uiState.keepScreenOn, onCheckedChange = viewModel::setKeepScreenOn)
-                    Text(stringResource(R.string.route_keep_screen_on), style = MaterialTheme.typography.bodySmall)
+                    Text(stringResource(R.string.route_keep_screen_on), style = MaterialTheme.typography.labelSmall)
                 }
             }
 
-            uiState.messageRes?.let { Text(stringResource(it), color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.bodySmall) }
+            uiState.messageRes?.let { Text(stringResource(it), color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelSmall) }
         }
     }
 }
 
 @Composable
-private fun TrackProgressSection(uiState: RouteUiState, route: com.routy.app.logic.api.RouteDisplayPayload) {
+private fun TrackProgressChip(uiState: RouteUiState, route: com.routy.app.logic.api.RouteDisplayPayload) {
     val completedCount = if (uiState.completedWaypointIndex < 0) 0 else uiState.completedWaypointIndex + 1
     val nextIdx = (uiState.completedWaypointIndex + 1).coerceIn(0, route.stations.lastIndex)
     val next = route.stations.getOrNull(nextIdx)
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text(
-            stringResource(R.string.route_track_progress, completedCount, route.stations.size),
-            style = MaterialTheme.typography.titleSmall,
-        )
-        next?.let {
-            Text(stringResource(R.string.route_next_waypoint, it.name ?: "#${it.nodeId}"), style = MaterialTheme.typography.bodyMedium)
-        }
-        if (uiState.completedWaypointIndex >= 0) {
-            Column(modifier = Modifier.fillMaxWidth().padding(top = 2.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                route.stations.take(uiState.completedWaypointIndex + 1).reversed().take(3).forEach { station ->
-                    Text("✓ ${station.name ?: "#${station.nodeId}"}", style = MaterialTheme.typography.bodySmall)
-                }
-            }
-        }
-    }
+    val label = next?.let {
+        stringResource(R.string.route_track_progress_chip, completedCount, route.stations.size, it.name ?: "#${it.nodeId}")
+    } ?: stringResource(R.string.route_track_progress, completedCount, route.stations.size)
+    AssistChip(onClick = {}, label = { Text(label, style = MaterialTheme.typography.labelSmall) })
 }
 
 @Composable
@@ -492,31 +540,33 @@ private fun ActiveTrackingEffects(
 private fun FavoritesCard(favorites: List<FavoriteEntry>, loading: Boolean, viewModel: RouteViewModel) {
     var pendingDelete by remember { mutableStateOf<FavoriteEntry?>(null) }
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text(stringResource(R.string.route_favorites_title), style = MaterialTheme.typography.labelLarge)
+        Text(stringResource(R.string.route_favorites_title), style = MaterialTheme.typography.labelMedium)
         favorites.forEach { fav ->
-            Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            FlowRow(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                itemVerticalAlignment = Alignment.CenterVertically,
+            ) {
                 Text(
-                    "${fav.name} — ${"%.2f".format(fav.display.lengthM / 1000.0)} km",
-                    style = MaterialTheme.typography.bodySmall,
+                    "${fav.name} · ${"%.2f".format(fav.display.lengthM / 1000.0)} km",
+                    style = MaterialTheme.typography.labelSmall,
                 )
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    TextButton(onClick = { viewModel.takeFavorite(fav) }, enabled = !loading) {
-                        Text(stringResource(R.string.route_favorite_take), style = MaterialTheme.typography.labelSmall)
+                TextButton(onClick = { viewModel.takeFavorite(fav) }, enabled = !loading) {
+                    Text(stringResource(R.string.route_favorite_take), style = MaterialTheme.typography.labelSmall)
+                }
+                TextButton(onClick = { viewModel.toggleShare(fav) }) {
+                    Text(
+                        stringResource(if (fav.shareToken != null) R.string.route_favorite_unshare else R.string.route_favorite_share),
+                        style = MaterialTheme.typography.labelSmall,
+                    )
+                }
+                if (fav.shareToken != null) {
+                    TextButton(onClick = { viewModel.copyFavoriteShareLink(fav) }) {
+                        Text(stringResource(R.string.route_favorite_copy_link), style = MaterialTheme.typography.labelSmall)
                     }
-                    TextButton(onClick = { viewModel.toggleShare(fav) }) {
-                        Text(
-                            stringResource(if (fav.shareToken != null) R.string.route_favorite_unshare else R.string.route_favorite_share),
-                            style = MaterialTheme.typography.labelSmall,
-                        )
-                    }
-                    if (fav.shareToken != null) {
-                        TextButton(onClick = { viewModel.copyFavoriteShareLink(fav) }) {
-                            Text(stringResource(R.string.route_favorite_copy_link), style = MaterialTheme.typography.labelSmall)
-                        }
-                    }
-                    TextButton(onClick = { pendingDelete = fav }) {
-                        Text(stringResource(R.string.route_favorite_delete), style = MaterialTheme.typography.labelSmall)
-                    }
+                }
+                TextButton(onClick = { pendingDelete = fav }) {
+                    Text(stringResource(R.string.route_favorite_delete), style = MaterialTheme.typography.labelSmall)
                 }
             }
         }
@@ -528,42 +578,6 @@ private fun FavoritesCard(favorites: List<FavoriteEntry>, loading: Boolean, view
             dismissButton = { TextButton(onClick = { pendingDelete = null }) { Text(stringResource(R.string.route_cancel)) } },
             text = { Text(stringResource(R.string.route_favorite_delete_confirm)) },
         )
-    }
-}
-
-@OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
-@Composable
-private fun SuggestForm(uiState: RouteUiState, viewModel: RouteViewModel) {
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        NodeDropdown(stringResource(R.string.route_start), uiState.nodes, uiState.startNodeId, viewModel::setStartNodeId)
-        if (!uiState.isLoop) {
-            NodeDropdown(stringResource(R.string.route_destination), uiState.nodes, uiState.destinationNodeId, viewModel::setDestinationNodeId)
-        }
-        NodeDropdown(
-            "${stringResource(R.string.route_waypoint)} (${stringResource(R.string.common_optional)})",
-            uiState.nodes,
-            uiState.waypointNodeId,
-            viewModel::setWaypointNodeId,
-            stringResource(R.string.route_waypoint_none),
-        )
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.Center) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Checkbox(checked = uiState.isLoop, onCheckedChange = viewModel::setIsLoop)
-                Text(stringResource(R.string.route_loop), style = MaterialTheme.typography.bodySmall)
-            }
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Checkbox(checked = uiState.explorerMode, onCheckedChange = viewModel::setExplorerMode)
-                Text(stringResource(R.string.route_explorer_mode), style = MaterialTheme.typography.bodySmall)
-            }
-        }
-        val loading = uiState.status == RouteStatus.LOADING
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            Button(onClick = { viewModel.suggest() }, enabled = !loading && uiState.startNodeId != null) {
-                Text(stringResource(if (loading) R.string.route_generating else R.string.route_suggest))
-            }
-            OutlinedButton(onClick = { viewModel.suggest("short") }, enabled = !loading) { Text(stringResource(R.string.route_preset_short)) }
-            OutlinedButton(onClick = { viewModel.suggest("long") }, enabled = !loading) { Text(stringResource(R.string.route_preset_long)) }
-        }
     }
 }
 
@@ -586,25 +600,52 @@ private fun NodeDropdown(
     selectedId: Int?,
     onSelect: (Int) -> Unit,
     noneLabel: String? = null,
+    dense: Boolean = false,
 ) {
     var expanded by remember { mutableStateOf(false) }
     val collator = remember { Collator.getInstance() }
     val sorted = remember(nodes) { nodes.sortedWith(compareBy(collator) { it.name ?: "#${it.id}" }) }
     val selectedLabel = sorted.firstOrNull { it.id == selectedId }?.let { it.name ?: "#${it.id}" } ?: (noneLabel ?: "")
+    val textStyle = if (dense) MaterialTheme.typography.labelSmall else MaterialTheme.typography.bodySmall
 
     ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = it }) {
         OutlinedTextField(
             value = selectedLabel,
             onValueChange = {},
             readOnly = true,
-            label = { Text(label) },
+            label = { Text(label, style = if (dense) MaterialTheme.typography.labelSmall else MaterialTheme.typography.bodySmall) },
+            textStyle = textStyle,
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
             modifier = Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
         )
         ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
             sorted.forEach { node ->
-                DropdownMenuItem(text = { Text(node.name ?: "#${node.id}") }, onClick = { onSelect(node.id); expanded = false })
+                DropdownMenuItem(text = { Text(node.name ?: "#${node.id}", style = textStyle) }, onClick = { onSelect(node.id); expanded = false })
             }
         }
     }
+}
+
+private val CompactButtonPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
+
+@Composable
+private fun CompactButton(onClick: () -> Unit, enabled: Boolean = true, content: @Composable RowScope.() -> Unit) {
+    Button(
+        onClick = onClick,
+        enabled = enabled,
+        contentPadding = CompactButtonPadding,
+        modifier = Modifier.heightIn(max = 32.dp),
+        content = content,
+    )
+}
+
+@Composable
+private fun CompactOutlinedButton(onClick: () -> Unit, enabled: Boolean = true, content: @Composable RowScope.() -> Unit) {
+    OutlinedButton(
+        onClick = onClick,
+        enabled = enabled,
+        contentPadding = CompactButtonPadding,
+        modifier = Modifier.heightIn(max = 32.dp),
+        content = content,
+    )
 }
