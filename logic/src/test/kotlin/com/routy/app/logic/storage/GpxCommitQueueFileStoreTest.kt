@@ -40,6 +40,17 @@ class GpxCommitQueueFileStoreTest {
         assertEquals(listOf("a", "b"), store.listAll().map { it.id })
     }
 
+    @Test
+    fun permanentFailureFieldsRoundTrip() {
+        val pending = samplePending("fail").copy(
+            permanentFailure = true,
+            failureHttpCode = 400,
+            failedAtMs = 99L,
+        )
+        store.enqueue(pending)
+        assertEquals(pending, store.load("fail"))
+    }
+
     private fun samplePending(id: String, enqueuedAtMs: Long = 1L) = PendingGpxCommit(
         id = id,
         enqueuedAtMs = enqueuedAtMs,

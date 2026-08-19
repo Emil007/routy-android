@@ -1,5 +1,7 @@
 package com.routy.app.upload
 
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Card
@@ -17,14 +19,28 @@ import com.routy.app.core.GpxQueueNotifier
 @Composable
 fun PendingUploadBanner(modifier: Modifier = Modifier) {
     val pendingCount by GpxQueueNotifier.pendingCount.collectAsState()
-    if (pendingCount <= 0) return
+    val failedCount by GpxQueueNotifier.failedCount.collectAsState()
+    if (pendingCount <= 0 && failedCount <= 0) return
 
     Card(modifier = modifier.fillMaxWidth()) {
-        Text(
-            stringResource(R.string.shell_pending_uploads, pendingCount),
+        Column(
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.primary,
-        )
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            if (pendingCount > 0) {
+                Text(
+                    stringResource(R.string.shell_pending_uploads, pendingCount),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+            }
+            if (failedCount > 0) {
+                Text(
+                    stringResource(R.string.shell_failed_uploads, failedCount),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.error,
+                )
+            }
+        }
     }
 }

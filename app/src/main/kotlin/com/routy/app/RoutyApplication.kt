@@ -52,7 +52,7 @@ class RoutyApplication : Application() {
         networkCache.loadBootstrap()?.user?.locale?.let { AccountLocale.apply(it) }
         networkCache.loadBootstrap()?.user?.theme?.let { AccountTheme.apply(it) }
         gpxCommitScheduler.schedulePending()
-        GpxQueueNotifier.setPendingCount(gpxCommitQueueStore.listAll().size)
+        GpxQueueNotifier.setCounts(gpxCommitQueueStore.listPending().size, gpxCommitQueueStore.listFailed().size)
         // MapLibre must initialize before HttpRequestUtil.setOkHttpClient — the HTTP module
         // static init calls MapLibre.getApplicationContext() internally.
         MapLibre.getInstance(this)

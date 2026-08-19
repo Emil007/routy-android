@@ -21,6 +21,7 @@ class GpxCommitWorker(
         val commitId = inputData.getString(KEY_COMMIT_ID) ?: return Result.failure()
         val queueStore = GpxCommitQueueStore(applicationContext)
         val pending = queueStore.load(commitId) ?: return Result.success()
+        if (pending.permanentFailure) return Result.success()
 
         if (SecureStorage(applicationContext).serverUrl.isNullOrBlank()) {
             return Result.retry()
@@ -35,15 +36,16 @@ class GpxCommitWorker(
         return when (gpxCommitOutcome(response.isSuccessful, response.code())) {
             GpxCommitOutcome.Success -> {
                 queueStore.remove(commitId)
-                GpxQueueNotifier.setPendingCount(queueStore.listAll().size)
+                GpxQueueNotifier.setCounts(queueStore.listPending().size, queueStore.listFailed().size)
                 GpxUploadNotifier.notifyUploadSucceeded()
                 Result.success()
             }
             GpxCommitOutcome.Retry -> Result.retry()
             GpxCommitOutcome.PermanentFailure -> {
-                queueStore.remove(commitId)
-                GpxQueueNotifier.setPendingCount(queueStore.listAll().size)
-                Result.failure()
+                queueStore.markPermanentFailure(commitId, response.code())
+                GpxQueueNotifier.setCounts(queueStore.listPending().size, queueStore.listFailed().size)
+                GpxUploadNotifier.notifyUploadFailed(response.code())
+                Result.success()
             }
         }
     }

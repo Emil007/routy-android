@@ -47,4 +47,8 @@ data class PendingGpxCommit(
     val id: String,
     val enqueuedAtMs: Long,
     val request: GpxCommitRequest,
+    /** Set when the server rejects the commit with a non-retryable status — kept for user review. */
+    val permanentFailure: Boolean = false,
+    val failureHttpCode: Int? = null,
+    val failedAtMs: Long? = null,
 )
