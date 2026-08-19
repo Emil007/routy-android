@@ -212,7 +212,10 @@ private fun MapNodePanel(node: NodeDto, state: MapUiState, viewModel: MapViewMod
     val canEdit = viewModel.canEditNode(node)
     Surface(color = MaterialTheme.colorScheme.surface.copy(alpha = 0.94f), shape = MaterialTheme.shapes.medium) {
         Column(Modifier.fillMaxWidth().padding(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text(node.name ?: "#${node.id}", style = MaterialTheme.typography.titleSmall)
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Text(node.name ?: "#${node.id}", style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
+                CompactOutlinedButton(viewModel::clearSelection) { Text(stringResource(R.string.common_close), style = MaterialTheme.typography.labelSmall) }
+            }
             if (node.isHome) Text(stringResource(R.string.map_node_home), style = MaterialTheme.typography.labelSmall)
             if (canEdit) {
                 if (state.renamingNode) {
@@ -267,7 +270,10 @@ private fun MapSegmentPanel(segment: SegmentDto, state: MapUiState, viewModel: M
     val conditions = viewModel.conditionsForSegment(segment.id)
     Surface(color = MaterialTheme.colorScheme.surface.copy(alpha = 0.94f), shape = MaterialTheme.shapes.medium) {
         Column(Modifier.fillMaxWidth().padding(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text(segment.name ?: "#${segment.id}", style = MaterialTheme.typography.titleSmall)
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Text(segment.name ?: "#${segment.id}", style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
+                CompactOutlinedButton(viewModel::clearSelection) { Text(stringResource(R.string.common_close), style = MaterialTheme.typography.labelSmall) }
+            }
             if (conditions.isNotEmpty()) {
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     conditions.forEach { c ->

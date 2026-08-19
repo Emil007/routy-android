@@ -405,11 +405,13 @@ private fun RouteOverlayPanel(
             }
 
             if (uiState.mode == RouteMode.SUGGESTING && uiState.pendingShareToken == null) {
+                val loading = uiState.status == RouteStatus.LOADING
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    CompactOutlinedButton(onClick = { viewModel.adjust("shorter") }) { Text(stringResource(R.string.route_shorter), style = MaterialTheme.typography.labelMedium) }
-                    CompactOutlinedButton(onClick = { viewModel.adjust("longer") }) { Text(stringResource(R.string.route_longer), style = MaterialTheme.typography.labelMedium) }
-                    CompactOutlinedButton(onClick = viewModel::another) { Text(stringResource(R.string.route_new_route), style = MaterialTheme.typography.labelMedium) }
-                    CompactButton(onClick = viewModel::accept) { Text(stringResource(R.string.route_accept), style = MaterialTheme.typography.labelMedium) }
+                    CompactOutlinedButton(onClick = { viewModel.adjust("shorter") }, enabled = !loading) { Text(stringResource(R.string.route_shorter), style = MaterialTheme.typography.labelMedium) }
+                    CompactOutlinedButton(onClick = { viewModel.adjust("longer") }, enabled = !loading) { Text(stringResource(R.string.route_longer), style = MaterialTheme.typography.labelMedium) }
+                    CompactOutlinedButton(onClick = viewModel::another, enabled = !loading) { Text(stringResource(R.string.route_new_route), style = MaterialTheme.typography.labelMedium) }
+                    CompactButton(onClick = viewModel::accept, enabled = !loading) { Text(stringResource(R.string.route_accept), style = MaterialTheme.typography.labelMedium) }
+                    CompactOutlinedButton(onClick = viewModel::cancel, enabled = !loading) { Text(stringResource(R.string.route_cancel), style = MaterialTheme.typography.labelMedium) }
                 }
             } else if (uiState.mode == RouteMode.ACTIVE) {
                 FlowRow(

@@ -423,7 +423,7 @@ class RouteViewModel(
         if (_uiState.value.route == null) return
         viewModelScope.launch {
             try { apiClientProvider.service.cancelRoute(RouteTokenRequest(token)) } catch (_: IOException) {}
-            _uiState.value = _uiState.value.copy(route = null, messageRes = null)
+            _uiState.value = _uiState.value.copy(route = null, token = "", status = RouteStatus.IDLE, messageRes = null)
         }
     }
 
