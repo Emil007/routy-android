@@ -8,7 +8,7 @@ Same household network of paths, same accounts — but with a native map (MapLib
 |---|---|---|
 | Role | Hosts data, web UI, API | Client for phones |
 | Required? | Yes — run this first | Optional (browser works too) |
-| Version line | **0.33s** | **0.33a** |
+| Version line | **0.33s** | **0.34a** |
 
 ---
 
@@ -16,7 +16,7 @@ Same household network of paths, same accounts — but with a native map (MapLib
 
 **From CI (easiest):** every push to `main` publishes a signed APK under GitHub Actions → latest **Publish APK** run → Artifacts.
 
-**From a tag:** push `v0.33a` (or whatever the tag is) — [release.yml](.github/workflows/release.yml) attaches an APK to the GitHub Release.
+**From a tag:** push `v0.34a` (or whatever the tag is) — [release.yml](.github/workflows/release.yml) attaches an APK to the GitHub Release.
 
 **From source:** open in Android Studio, set `sdk.dir` in `local.properties`, run **Run app** or:
 
@@ -79,6 +79,6 @@ Gradle/Android Studio history and known device quirks: [NOTES.md](NOTES.md) (lon
 
 ## Version tags
 
-Android uses tags like **`v0.33a`**. CI `apk-publish` on `main` uses the version in [app/build.gradle.kts](app/build.gradle.kts) (and [apk-publish.yml](.github/workflows/apk-publish.yml)). Tagged releases override via the tag name.
+Android uses tags like **`v0.34a`**. CI `apk-publish` on `main` uses the version in [app/build.gradle.kts](app/build.gradle.kts) (and [apk-publish.yml](.github/workflows/apk-publish.yml)). Tagged releases override via the tag name.
 
 Server version (**0.33s**) is unrelated — deploy server updates on their own schedule. Server repo: [github.com/Emil007/routy](https://github.com/Emil007/routy).
