@@ -1,9 +1,8 @@
 name: Release
 
 # Pushing a version tag (e.g. `v1.2.3`) builds a signed release APK and attaches it to a new
-# GitHub Release — the whole point of the sideload-only distribution model this app uses instead
-# of the Play Store. Needs four repo secrets that don't exist yet and can't be added by an
-# assistant — see NOTES.md for exactly what to generate and where to add them.
+# GitHub Release. Requires repo secrets ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD,
+# ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD. Optional repo variable DEEP_LINK_HOST for verified App Links.
 on:
   push:
     tags:
@@ -46,11 +45,31 @@ jobs:
           keyPassword=${{ secrets.ANDROID_KEY_PASSWORD }}
           PROPS
 
+      - name: Print release cert SHA256 (for assetlinks.json)
+        run: |
+          FINGERPRINT=$(keytool -list -v \
+            -keystore "${{ github.workspace }}/release.jks" \
+            -alias "${{ secrets.ANDROID_KEY_ALIAS }}" \
+            -storepass "${{ secrets.ANDROID_KEYSTORE_PASSWORD }}" \
+            2>/dev/null | grep "SHA256:" | head -1 | sed 's/.*SHA256: //' | tr -d ' ')
+          echo "Release signing certificate SHA256 (paste into public/.well-known/assetlinks.json):"
+          echo "$FINGERPRINT"
+          {
+            echo "## Release signing certificate"
+            echo ""
+            echo "Add this SHA256 to \`public/.well-known/assetlinks.json\` on the server for \`com.routy.app\`:"
+            echo ""
+            echo "\`\`\`"
+            echo "$FINGERPRINT"
+            echo "\`\`\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Build signed release APK
         run: |
           ./gradlew :app:assembleRelease \
             -PappVersionName=${{ steps.version.outputs.name }} \
-            -PappVersionCode=${{ steps.version.outputs.code }}
+            -PappVersionCode=${{ steps.version.outputs.code }} \
+            -PdeepLinkHost=${{ vars.DEEP_LINK_HOST || 'localhost' }}
 
       - name: Remove keystore and credentials from the runner
         if: always()
