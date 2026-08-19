@@ -6,9 +6,11 @@ import com.routy.app.R
 import com.routy.app.core.DeepLinkHolder
 import com.routy.app.core.BootstrapLoader
 import com.routy.app.core.BootstrapResult
+import com.routy.app.core.StatsInvalidation
 import com.routy.app.core.network.ApiClientProvider
 import com.routy.app.core.storage.NetworkCache
 import com.routy.app.core.storage.RouteProgressStore
+import com.routy.app.logic.api.AchievementsDto
 import com.routy.app.logic.api.AdjustRouteRequest
 import com.routy.app.logic.api.ApiErrorBody
 import com.routy.app.logic.api.FavoriteEntry
@@ -65,6 +67,7 @@ data class RouteUiState(
     val tracking: Boolean = false,
     val keepScreenOn: Boolean = true,
     val completedWaypointIndex: Int = -1,
+    val voiceAnnouncedIndex: Int = 0,
     val showControls: Boolean = true,
 
     val pendingShareUrl: String? = null,
@@ -74,6 +77,8 @@ data class RouteUiState(
     val completionPointsEarned: Int? = null,
     val completionStreakMultiplier: Double? = null,
     val completionCurrentStreak: Int? = null,
+    val completionWeeklyPoints: Int? = null,
+    val completionNewAchievements: List<String> = emptyList(),
 )
 
 class RouteViewModel(
@@ -168,7 +173,10 @@ class RouteViewModel(
     private fun restoreProgress(activeRoute: RouteDisplayPayload?) {
         val route = activeRoute ?: return
         val saved = routeProgressStore.load(routeKey(route)) ?: return
-        _uiState.value = _uiState.value.copy(completedWaypointIndex = saved)
+        _uiState.value = _uiState.value.copy(
+            completedWaypointIndex = saved.completedIndex,
+            voiceAnnouncedIndex = saved.voiceAnnouncedIndex,
+        )
     }
 
     private fun applyNetworkState(
@@ -217,13 +225,22 @@ class RouteViewModel(
             completionPointsEarned = null,
             completionStreakMultiplier = null,
             completionCurrentStreak = null,
+            completionWeeklyPoints = null,
+            completionNewAchievements = emptyList(),
         )
     }
 
     fun onWaypointCompleted(index: Int) {
         val route = _uiState.value.route ?: return
-        routeProgressStore.save(routeKey(route), index)
+        val voiceIndex = _uiState.value.voiceAnnouncedIndex
+        routeProgressStore.save(routeKey(route), index, voiceIndex)
         _uiState.value = _uiState.value.copy(completedWaypointIndex = index)
+    }
+
+    fun onVoiceCueAnnounced(announcedCount: Int) {
+        val route = _uiState.value.route ?: return
+        routeProgressStore.save(routeKey(route), _uiState.value.completedWaypointIndex, announcedCount)
+        _uiState.value = _uiState.value.copy(voiceAnnouncedIndex = announcedCount)
     }
 
     fun openShareToken(token: String) {
@@ -281,6 +298,7 @@ class RouteViewModel(
                     pendingShareToken = null,
                     sharedRouteName = null,
                     completedWaypointIndex = -1,
+                    voiceAnnouncedIndex = 0,
                     messageRes = null,
                 )
             } else {
@@ -352,7 +370,7 @@ class RouteViewModel(
             }
             if (response.isSuccessful) {
                 routeProgressStore.clear()
-                _uiState.value = _uiState.value.copy(mode = RouteMode.ACTIVE, status = RouteStatus.IDLE, messageRes = null, nickname = "", completedWaypointIndex = -1)
+                _uiState.value = _uiState.value.copy(mode = RouteMode.ACTIVE, status = RouteStatus.IDLE, messageRes = null, nickname = "", completedWaypointIndex = -1, voiceAnnouncedIndex = 0)
             } else {
                 _uiState.value = _uiState.value.copy(status = RouteStatus.IDLE, messageRes = R.string.route_session_expired)
             }
@@ -379,6 +397,12 @@ class RouteViewModel(
     fun complete() {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(status = RouteStatus.LOADING)
+            val beforeAchievements = runCatching {
+                apiClientProvider.service.appStatsMe()
+                    .takeIf { it.isSuccessful }
+                    ?.body()
+                    ?.achievements
+            }.getOrNull()
             val response = try { apiClientProvider.service.completeRoute() } catch (_: IOException) {
                 _uiState.value = _uiState.value.copy(status = RouteStatus.IDLE, messageRes = R.string.common_error)
                 return@launch
@@ -386,6 +410,12 @@ class RouteViewModel(
             if (response.isSuccessful) {
                 routeProgressStore.clear()
                 val body = response.body()
+                val afterStats = runCatching {
+                    apiClientProvider.service.appStatsMe()
+                        .takeIf { it.isSuccessful }
+                        ?.body()
+                }.getOrNull()
+                StatsInvalidation.bump()
                 _uiState.value = _uiState.value.copy(
                     route = null,
                     mode = RouteMode.SUGGESTING,
@@ -396,9 +426,12 @@ class RouteViewModel(
                     tracking = false,
                     myLocation = null,
                     completedWaypointIndex = -1,
+                    voiceAnnouncedIndex = 0,
                     completionPointsEarned = body?.pointsEarned,
                     completionStreakMultiplier = body?.streakMultiplier,
                     completionCurrentStreak = body?.currentStreak,
+                    completionWeeklyPoints = afterStats?.points?.weeklyPoints,
+                    completionNewAchievements = diffNewAchievements(beforeAchievements, afterStats?.achievements),
                 )
             } else {
                 _uiState.value = _uiState.value.copy(status = RouteStatus.IDLE, messageRes = R.string.common_error)
@@ -421,6 +454,7 @@ class RouteViewModel(
                 tracking = false,
                 myLocation = null,
                 completedWaypointIndex = -1,
+                voiceAnnouncedIndex = 0,
             )
         }
     }
@@ -465,6 +499,7 @@ class RouteViewModel(
                     messageRes = null,
                     nickname = "",
                     completedWaypointIndex = -1,
+                    voiceAnnouncedIndex = 0,
                 )
             } else {
                 val errorCode = parseErrorCode(response.errorBody()?.string())
@@ -515,5 +550,23 @@ class RouteViewModel(
     private fun parseErrorCode(errorBodyJson: String?): String? {
         if (errorBodyJson == null) return null
         return try { errorJson.decodeFromString(ApiErrorBody.serializer(), errorBodyJson).error } catch (_: Exception) { null }
+    }
+
+    private fun diffNewAchievements(before: AchievementsDto?, after: AchievementsDto?): List<String> {
+        if (before == null || after == null) return emptyList()
+        val labels = mutableListOf<String>()
+        for (afterItem in after.scalable) {
+            val beforeItem = before.scalable.find { it.category == afterItem.category } ?: continue
+            if (afterItem.tierIndex > beforeItem.tierIndex && afterItem.tierLabel != null) {
+                labels.add("${afterItem.categoryLabel}: ${afterItem.tierLabel}")
+            }
+        }
+        for (afterItem in after.special) {
+            val beforeItem = before.special.find { it.id == afterItem.id } ?: continue
+            if (afterItem.earned && !beforeItem.earned) {
+                labels.add(afterItem.label)
+            }
+        }
+        return labels
     }
 }

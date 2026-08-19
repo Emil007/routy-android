@@ -62,7 +62,11 @@
     <string name="route_completion_title">Route abgeschlossen</string>
     <string name="route_completion_points">+%1$d Punkte (×%2$.1f Serie)</string>
     <string name="route_completion_streak">Aktuelle Serie: %1$d Tage</string>
+    <string name="route_completion_weekly">Wochenpunkte: %1$d</string>
+    <string name="route_completion_achievements_title">Neue Erfolge</string>
+    <string name="route_completion_new_achievement">• %1$s</string>
     <string name="stats_points">Punkte</string>
+    <string name="stats_weekly_points">Wochenpunkte</string>
     <string name="stats_points_leaderboard">Punkte-Rangliste</string>
 
     <string name="route_active_notice">Du hast eine aktive Route. Bestätige sie als gegangen, oder verwirf sie, um eine neue vorzuschlagen.</string>

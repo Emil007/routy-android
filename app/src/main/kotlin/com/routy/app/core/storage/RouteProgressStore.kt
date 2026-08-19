@@ -14,20 +14,20 @@ class RouteProgressStore(context: Context) {
     data class Progress(
         val routeKey: String,
         val completedIndex: Int,
+        val voiceAnnouncedIndex: Int = 0,
     )
 
-    fun save(routeKey: String, completedIndex: Int) {
+    fun save(routeKey: String, completedIndex: Int, voiceAnnouncedIndex: Int) {
         prefs.edit()
-            .putString("progress", json.encodeToString(Progress(routeKey, completedIndex)))
+            .putString("progress", json.encodeToString(Progress(routeKey, completedIndex, voiceAnnouncedIndex)))
             .apply()
     }
 
-    fun load(routeKey: String): Int? {
+    fun load(routeKey: String): Progress? {
         val raw = prefs.getString("progress", null) ?: return null
         return runCatching { json.decodeFromString<Progress>(raw) }
             .getOrNull()
             ?.takeIf { it.routeKey == routeKey }
-            ?.completedIndex
     }
 
     fun clear() {

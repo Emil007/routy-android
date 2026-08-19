@@ -46,6 +46,13 @@ class VoiceCueTracker(private val stations: List<RouteStation>) {
         }
     }
 
+    /** Resume after process death — [announcedUpTo] is how many stations were already announced. */
+    fun restore(announcedUpTo: Int) {
+        nextIndex = announcedUpTo.coerceIn(0, stations.size)
+    }
+
+    fun announcedCount(): Int = nextIndex
+
     /** Call when a new route is accepted/started — a fresh route means a fresh announcement sequence. */
     fun reset() {
         nextIndex = 0
