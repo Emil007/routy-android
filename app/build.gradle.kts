@@ -60,7 +60,7 @@ android {
         // Overridden by CI from the pushed release tag (-PappVersionName=0.13a -PappVersionCode=N)
         // — see .github/workflows/release.yml. Tags use the `a` suffix (e.g. v0.13a).
         versionCode = (project.findProperty("appVersionCode") as String?)?.toIntOrNull() ?: 19
-        versionName = (project.findProperty("appVersionName") as String?) ?: "0.24a"
+        versionName = (project.findProperty("appVersionName") as String?) ?: "0.25a"
         buildConfigField("String", "SENTRY_DSN", "\"${sentryDsn.replace("\"", "\\\"")}\"")
     }
 
@@ -101,6 +101,25 @@ android {
     packaging {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
+        }
+    }
+
+    sourceSets {
+        getByName("main") {
+            java.setSrcDirs(listOf("src/main/kotlin"))
+        }
+        if (sentryEnabled) {
+            // Release APK only — debug keeps the no-op stub even when CI passes -PsentryDsn.
+            getByName("release") {
+                java.srcDirs("src/sentry/kotlin")
+            }
+            getByName("debug") {
+                java.srcDirs("src/noSentry/kotlin")
+            }
+        } else {
+            getByName("main") {
+                java.srcDirs("src/main/kotlin", "src/noSentry/kotlin")
+            }
         }
     }
 }
@@ -190,11 +209,9 @@ dependencies {
     // org.maplibre.gl:android-sdk-geojson.
     implementation("org.maplibre.gl:android-sdk:12.3.1")
 
-    // --- Crash reporting (optional — only packaged when -PsentryDsn is set at build time) ---
+    // --- Crash reporting (optional — release APK only when -PsentryDsn is set) ---
     if (sentryEnabled) {
-        implementation("io.sentry:sentry-android:8.12.0")
-    } else {
-        compileOnly("io.sentry:sentry-android:8.12.0")
+        releaseImplementation("io.sentry:sentry-android:8.12.0")
     }
 
     // --- Tests ---
