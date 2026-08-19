@@ -22,6 +22,7 @@ import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -36,6 +37,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
@@ -135,6 +138,17 @@ fun SettingsScreen(
                     current = uiState.user?.theme ?: "auto",
                     enabled = !uiState.saving,
                     onSelect = viewModel::setTheme,
+                )
+            }
+        }
+
+        item {
+            SettingsSection(title = stringResource(R.string.settings_walk_speed_title)) {
+                WalkSpeedField(
+                    current = uiState.user?.walkSpeedKmh,
+                    networkDefault = uiState.networkWalkSpeedKmh,
+                    enabled = !uiState.saving,
+                    onSave = viewModel::setWalkSpeed,
                 )
             }
         }
@@ -246,6 +260,53 @@ private fun ThemeDropdown(current: String, enabled: Boolean, onSelect: (String) 
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun WalkSpeedField(
+    current: Double?,
+    networkDefault: Double,
+    enabled: Boolean,
+    onSave: (Double?) -> Unit,
+) {
+    var text by remember(current) {
+        mutableStateOf(current?.let { if (it % 1.0 == 0.0) it.toInt().toString() else it.toString() } ?: "")
+    }
+
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text(
+            stringResource(R.string.settings_walk_speed_subtitle),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            OutlinedTextField(
+                value = text,
+                onValueChange = { text = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                enabled = enabled,
+                singleLine = true,
+                label = { Text(stringResource(R.string.settings_walk_speed_label)) },
+                placeholder = { Text("%.1f".format(networkDefault)) },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                modifier = Modifier.weight(1f),
+            )
+            CompactOutlinedButton(
+                onClick = {
+                    val trimmed = text.trim()
+                    val value = if (trimmed.isEmpty()) null else trimmed.toDoubleOrNull()
+                    if (trimmed.isEmpty() || (value != null && value > 0)) onSave(value)
+                },
+                enabled = enabled,
+            ) {
+                Text(stringResource(R.string.settings_walk_speed_save), style = MaterialTheme.typography.labelMedium)
+            }
+        }
+        Text(
+            stringResource(R.string.settings_walk_speed_hint, networkDefault),
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 

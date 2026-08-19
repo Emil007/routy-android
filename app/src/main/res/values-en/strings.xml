@@ -202,6 +202,11 @@
     <string name="settings_theme_auto">System</string>
     <string name="settings_theme_light">Light</string>
     <string name="settings_theme_dark">Dark</string>
+    <string name="settings_walk_speed_title">Your pace</string>
+    <string name="settings_walk_speed_subtitle">Affects estimated duration of new paths and routes.</string>
+    <string name="settings_walk_speed_label">Walking speed (km/h)</string>
+    <string name="settings_walk_speed_hint">Leave empty to use network default (currently %1$.1f km/h).</string>
+    <string name="settings_walk_speed_save">Save</string>
 
     <string name="notification_recording_channel_name">Path recording</string>
     <string name="notification_recording_title">Recording in progress</string>

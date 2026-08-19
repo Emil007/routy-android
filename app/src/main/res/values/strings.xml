@@ -202,6 +202,11 @@
     <string name="settings_theme_auto">System</string>
     <string name="settings_theme_light">Hell</string>
     <string name="settings_theme_dark">Dunkel</string>
+    <string name="settings_walk_speed_title">Dein Tempo</string>
+    <string name="settings_walk_speed_subtitle">Beeinflusst die geschätzte Dauer neuer Wege und Routen.</string>
+    <string name="settings_walk_speed_label">Gehgeschwindigkeit (km/h)</string>
+    <string name="settings_walk_speed_hint">Leer lassen für Netzwerk-Standard (aktuell %1$.1f km/h).</string>
+    <string name="settings_walk_speed_save">Speichern</string>
 
     <string name="notification_recording_channel_name">Wegaufzeichnung</string>
     <string name="notification_recording_title">Aufzeichnung läuft</string>

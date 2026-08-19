@@ -38,6 +38,7 @@ data class RecordingServiceState(
     val pointCount: Int = 0,
     val lengthM: Double = 0.0,
     val currentPosition: GeoPoint? = null,
+    val trackGeometry: List<GeoPoint> = emptyList(),
     val locationError: Boolean = false,
 )
 
@@ -92,11 +93,15 @@ class RecordingForegroundService : Service() {
             phase = session.phase,
             pointCount = session.points.size,
             lengthM = session.stats(walkSpeedKmhFallback = 5.0).lengthM,
+            trackGeometry = trackGeometry(),
         )
         if (session.phase == RecordingPhase.RECORDING) startLocationUpdates()
     }
 
     fun recordedPoints(): List<RecordingPoint> = session.points
+
+    private fun trackGeometry(): List<GeoPoint> =
+        session.points.map { GeoPoint(it.lat, it.lng) }
 
     @SuppressLint("MissingPermission")
     private fun beginRecording() {
@@ -139,6 +144,7 @@ class RecordingForegroundService : Service() {
                         pointCount = session.points.size,
                         lengthM = session.stats(walkSpeedKmhFallback = 5.0).lengthM,
                         currentPosition = currentPosition,
+                        trackGeometry = trackGeometry(),
                     )
                     updateNotification()
                     val nextInterval = recordingLocationIntervalMs(session.points)

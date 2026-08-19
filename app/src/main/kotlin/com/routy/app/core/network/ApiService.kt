@@ -144,7 +144,7 @@ interface ApiService {
     suspend fun gpxConfig(): Response<GpxConfigResponse>
 
     @PATCH("api/app/profile")
-    suspend fun patchProfile(@Body body: ProfilePatchRequest): Response<ProfilePatchResponse>
+    suspend fun patchProfile(@Body body: RequestBody): Response<ProfilePatchResponse>
 
     @POST("api/auth/sessions/revoke-others")
     suspend fun revokeOtherSessions(@Body body: RequestBody = EMPTY_JSON_BODY): Response<RevokeOthersResponse>

@@ -7,6 +7,7 @@ import com.routy.app.core.AccountTheme
 import com.routy.app.core.BootstrapLoader
 import com.routy.app.core.BootstrapResult
 import com.routy.app.core.network.ApiClientProvider
+import com.routy.app.core.network.profilePatchBody
 import com.routy.app.logic.api.ProfilePatchRequest
 import com.routy.app.logic.api.SessionListEntry
 import com.routy.app.logic.api.SessionUser
@@ -20,6 +21,7 @@ data class SettingsUiState(
     val loading: Boolean = true,
     val user: SessionUser? = null,
     val sessions: List<SessionListEntry> = emptyList(),
+    val networkWalkSpeedKmh: Double = 5.0,
     val saving: Boolean = false,
     val messageRes: Int? = null,
     val error: Boolean = false,
@@ -49,10 +51,13 @@ class SettingsViewModel(
                 }
                 val sessionsRes = apiClientProvider.service.sessions()
                 val sessions = if (sessionsRes.isSuccessful) sessionsRes.body()?.sessions.orEmpty() else emptyList()
+                val configRes = runCatching { apiClientProvider.service.gpxConfig() }.getOrNull()
+                val networkWalkSpeed = configRes?.takeIf { it.isSuccessful }?.body()?.walkSpeedKmh ?: 5.0
                 _uiState.value = SettingsUiState(
                     loading = false,
                     user = bootstrap,
                     sessions = sessions,
+                    networkWalkSpeedKmh = networkWalkSpeed,
                 )
             } catch (_: IOException) {
                 _uiState.value = _uiState.value.copy(loading = false, error = true)
@@ -66,6 +71,10 @@ class SettingsViewModel(
 
     fun setTheme(theme: String) {
         patchProfile(ProfilePatchRequest(theme = theme))
+    }
+
+    fun setWalkSpeed(kmh: Double?) {
+        patchProfileWalkSpeed(kmh)
     }
 
     fun revokeSession(sessionId: String) {
@@ -112,11 +121,38 @@ class SettingsViewModel(
         _uiState.value = _uiState.value.copy(needsRecreate = false)
     }
 
+    private fun patchProfileWalkSpeed(kmh: Double?) {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(saving = true, messageRes = null, error = false)
+            try {
+                val res = apiClientProvider.patchProfileWalkSpeed(kmh)
+                if (!res.isSuccessful) {
+                    _uiState.value = _uiState.value.copy(saving = false, error = true)
+                    return@launch
+                }
+                val user = res.body()?.user
+                bootstrapLoader.invalidate()
+                if (user != null) {
+                    _uiState.value = _uiState.value.copy(
+                        saving = false,
+                        user = user,
+                        messageRes = com.routy.app.R.string.settings_saved,
+                    )
+                } else {
+                    _uiState.value = _uiState.value.copy(saving = false)
+                    load()
+                }
+            } catch (_: IOException) {
+                _uiState.value = _uiState.value.copy(saving = false, error = true)
+            }
+        }
+    }
+
     private fun patchProfile(body: ProfilePatchRequest) {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(saving = true, messageRes = null, error = false)
             try {
-                val res = apiClientProvider.service.patchProfile(body)
+                val res = apiClientProvider.service.patchProfile(profilePatchBody(body))
                 if (!res.isSuccessful) {
                     _uiState.value = _uiState.value.copy(saving = false, error = true)
                     return@launch

@@ -1,9 +1,14 @@
 package com.routy.app.core.network
 
 import com.routy.app.core.storage.SecureStorage
+import com.routy.app.logic.api.ProfilePatchRequest
+import com.routy.app.logic.api.ProfilePatchResponse
+import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
+import okhttp3.RequestBody
+import retrofit2.Response
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import retrofit2.converter.kotlinx.serialization.asConverterFactory
@@ -40,6 +45,17 @@ class ApiClientProvider(private val secureStorage: SecureStorage) {
         cached = null
     }
 
+    /** PATCH walk speed — sends explicit JSON null when clearing to network default. */
+    suspend fun patchProfileWalkSpeed(kmh: Double?): Response<ProfilePatchResponse> {
+        val body = if (kmh == null) {
+            RequestBody.create("application/json".toMediaType(), """{"walkSpeedKmh":null}""")
+        } else {
+            json.encodeToString(ProfilePatchRequest(walkSpeedKmh = kmh))
+                .let { RequestBody.create("application/json".toMediaType(), it) }
+        }
+        return service.patchProfile(body)
+    }
+
     private fun buildApiService(baseUrl: String): ApiService {
         val loggingInterceptor = HttpLoggingInterceptor().apply {
             // Headers only, never BODY — request/response bodies can carry passwords and TOTP codes.
@@ -66,3 +82,9 @@ class ApiClientProvider(private val secureStorage: SecureStorage) {
         return if (url.endsWith("/")) url else "$url/"
     }
 }
+
+fun profilePatchBody(body: ProfilePatchRequest): RequestBody =
+    RequestBody.create(
+        "application/json".toMediaType(),
+        json.encodeToString(body),
+    )
