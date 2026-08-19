@@ -31,6 +31,7 @@
         android:name=".RoutyApplication"
         android:allowBackup="false"
         android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
         android:label="@string/app_name"
         android:theme="@style/Theme.Routy">
         <!-- Sentry auto-init runs before Application.onCreate and crashes without a manifest DSN.
@@ -59,6 +60,18 @@
             android:name=".recording.RecordingForegroundService"
             android:exported="false"
             android:foregroundServiceType="location" />
+
+        <receiver
+            android:name=".widget.RoutyWidgetProvider"
+            android:exported="true"
+            android:label="@string/app_name">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/routy_widget_info" />
+        </receiver>
 
     </application>
 </manifest>

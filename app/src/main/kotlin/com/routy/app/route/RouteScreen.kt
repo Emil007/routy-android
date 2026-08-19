@@ -297,6 +297,9 @@ private fun SuggestingMapLayout(
                         CompactOutlinedButton(onClick = { viewModel.suggest("long") }, enabled = !loading) {
                             Text(stringResource(R.string.route_preset_long), style = MaterialTheme.typography.labelMedium)
                         }
+                        CompactOutlinedButton(onClick = { viewModel.discover() }, enabled = !loading && uiState.startNodeId != null) {
+                            Text(stringResource(R.string.route_preset_discover), style = MaterialTheme.typography.labelMedium)
+                        }
                         CompactOutlinedButton(onClick = onStartRecording) {
                             Text(stringResource(R.string.record_entry_point), style = MaterialTheme.typography.labelMedium)
                         }
