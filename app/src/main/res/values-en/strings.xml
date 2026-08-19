@@ -30,6 +30,18 @@
     <string name="nav_settings">Settings</string>
     <string name="nav_admin">Admin</string>
 
+    <string name="stats_your_stats">Your stats</string>
+    <string name="stats_walks">walks</string>
+    <string name="stats_segments">segments</string>
+    <string name="stats_streak_current">Streak</string>
+    <string name="stats_streak_longest">Best streak</string>
+    <string name="stats_leaderboard">Weekly leaderboard</string>
+    <string name="stats_leaderboard_empty">No walks logged this week yet.</string>
+    <string name="stats_achievements">Achievements</string>
+    <string name="stats_recent_walks">Recent walks</string>
+    <string name="stats_no_walks">No confirmed walks yet.</string>
+    <string name="stats_retry">Retry</string>
+
     <string name="route_station_fallback">the next station</string>
 
     <string name="common_save">Save</string>

@@ -1,6 +1,7 @@
 package com.routy.app.core.network
 
 import com.routy.app.logic.api.AdjustRouteRequest
+import com.routy.app.logic.api.AppBootstrapResponse
 import com.routy.app.logic.api.GenerateRouteRequest
 import com.routy.app.logic.api.GenerateRouteResponse
 import com.routy.app.logic.api.GpxCommitRequest
@@ -26,6 +27,7 @@ import retrofit2.Response
 import retrofit2.http.Body
 import retrofit2.http.DELETE
 import retrofit2.http.GET
+import retrofit2.http.Header
 import retrofit2.http.POST
 import retrofit2.http.Path
 
@@ -66,10 +68,13 @@ interface ApiService {
     suspend fun revokeSession(@Path("sessionId") sessionId: String): Response<Unit>
 
     @GET("api/nodes")
-    suspend fun nodes(): Response<NodesResponse>
+    suspend fun nodes(@Header("If-None-Match") ifNoneMatch: String? = null): Response<NodesResponse>
 
     @GET("api/segments")
-    suspend fun segments(): Response<SegmentsResponse>
+    suspend fun segments(@Header("If-None-Match") ifNoneMatch: String? = null): Response<SegmentsResponse>
+
+    @GET("api/app/bootstrap")
+    suspend fun bootstrap(@Header("If-None-Match") ifNoneMatch: String? = null): Response<AppBootstrapResponse>
 
     @GET("api/route/state")
     suspend fun routeState(): Response<RouteStateResponse>
