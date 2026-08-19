@@ -120,6 +120,10 @@
     <string name="route_compass_w">West</string>
     <string name="route_compass_nw">Northwest</string>
 
+    <string name="update_available">New version available: %1$s</string>
+    <string name="update_view">View</string>
+    <string name="update_dismiss">Dismiss</string>
+
     <string name="notification_recording_channel_name">Path recording</string>
     <string name="notification_recording_title">Recording in progress</string>
     <string name="notification_recording_text">%1$d points, %2$s km</string>

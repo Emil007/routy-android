@@ -1,5 +1,7 @@
 package com.routy.app.webview
 
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AdminPanelSettings
@@ -29,6 +31,7 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import com.routy.app.R
 import com.routy.app.RoutyApplication
 import com.routy.app.route.RouteScreen
+import com.routy.app.update.UpdateBanner
 
 private data class ShellTab(val labelRes: Int, val path: String, val icon: ImageVector, val adminOnly: Boolean = false)
 
@@ -92,14 +95,21 @@ fun RoutyShellScreen(onSignedOut: () -> Unit, onStartRecording: () -> Unit) {
             }
         },
     ) { padding ->
-        if (currentTab.path == "route") {
-            RouteScreen(onStartRecording = onStartRecording, modifier = Modifier.padding(padding))
-        } else {
-            RoutyWebView(
-                url = "$baseUrl/${currentTab.path}",
-                onNavigateToLogin = { viewModel.signOut() },
-                modifier = Modifier.padding(padding),
-            )
+        Column(modifier = Modifier.padding(padding).fillMaxSize()) {
+            // Sideload-only distribution means no auto-update — worth surfacing regardless of
+            // which tab is open, not just on one screen. weight(1f) on the tab content below
+            // (not fillMaxSize()) so the banner keeps its own natural height and the tab content
+            // takes only what's left, rather than both fighting over the full column height.
+            UpdateBanner()
+            if (currentTab.path == "route") {
+                RouteScreen(onStartRecording = onStartRecording, modifier = Modifier.weight(1f))
+            } else {
+                RoutyWebView(
+                    url = "$baseUrl/${currentTab.path}",
+                    onNavigateToLogin = { viewModel.signOut() },
+                    modifier = Modifier.weight(1f),
+                )
+            }
         }
     }
 }

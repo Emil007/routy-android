@@ -1,0 +1,44 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  # Runs everywhere, including this project's own dev sandbox — no Android SDK needed.
+  logic-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up JDK
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: logic module unit tests
+        run: ./gradlew :logic:test
+
+  # Needs a real Android SDK — unlike this repo's own dev sandbox, GitHub-hosted ubuntu-latest
+  # runners ship one preinstalled and pre-licensed, so no extra setup-android step is needed.
+  # This is the actual first compiler check the :app module gets — see NOTES.md.
+  app-build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up JDK
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Debug build
+        run: ./gradlew :app:assembleDebug
+
+      - name: Android Lint
+        run: ./gradlew :app:lintDebug
