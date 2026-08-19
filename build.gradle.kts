@@ -10,18 +10,18 @@ plugins {
     // No org.jetbrains.kotlin.android here (deliberately — see app/build.gradle.kts): AGP 9
     // has built-in Kotlin support and applies its own Kotlin-Android integration internally,
     // which conflicts with the traditional kotlin-android plugin if both are applied at once.
-    // :logic still needs org.jetbrains.kotlin.jvm and .plugin.serialization — it's a plain
-    // Kotlin/JVM module, not Android, so AGP's built-in Kotlin support doesn't cover it, and it
-    // has real @Serializable classes of its own (api/*Models.kt).
     //
-    // 2.2.10, matching exactly what a real Android Studio "Empty Activity" project generated on
-    // the same machine this project is actually being synced on (app/build.gradle.kts's
-    // plugins-block comment has the full story of how many guesses that replaced) — 2.4.10 was
-    // tried in between on the theory that Google's compatibility table's open-ended range for
-    // 2.4.x meant it, not 2.2.10, was the version that cooperates with AGP 9's built-in Kotlin.
-    // That theory was wrong: a verified-working real project uses 2.2.10, so the actual variable
-    // was never the Kotlin version at all (see app/build.gradle.kts for what it really was).
-    id("org.jetbrains.kotlin.jvm") version "2.2.10" apply false
+    // org.jetbrains.kotlin.jvm and .plugin.serialization TEMPORARILY REMOVED — diagnostic only,
+    // see NOTES.md's "ninth attempt". Excluding :logic from settings.gradle.kts (the eighth
+    // attempt) did NOT fix the BaseVariant crash, which ruled out multi-module-ness itself as
+    // the trigger — but that test was incomplete: this file still declared these two plugins
+    // (apply false) for :logic's benefit even with :logic gone, and root-level `plugins {}`
+    // entries get resolved onto the build's shared plugin classpath regardless of whether
+    // anything actually applies them. The verified-working template's root build file only ever
+    // declared android-application + kotlin-compose, nothing else — so the previous diagnostic
+    // wasn't actually testing ":app, completely alone" yet. This removes the gap: with these two
+    // gone, :app's plugins {} block plus this file are now a byte-for-byte structural match for
+    // the template's plugin declarations. Restore both lines together with settings.gradle.kts's
+    // include(":logic") once the diagnosis is confirmed either way.
     id("org.jetbrains.kotlin.plugin.compose") version "2.2.10" apply false
-    id("org.jetbrains.kotlin.plugin.serialization") version "2.2.10" apply false
 }
