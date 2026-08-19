@@ -9,18 +9,14 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.DirectionsWalk
-import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.filled.AdminPanelSettings
 import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -59,7 +55,6 @@ private val TABS = listOf(
  * reusing the website as-is, since editing-heavy/occasional screens gain nothing from a native
  * rebuild.
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RoutyShellScreen(onSignedOut: () -> Unit, onStartRecording: () -> Unit) {
     val app = LocalContext.current.applicationContext as RoutyApplication
@@ -100,18 +95,6 @@ fun RoutyShellScreen(onSignedOut: () -> Unit, onStartRecording: () -> Unit) {
     }
 
     Scaffold(
-        topBar = {
-            if (currentTab.path == "settings") {
-                TopAppBar(
-                    title = { Text(stringResource(R.string.app_name)) },
-                    actions = {
-                        IconButton(onClick = { viewModel.signOut() }) {
-                            Icon(Icons.AutoMirrored.Filled.ExitToApp, contentDescription = null)
-                        }
-                    },
-                )
-            }
-        },
         bottomBar = {
             NavigationBar {
                 visibleTabs.forEachIndexed { index, tab ->
