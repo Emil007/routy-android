@@ -102,6 +102,15 @@ data class ShareFavoriteRequest(val enable: Boolean)
 @Serializable
 data class ShareFavoriteResponse(val ok: Boolean, val shareToken: String? = null)
 
+/** POST /api/route/complete — walk delta points for the completion dialog. */
+@Serializable
+data class CompleteRouteResponse(
+    val success: Boolean = true,
+    val pointsEarned: Int = 0,
+    val streakMultiplier: Double = 1.0,
+    val currentStreak: Int = 0,
+)
+
 /** GET /api/route/state — mirrors the props the web's /route RSC computes server-side (src/app/(app)/route/page.tsx). */
 @Serializable
 data class RouteStateResponse(

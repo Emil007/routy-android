@@ -26,6 +26,7 @@ import com.routy.app.logic.api.GeoPoint
 import com.routy.app.logic.recording.RecordingPhase
 import com.routy.app.logic.recording.RecordingPoint
 import com.routy.app.logic.recording.RecordingSession
+import com.routy.app.logic.recording.appendedPointsAfterSnapshot
 import com.routy.app.logic.recording.shouldRecordPoint
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -80,9 +81,12 @@ class RecordingForegroundService : Service() {
 
     private fun restoreIfNeeded() {
         val snapshot = snapshotStore.loadSnapshot() ?: return
-        if (snapshot.phase == RecordingPhase.IDLE || snapshot.phase == RecordingPhase.CONFIRM) return
+        if (snapshot.phase == RecordingPhase.IDLE) return
         session.restore(snapshot)
-        snapshotStore.loadAppendedPoints().forEach { session.addPoint(it) }
+        if (snapshot.phase != RecordingPhase.CONFIRM) {
+            appendedPointsAfterSnapshot(snapshot, snapshotStore.loadAppendedPoints())
+                .forEach { session.addPoint(it) }
+        }
         _state.value = RecordingServiceState(
             phase = session.phase,
             pointCount = session.points.size,
@@ -90,6 +94,8 @@ class RecordingForegroundService : Service() {
         )
         if (session.phase == RecordingPhase.RECORDING) startLocationUpdates()
     }
+
+    fun recordedPoints(): List<RecordingPoint> = session.points
 
     @SuppressLint("MissingPermission")
     private fun beginRecording() {

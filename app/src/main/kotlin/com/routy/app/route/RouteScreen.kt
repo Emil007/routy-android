@@ -70,7 +70,6 @@ import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
 import com.routy.app.R
 import com.routy.app.RoutyApplication
-import com.routy.app.core.DeepLinkHolder
 import com.routy.app.logic.api.FavoriteEntry
 import com.routy.app.logic.api.GeoPoint
 import com.routy.app.logic.api.NodeDto
@@ -97,13 +96,6 @@ fun RouteScreen(onStartRecording: () -> Unit, accountLocaleTag: String, modifier
     )
     val uiState by viewModel.uiState.collectAsState()
     val clipboard = LocalClipboard.current
-    var pendingShareToken by remember { mutableStateOf<String?>(null) }
-
-    LaunchedEffect(Unit) {
-        DeepLinkHolder.shareToken.collect { token ->
-            if (token != null) pendingShareToken = token
-        }
-    }
 
     LaunchedEffect(uiState.pendingShareUrl) {
         val url = uiState.pendingShareUrl ?: return@LaunchedEffect
@@ -180,22 +172,29 @@ fun RouteScreen(onStartRecording: () -> Unit, accountLocaleTag: String, modifier
                 route = route,
                 viewModel = viewModel,
                 accountLocaleTag = accountLocaleTag,
-                pendingShareToken = pendingShareToken,
-                onShareAccepted = { pendingShareToken = null },
                 modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth(),
             )
         }
     }
 
-    uiState.completionStats?.let { stats ->
+    val pointsEarned = uiState.completionPointsEarned
+    if (pointsEarned != null) {
         AlertDialog(
             onDismissRequest = viewModel::dismissCompletionStats,
             confirmButton = { TextButton(onClick = viewModel::dismissCompletionStats) { Text(stringResource(R.string.common_ok)) } },
             title = { Text(stringResource(R.string.route_completion_title)) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    stats.points?.let { Text(stringResource(R.string.route_completion_points, it.totalPoints, it.streakMultiplier)) }
-                    Text(stringResource(R.string.route_completion_streak, stats.streak.currentStreak))
+                    Text(
+                        stringResource(
+                            R.string.route_completion_points,
+                            pointsEarned,
+                            uiState.completionStreakMultiplier ?: 1.0,
+                        ),
+                    )
+                    uiState.completionCurrentStreak?.let {
+                        Text(stringResource(R.string.route_completion_streak, it))
+                    }
                 }
             },
         )
@@ -220,8 +219,6 @@ private fun RouteOverlayPanel(
     route: com.routy.app.logic.api.RouteDisplayPayload,
     viewModel: RouteViewModel,
     accountLocaleTag: String,
-    pendingShareToken: String?,
-    onShareAccepted: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -247,10 +244,10 @@ private fun RouteOverlayPanel(
                 route.elevation?.let { AssistChip(onClick = {}, label = { Text("↗${it.gainM}m") }) }
             }
 
-            pendingShareToken?.let { token ->
+            uiState.pendingShareToken?.let { token ->
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(uiState.sharedRouteName ?: stringResource(R.string.route_share_preview), modifier = Modifier.weight(1f))
-                    Button(onClick = { viewModel.acceptSharedRoute(token); onShareAccepted() }) {
+                    Button(onClick = { viewModel.acceptSharedRoute(token) }) {
                         Text(stringResource(R.string.route_accept))
                     }
                 }
@@ -301,11 +298,12 @@ private fun RouteOverlayPanel(
 
 @Composable
 private fun TrackProgressSection(uiState: RouteUiState, route: com.routy.app.logic.api.RouteDisplayPayload) {
-    val nextIdx = (uiState.completedWaypointIndex + 1).coerceAtMost(route.stations.lastIndex)
+    val completedCount = if (uiState.completedWaypointIndex < 0) 0 else uiState.completedWaypointIndex + 1
+    val nextIdx = (uiState.completedWaypointIndex + 1).coerceIn(0, route.stations.lastIndex)
     val next = route.stations.getOrNull(nextIdx)
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Text(
-            stringResource(R.string.route_track_progress, uiState.completedWaypointIndex + 1, route.stations.size),
+            stringResource(R.string.route_track_progress, completedCount, route.stations.size),
             style = MaterialTheme.typography.titleSmall,
         )
         next?.let {
@@ -371,7 +369,11 @@ private fun ActiveTrackingEffects(
             progressTracker.onLocationUpdate(latLng)?.let { completed ->
                 if (completed > uiState.completedWaypointIndex) {
                     viewModel.onWaypointCompleted(completed)
-                    cueController.waypointReached()
+                    if (completed >= route.stations.lastIndex) {
+                        cueController.routeCompleted()
+                    } else {
+                        cueController.waypointReached()
+                    }
                 }
             }
         }
