@@ -1,5 +1,9 @@
 package com.routy.app.webview
 
+import android.os.Bundle
+import android.webkit.WebView
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -22,7 +26,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -30,6 +33,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.zIndex
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
@@ -87,6 +91,13 @@ fun RoutyShellScreen(onSignedOut: () -> Unit, onStartRecording: () -> Unit) {
 
     val visibleTabs = TABS.filter { !it.adminOnly || uiState.user?.role == "admin" }
     val currentTab = visibleTabs.getOrElse(selectedTab.coerceIn(0, visibleTabs.lastIndex)) { visibleTabs.first() }
+    val webTabs = remember(visibleTabs) { visibleTabs.filter { it.path != "route" && it.path != "stats" } }
+    val webViewStates = remember { mutableMapOf<String, Bundle>() }
+    val webViews = remember { mutableMapOf<String, WebView>() }
+
+    BackHandler(enabled = webViews[currentTab.path]?.canGoBack() == true) {
+        webViews[currentTab.path]?.goBack()
+    }
 
     Scaffold(
         topBar = {
@@ -121,21 +132,28 @@ fun RoutyShellScreen(onSignedOut: () -> Unit, onStartRecording: () -> Unit) {
             // (not fillMaxSize()) so the banner keeps its own natural height and the tab content
             // takes only what's left, rather than both fighting over the full column height.
             UpdateBanner()
-            if (currentTab.path == "route") {
-                RouteScreen(
-                    onStartRecording = onStartRecording,
-                    accountLocaleTag = uiState.user?.locale.orEmpty(),
-                    modifier = Modifier.weight(1f),
-                )
-            } else if (currentTab.path == "stats") {
-                StatsScreen(modifier = Modifier.weight(1f))
-            } else {
-                key(currentTab.path) {
+            Box(modifier = Modifier.weight(1f).fillMaxSize()) {
+                webTabs.forEach { tab ->
+                    val visible = currentTab.path == tab.path
                     RoutyWebView(
-                        url = "$baseUrl/${currentTab.path}",
+                        url = "$baseUrl/${tab.path}",
                         onNavigateToLogin = { viewModel.signOut() },
-                        modifier = Modifier.weight(1f),
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .zIndex(if (visible) 1f else 0f),
+                        interactive = visible,
+                        restoredState = webViewStates[tab.path],
+                        onStateSnapshot = { bundle -> webViewStates[tab.path] = bundle },
+                        onWebViewReady = { webView -> webViews[tab.path] = webView },
                     )
+                }
+                when (currentTab.path) {
+                    "route" -> RouteScreen(
+                        onStartRecording = onStartRecording,
+                        accountLocaleTag = uiState.user?.locale.orEmpty(),
+                        modifier = Modifier.fillMaxSize().zIndex(2f),
+                    )
+                    "stats" -> StatsScreen(modifier = Modifier.fillMaxSize().zIndex(2f))
                 }
             }
         }

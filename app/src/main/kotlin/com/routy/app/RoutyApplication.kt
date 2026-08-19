@@ -1,6 +1,7 @@
 package com.routy.app
 
 import android.app.Application
+import com.routy.app.core.AccountLocale
 import com.routy.app.core.network.ApiClientProvider
 import com.routy.app.core.storage.SecureStorage
 import com.routy.app.core.BootstrapLoader
@@ -36,6 +37,7 @@ class RoutyApplication : Application() {
         gpxCommitQueueStore = com.routy.app.core.storage.GpxCommitQueueStore(this)
         gpxCommitScheduler = com.routy.app.recording.GpxCommitScheduler(this, gpxCommitQueueStore)
         bootstrapLoader = BootstrapLoader(apiClientProvider, networkCache)
+        networkCache.loadBootstrap()?.user?.locale?.let { AccountLocale.apply(it) }
         gpxCommitScheduler.schedulePending()
         // Must run once before any MapView is created (native Route screen, M3) — mirrors the
         // MapLibre.getInstance(this) call every getting-started guide puts in Activity.onCreate,
