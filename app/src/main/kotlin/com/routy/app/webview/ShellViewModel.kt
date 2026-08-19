@@ -4,7 +4,10 @@ import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.os.LocaleListCompat
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.routy.app.core.BootstrapLoader
+import com.routy.app.core.BootstrapResult
 import com.routy.app.core.network.ApiClientProvider
+import com.routy.app.core.storage.NetworkCache
 import com.routy.app.core.storage.SecureStorage
 import com.routy.app.logic.api.SessionUser
 import java.io.IOException
@@ -15,7 +18,7 @@ import kotlinx.coroutines.launch
 
 data class ShellUiState(
     val user: SessionUser? = null,
-    /** True once /api/auth/me has confirmed the token or come back 401 — distinguishes "still checking" from "definitely signed out". */
+    /** True once bootstrap/me has confirmed the token or come back 401 — distinguishes "still checking" from "definitely signed out". */
     val checkedSession: Boolean = false,
     val signedOut: Boolean = false,
 )
@@ -23,38 +26,51 @@ data class ShellUiState(
 class ShellViewModel(
     private val secureStorage: SecureStorage,
     private val apiClientProvider: ApiClientProvider,
+    private val bootstrapLoader: BootstrapLoader,
+    private val networkCache: NetworkCache,
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(ShellUiState())
     val uiState: StateFlow<ShellUiState> = _uiState.asStateFlow()
 
     init {
+        networkCache.loadBootstrap()?.user?.let { applyUser(it) }
         refreshSession()
     }
 
-    /** Also doubles as M1's "restore/validate the session on launch, route back to login on 401" check. */
+    private fun applyUser(user: SessionUser) {
+        user.locale.let { locale ->
+            if (locale.isNotBlank()) {
+                AppCompatDelegate.setApplicationLocales(LocaleListCompat.forLanguageTags(locale))
+            }
+        }
+        _uiState.value = _uiState.value.copy(user = user)
+    }
+
+    /** Bootstrap payload includes user profile — avoids a separate /api/auth/me round trip on launch. */
     private fun refreshSession() {
         viewModelScope.launch {
-            val response = try {
-                apiClientProvider.service.me()
-            } catch (_: IOException) {
-                // Network hiccup, not necessarily an invalid session — stay on the shell rather
-                // than bouncing to login just because the first request happened to fail.
-                _uiState.value = _uiState.value.copy(checkedSession = true)
-                return@launch
-            }
-
-            if (response.isSuccessful) {
-                val body = response.body()
-                body?.user?.locale?.let { locale ->
-                    AppCompatDelegate.setApplicationLocales(LocaleListCompat.forLanguageTags(locale))
+            when (val result = bootstrapLoader.load()) {
+                is BootstrapResult.Fresh -> {
+                    applyUser(result.body.user)
+                    _uiState.value = _uiState.value.copy(checkedSession = true)
                 }
-                _uiState.value = _uiState.value.copy(user = body?.user, checkedSession = true)
-            } else if (response.code() == 401) {
-                secureStorage.clearToken()
-                apiClientProvider.invalidate()
-                _uiState.value = _uiState.value.copy(checkedSession = true, signedOut = true)
-            } else {
-                _uiState.value = _uiState.value.copy(checkedSession = true)
+                is BootstrapResult.NotModified -> {
+                    applyUser(result.cached.user)
+                    _uiState.value = _uiState.value.copy(checkedSession = true)
+                }
+                is BootstrapResult.CachedOnly -> {
+                    applyUser(result.cached.user)
+                    _uiState.value = _uiState.value.copy(checkedSession = true)
+                }
+                BootstrapResult.Unauthorized -> {
+                    secureStorage.clearToken()
+                    apiClientProvider.invalidate()
+                    bootstrapLoader.invalidate()
+                    _uiState.value = _uiState.value.copy(checkedSession = true, signedOut = true)
+                }
+                BootstrapResult.Failed -> {
+                    _uiState.value = _uiState.value.copy(checkedSession = true)
+                }
             }
         }
     }
@@ -64,9 +80,9 @@ class ShellViewModel(
             try {
                 apiClientProvider.service.logout()
             } catch (_: IOException) {
-                // Best-effort — the token gets cleared locally regardless, which is what actually
-                // matters for this device; the session just lingers server-side until it expires.
+                // Best-effort — local token clear is what matters for this device.
             }
+            bootstrapLoader.invalidate()
             secureStorage.clearToken()
             apiClientProvider.invalidate()
             _uiState.value = _uiState.value.copy(signedOut = true)
