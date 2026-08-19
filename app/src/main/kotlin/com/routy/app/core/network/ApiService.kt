@@ -43,7 +43,6 @@ import com.routy.app.logic.api.NodeMoveRequest
 import com.routy.app.logic.api.NodeRenameRequest
 import com.routy.app.logic.api.SegmentGeometryRequest
 import com.routy.app.logic.api.SegmentIdRequest
-import okhttp3.RequestBody
 import com.routy.app.logic.api.SegmentRenameRequest
 import com.routy.app.logic.api.SegmentSplitRequest
 import com.routy.app.logic.api.RevokeOthersResponse
