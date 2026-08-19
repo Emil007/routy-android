@@ -4,9 +4,9 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.DirectionsWalk
 import androidx.compose.material.icons.filled.AdminPanelSettings
 import androidx.compose.material.icons.filled.BarChart
-import androidx.compose.material.icons.filled.DirectionsWalk
 import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
@@ -36,7 +36,7 @@ import com.routy.app.update.UpdateBanner
 private data class ShellTab(val labelRes: Int, val path: String, val icon: ImageVector, val adminOnly: Boolean = false)
 
 private val TABS = listOf(
-    ShellTab(R.string.nav_route, "route", Icons.Filled.DirectionsWalk),
+    ShellTab(R.string.nav_route, "route", Icons.AutoMirrored.Filled.DirectionsWalk),
     ShellTab(R.string.nav_map, "map", Icons.Filled.Map),
     ShellTab(R.string.nav_stats, "stats", Icons.Filled.BarChart),
     ShellTab(R.string.nav_settings, "settings", Icons.Filled.Settings),
