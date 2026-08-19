@@ -73,6 +73,8 @@ fun RoutyMapView(
     stations: List<RouteStation>,
     myLocation: GeoPoint?,
     fitKey: Any?,
+    /** When >= 0, stations at or below this index render as completed; the next station is highlighted. */
+    completedWaypointIndex: Int = -1,
     modifier: Modifier = Modifier,
     /** When true (default), camera fits route geometry + stations (+ myLocation), not the whole network. */
     fitToRouteOnly: Boolean = true,
@@ -115,12 +117,12 @@ fun RoutyMapView(
         }
     }
 
-    LaunchedEffect(loadedStyle, nodes, segments, routeGeometry, stations, myLocation, routeColor) {
+    LaunchedEffect(loadedStyle, nodes, segments, routeGeometry, stations, myLocation, routeColor, completedWaypointIndex) {
         val currentStyle = loadedStyle ?: return@LaunchedEffect
         updateSegmentsLayer(currentStyle, segments)
         updateRouteLayer(currentStyle, routeGeometry, routeColor)
         updateNodesLayer(currentStyle, nodes)
-        updateStationsLayer(currentStyle, stations)
+        updateStationsLayer(currentStyle, stations, completedWaypointIndex)
         updateMyLocationLayer(currentStyle, myLocation)
     }
 
@@ -208,9 +210,18 @@ private fun updateNodesLayer(style: Style, nodes: List<NodeDto>) {
     style.addLayer(layer)
 }
 
-private fun updateStationsLayer(style: Style, stations: List<RouteStation>) {
+private fun updateStationsLayer(style: Style, stations: List<RouteStation>, completedWaypointIndex: Int) {
     val features = stations.mapIndexed { idx, s ->
-        val properties = JsonObject().apply { addProperty("color", if (idx == 0) "#a5711c" else "#2e6b49") }
+        val (color, radius) = when {
+            idx <= completedWaypointIndex -> "#6b7280" to 5f
+            idx == completedWaypointIndex + 1 -> "#2563eb" to 9f
+            idx == 0 -> "#a5711c" to 7f
+            else -> "#2e6b49" to 7f
+        }
+        val properties = JsonObject().apply {
+            addProperty("color", color)
+            addProperty("radius", radius)
+        }
         Feature.fromGeometry(Point.fromLngLat(s.lng, s.lat), properties)
     }
     val collection = FeatureCollection.fromFeatures(features)
@@ -223,7 +234,7 @@ private fun updateStationsLayer(style: Style, stations: List<RouteStation>) {
     val layer = CircleLayer(STATIONS_LAYER, STATIONS_SOURCE)
     layer.setProperties(
         PropertyFactory.circleColor(org.maplibre.android.style.expressions.Expression.get("color")),
-        PropertyFactory.circleRadius(7f),
+        PropertyFactory.circleRadius(org.maplibre.android.style.expressions.Expression.get("radius")),
         PropertyFactory.circleStrokeColor("#ffffff"),
         PropertyFactory.circleStrokeWidth(2f),
     )

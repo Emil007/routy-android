@@ -18,8 +18,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -58,6 +56,7 @@ import androidx.compose.ui.platform.ClipEntry
 import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -146,6 +145,7 @@ fun RouteScreen(onStartRecording: () -> Unit, accountLocaleTag: String, modifier
             stations = route.stations,
             myLocation = uiState.myLocation,
             fitKey = uiState.token.ifEmpty { route.nodeChain.joinToString("-") },
+            completedWaypointIndex = uiState.completedWaypointIndex,
             modifier = Modifier.fillMaxSize(),
         )
 
@@ -195,6 +195,15 @@ fun RouteScreen(onStartRecording: () -> Unit, accountLocaleTag: String, modifier
                     uiState.completionCurrentStreak?.let {
                         Text(stringResource(R.string.route_completion_streak, it))
                     }
+                    uiState.completionWeeklyPoints?.let {
+                        Text(stringResource(R.string.route_completion_weekly, it))
+                    }
+                    if (uiState.completionNewAchievements.isNotEmpty()) {
+                        Text(stringResource(R.string.route_completion_achievements_title), fontWeight = FontWeight.SemiBold)
+                        uiState.completionNewAchievements.forEach { label ->
+                            Text(stringResource(R.string.route_completion_new_achievement, label))
+                        }
+                    }
                 }
             },
         )
@@ -237,7 +246,7 @@ private fun RouteOverlayPanel(
     }
 
     Card(modifier = modifier.padding(8.dp)) {
-        Column(modifier = Modifier.padding(10.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 AssistChip(onClick = {}, label = { Text("${"%.2f".format(route.lengthM / 1000.0)} km") })
                 AssistChip(onClick = {}, label = { Text("${route.durationMin} min") })
@@ -310,8 +319,8 @@ private fun TrackProgressSection(uiState: RouteUiState, route: com.routy.app.log
             Text(stringResource(R.string.route_next_waypoint, it.name ?: "#${it.nodeId}"), style = MaterialTheme.typography.bodyMedium)
         }
         if (uiState.completedWaypointIndex >= 0) {
-            LazyColumn(modifier = Modifier.fillMaxWidth().padding(top = 2.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                itemsIndexed(route.stations.take(uiState.completedWaypointIndex + 1).reversed().take(3)) { _, station ->
+            Column(modifier = Modifier.fillMaxWidth().padding(top = 2.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                route.stations.take(uiState.completedWaypointIndex + 1).reversed().take(3).forEach { station ->
                     Text("✓ ${station.name ?: "#${station.nodeId}"}", style = MaterialTheme.typography.bodySmall)
                 }
             }
@@ -349,7 +358,9 @@ private fun ActiveTrackingEffects(
     val cueController = remember(context) { TrackCueController(context) }
     DisposableEffect(Unit) { onDispose { cueController.release() } }
 
-    val voiceTracker = remember(route.nodeChain) { VoiceCueTracker(route.stations) }
+    val voiceTracker = remember(route.nodeChain) {
+        VoiceCueTracker(route.stations).also { it.restore(uiState.voiceAnnouncedIndex) }
+    }
     val progressTracker = remember(route.nodeChain) {
         WaypointProgressTracker(route.stations).also { it.restore(uiState.completedWaypointIndex) }
     }
@@ -357,6 +368,9 @@ private fun ActiveTrackingEffects(
 
     LaunchedEffect(uiState.completedWaypointIndex, route.nodeChain) {
         progressTracker.restore(uiState.completedWaypointIndex)
+    }
+    LaunchedEffect(uiState.voiceAnnouncedIndex, route.nodeChain) {
+        voiceTracker.restore(uiState.voiceAnnouncedIndex)
     }
 
     val location = uiState.myLocation
@@ -383,6 +397,7 @@ private fun ActiveTrackingEffects(
         val spokenText = cue.toSpokenText(context, accountLocaleTag)
         LaunchedEffect(cue) {
             voiceController.speak(spokenText)
+            viewModel.onVoiceCueAnnounced(voiceTracker.announcedCount())
             pendingCue = null
         }
     }

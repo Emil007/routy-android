@@ -62,7 +62,11 @@
     <string name="route_completion_title">Route completed</string>
     <string name="route_completion_points">+%1$d points (×%2$.1f streak)</string>
     <string name="route_completion_streak">Current streak: %1$d days</string>
+    <string name="route_completion_weekly">Weekly points: %1$d</string>
+    <string name="route_completion_achievements_title">New achievements</string>
+    <string name="route_completion_new_achievement">• %1$s</string>
     <string name="stats_points">Points</string>
+    <string name="stats_weekly_points">Weekly points</string>
     <string name="stats_points_leaderboard">Points leaderboard</string>
 
     <string name="route_active_notice">You have an active route. Confirm it as walked, or discard it to get a new suggestion.</string>

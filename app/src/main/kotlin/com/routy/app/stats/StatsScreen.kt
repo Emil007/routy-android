@@ -92,6 +92,7 @@ fun StatsScreen(modifier: Modifier = Modifier) {
                     }
                     uiState.points?.let { points ->
                         StatChip("${stringResource(R.string.stats_points)}: ${points.totalPoints}")
+                        StatChip("${stringResource(R.string.stats_weekly_points)}: ${points.weeklyPoints}")
                     }
                 }
             }

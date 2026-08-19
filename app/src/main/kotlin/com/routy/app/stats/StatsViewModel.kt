@@ -14,7 +14,9 @@ import java.io.IOException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.launch
+import com.routy.app.core.StatsInvalidation
 
 data class StatsUiState(
     val loading: Boolean = true,
@@ -37,6 +39,9 @@ class StatsViewModel(
 
     init {
         refresh()
+        viewModelScope.launch {
+            StatsInvalidation.version.drop(1).collect { refresh() }
+        }
     }
 
     fun refresh() {
