@@ -19,6 +19,10 @@ class RoutyApplication : Application() {
         private set
     lateinit var recordingSnapshotStore: com.routy.app.core.storage.RecordingSnapshotStore
         private set
+    lateinit var gpxCommitQueueStore: com.routy.app.core.storage.GpxCommitQueueStore
+        private set
+    lateinit var gpxCommitScheduler: com.routy.app.recording.GpxCommitScheduler
+        private set
     lateinit var bootstrapLoader: BootstrapLoader
         private set
 
@@ -29,7 +33,10 @@ class RoutyApplication : Application() {
         routeProgressStore = com.routy.app.core.storage.RouteProgressStore(this)
         networkCache = com.routy.app.core.storage.NetworkCache(this)
         recordingSnapshotStore = com.routy.app.core.storage.RecordingSnapshotStore(this)
+        gpxCommitQueueStore = com.routy.app.core.storage.GpxCommitQueueStore(this)
+        gpxCommitScheduler = com.routy.app.recording.GpxCommitScheduler(this, gpxCommitQueueStore)
         bootstrapLoader = BootstrapLoader(apiClientProvider, networkCache)
+        gpxCommitScheduler.schedulePending()
         // Must run once before any MapView is created (native Route screen, M3) — mirrors the
         // MapLibre.getInstance(this) call every getting-started guide puts in Activity.onCreate,
         // just hoisted here so it's guaranteed to happen exactly once regardless of which screen

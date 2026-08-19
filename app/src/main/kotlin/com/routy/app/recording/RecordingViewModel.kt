@@ -52,7 +52,10 @@ data class RecordingUiState(
  * RecordingScreen drives the service directly and only calls into this ViewModel once a track is
  * ready to be reviewed and saved.
  */
-class RecordingViewModel(private val apiClientProvider: ApiClientProvider) : ViewModel() {
+class RecordingViewModel(
+    private val apiClientProvider: ApiClientProvider,
+    private val gpxCommitScheduler: GpxCommitScheduler,
+) : ViewModel() {
     private val _uiState = MutableStateFlow(RecordingUiState())
     val uiState: StateFlow<RecordingUiState> = _uiState.asStateFlow()
 
@@ -144,14 +147,27 @@ class RecordingViewModel(private val apiClientProvider: ApiClientProvider) : Vie
                 markStartAsHome = state.markStartAsHome,
                 source = "gpx",
             )
+            val request = GpxCommitRequest(tracks = listOf(track))
             val response = try {
-                apiClientProvider.service.commitGpx(GpxCommitRequest(tracks = listOf(track)))
+                apiClientProvider.service.commitGpx(request)
             } catch (_: IOException) {
-                _uiState.value = _uiState.value.copy(saving = false, isError = true, messageRes = R.string.common_error)
+                gpxCommitScheduler.enqueue(request)
+                _uiState.value = _uiState.value.copy(
+                    saving = false,
+                    isError = false,
+                    messageRes = R.string.record_queued_for_upload,
+                )
                 return@launch
             }
             if (response.isSuccessful) {
                 _uiState.value = _uiState.value.copy(saving = false, isError = false, messageRes = R.string.record_saved, saved = true)
+            } else if (response.code() in 500..599) {
+                gpxCommitScheduler.enqueue(request)
+                _uiState.value = _uiState.value.copy(
+                    saving = false,
+                    isError = false,
+                    messageRes = R.string.record_queued_for_upload,
+                )
             } else {
                 _uiState.value = _uiState.value.copy(saving = false, isError = true, messageRes = R.string.common_error)
             }

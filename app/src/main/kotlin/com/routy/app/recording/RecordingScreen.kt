@@ -67,7 +67,7 @@ fun RecordingScreen(onDone: () -> Unit, modifier: Modifier = Modifier) {
     val context = LocalContext.current
     val app = context.applicationContext as RoutyApplication
     val viewModel: RecordingViewModel = viewModel(
-        factory = viewModelFactory { initializer { RecordingViewModel(app.apiClientProvider) } },
+        factory = viewModelFactory { initializer { RecordingViewModel(app.apiClientProvider, app.gpxCommitScheduler) } },
     )
     val uiState by viewModel.uiState.collectAsState()
 

@@ -163,6 +163,9 @@ dependencies {
     implementation("androidx.security:security-crypto:1.1.0-alpha06")
     implementation("androidx.datastore:datastore-preferences:1.1.1")
 
+    // --- Background upload retry (E3) ---
+    implementation("androidx.work:work-runtime-ktx:2.10.0")
+
     // --- Location (foreground recording, M4) ---
     implementation("com.google.android.gms:play-services-location:21.3.0")
 
