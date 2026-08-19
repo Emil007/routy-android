@@ -68,6 +68,7 @@ fun MapScreen(
             myLocation = null,
             fitKey = uiState.nodes.size,
             fitToRouteOnly = false,
+            emphasizeNetworkSegments = true,
             selectedNodeId = uiState.selectedNode?.id,
             onMapClick = viewModel::onMapClick,
             modifier = Modifier.fillMaxSize(),
