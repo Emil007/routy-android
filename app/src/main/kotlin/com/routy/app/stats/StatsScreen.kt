@@ -91,7 +91,7 @@ fun StatsScreen(modifier: Modifier = Modifier) {
         return
     }
 
-    if (uiState.error || uiState.stats == null) {
+    if (!uiState.loading && uiState.stats == null) {
         Column(
             modifier = modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp),
             verticalArrangement = Arrangement.Center,
@@ -121,6 +121,18 @@ fun StatsScreen(modifier: Modifier = Modifier) {
     ) {
         if (uiState.offlineCached) {
             item { OfflineBanner() }
+        }
+        if (uiState.error) {
+            item {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(stringResource(R.string.common_error), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelSmall)
+                    TextButton(onClick = viewModel::refresh) { Text(stringResource(R.string.stats_retry)) }
+                }
+            }
         }
         uiState.messageRes?.let { res ->
             item {

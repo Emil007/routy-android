@@ -7,6 +7,7 @@ import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
+import okhttp3.RequestBody
 import okhttp3.RequestBody.Companion.toRequestBody
 import retrofit2.Response
 import okhttp3.logging.HttpLoggingInterceptor
@@ -85,3 +86,15 @@ class ApiClientProvider(private val secureStorage: SecureStorage) {
 
 fun profilePatchBody(body: ProfilePatchRequest) =
     json.encodeToString(body).toRequestBody("application/json".toMediaType())
+
+/** Unlock sends explicit JSON null for days — omitted nulls fail server Zod validation. */
+fun segmentLockBody(segmentId: Int, days: Int?, reason: String?): RequestBody {
+    val mediaType = "application/json".toMediaType()
+    if (days != null) {
+        return json.encodeToString(
+            com.routy.app.logic.api.SegmentLockRequest(segmentId, days, reason),
+        ).toRequestBody(mediaType)
+    }
+    val reasonJson = reason?.let { json.encodeToString(it) } ?: "null"
+    return """{"segmentId":$segmentId,"days":null,"reason":$reasonJson}""".toRequestBody(mediaType)
+}

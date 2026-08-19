@@ -119,13 +119,23 @@ private fun UrlForm(
 
 @Composable
 private fun SetupForm(state: OnboardingUiState.NeedsSetup, viewModel: OnboardingViewModel) {
+    val app = LocalContext.current.applicationContext as RoutyApplication
     var setupToken by remember { mutableStateOf("") }
     var username by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var displayName by remember { mutableStateOf("") }
     var captchaToken by remember { mutableStateOf<String?>(null) }
+    var captchaReloadKey by remember { mutableStateOf(0) }
     val deviceName = remember { "${Build.MANUFACTURER} ${Build.MODEL}".trim() }
     val uiState by viewModel.uiState.collectAsState()
+    val serverUrl = app.secureStorage.serverUrl.orEmpty()
+
+    LaunchedEffect(state.errorRes) {
+        if (state.errorRes == R.string.login_captcha_error) {
+            captchaToken = null
+            captchaReloadKey++
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -170,13 +180,17 @@ private fun SetupForm(state: OnboardingUiState.NeedsSetup, viewModel: Onboarding
 
         if (state.captcha.isRequired()) {
             Text(stringResource(R.string.login_captcha_hint), style = MaterialTheme.typography.bodySmall)
-            CaptchaWebView(config = state.captcha, onToken = { captchaToken = it })
+            CaptchaWebView(
+                config = state.captcha,
+                baseUrl = serverUrl,
+                reloadKey = captchaReloadKey,
+                onToken = { captchaToken = it },
+            )
         }
 
-        val errorState = uiState as? OnboardingUiState.Error
-        if (errorState != null) {
+        state.errorRes?.let { res ->
             Text(
-                stringResource(errorState.messageRes),
+                stringResource(res),
                 color = MaterialTheme.colorScheme.error,
                 style = MaterialTheme.typography.bodySmall,
             )

@@ -528,6 +528,8 @@ class RouteViewModel(
                     messageRes = R.string.route_favorite_saved,
                 )
                 refreshFavorites()
+            } else {
+                _uiState.value = _uiState.value.copy(messageRes = R.string.common_error)
             }
         }
     }
@@ -551,6 +553,8 @@ class RouteViewModel(
             if (response.isSuccessful) {
                 _uiState.value = _uiState.value.copy(messageRes = R.string.route_favorite_saved)
                 refreshFavorites()
+            } else {
+                _uiState.value = _uiState.value.copy(messageRes = R.string.common_error)
             }
         }
     }

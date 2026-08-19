@@ -137,16 +137,20 @@ fun RoutyMapView(
 
     AndroidView(modifier = modifier.fillMaxSize(), factory = { mapView })
 
-    LaunchedEffect(mapView, style) {
-        loadedStyle = null
+    LaunchedEffect(mapView) {
         mapView.getMapAsync { map ->
             maplibreMap = map
             map.addOnMapClickListener { point ->
                 onMapClickState?.invoke(point.latitude, point.longitude)
                 true
             }
-            map.setStyle(Style.Builder().fromUri(style.assetUri)) { newStyle -> loadedStyle = newStyle }
         }
+    }
+
+    LaunchedEffect(maplibreMap, style) {
+        val map = maplibreMap ?: return@LaunchedEffect
+        loadedStyle = null
+        map.setStyle(Style.Builder().fromUri(style.assetUri)) { newStyle -> loadedStyle = newStyle }
     }
 
     LaunchedEffect(loadedStyle, nodes, segments, routeGeometry, stations, myLocation, routeColor, completedWaypointIndex, selectedNodeId, moveNodeId, selectedSegmentId, overlayLine, editVertices, selectedEditVertexIndex, emphasizeNetworkSegments, waymarkedOverlay) {

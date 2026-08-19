@@ -23,7 +23,7 @@ sealed interface OnboardingUiState {
     data object Idle : OnboardingUiState
     data object Checking : OnboardingUiState
     data object Success : OnboardingUiState
-    data class NeedsSetup(val captcha: CaptchaConfig) : OnboardingUiState
+    data class NeedsSetup(val captcha: CaptchaConfig, val errorRes: Int? = null) : OnboardingUiState
     data object SetupComplete : OnboardingUiState
     data class Error(val messageRes: Int) : OnboardingUiState
 }
@@ -82,11 +82,11 @@ class OnboardingViewModel(
         deviceName: String?,
     ) {
         if (setupToken.isBlank() || username.isBlank() || password.length < 6) {
-            _uiState.value = OnboardingUiState.Error(R.string.setup_error_invalid)
+            _uiState.value = OnboardingUiState.NeedsSetup(captcha, R.string.setup_error_invalid)
             return
         }
         if (captcha.isRequired() && captchaToken.isNullOrBlank()) {
-            _uiState.value = OnboardingUiState.Error(R.string.login_captcha_required)
+            _uiState.value = OnboardingUiState.NeedsSetup(captcha, R.string.login_captcha_required)
             return
         }
         viewModelScope.launch {
@@ -104,13 +104,13 @@ class OnboardingViewModel(
                     ),
                 )
             } catch (_: IOException) {
-                _uiState.value = OnboardingUiState.Error(R.string.common_error)
+                _uiState.value = OnboardingUiState.NeedsSetup(captcha, R.string.common_error)
                 return@launch
             }
             if (response.isSuccessful) {
                 val body = response.body()
                 if (body == null) {
-                    _uiState.value = OnboardingUiState.Error(R.string.common_error)
+                    _uiState.value = OnboardingUiState.NeedsSetup(captcha, R.string.common_error)
                     return@launch
                 }
                 secureStorage.token = body.token
@@ -127,7 +127,7 @@ class OnboardingViewModel(
                 "locked" -> R.string.login_error_locked
                 else -> R.string.common_error
             }
-            _uiState.value = OnboardingUiState.Error(errorRes)
+            _uiState.value = OnboardingUiState.NeedsSetup(captcha, errorRes)
         }
     }
 
