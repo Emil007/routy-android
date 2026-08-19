@@ -274,7 +274,7 @@ private fun ActiveRecordingFullscreen(
             style = mapStyle,
             nodes = uiState.nodes,
             segments = emptyList(),
-            routeGeometry = emptyList(),
+            routeGeometry = serviceState.trackGeometry,
             stations = emptyList(),
             myLocation = serviceState.currentPosition,
             fitKey = serviceState.pointCount,
