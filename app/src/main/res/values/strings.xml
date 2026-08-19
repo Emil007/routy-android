@@ -81,4 +81,32 @@
     <string name="route_no_route_found">Im eingestellten Längenbereich wurde keine Route gefunden.</string>
     <string name="route_no_alternative">Keine Alternative gefunden.</string>
     <string name="route_session_expired">Sitzung abgelaufen — bitte neu vorschlagen lassen.</string>
+
+    <string name="record_entry_point">Weg aufzeichnen</string>
+    <string name="record_title">Weg aufzeichnen</string>
+    <string name="record_instructions">Zeichnet deinen Weg per GPS auf, während du gehst — speicherbar wie ein gezeichneter oder importierter Weg.</string>
+    <string name="record_background_capability">Läuft weiter, auch wenn der Bildschirm ausgeht oder eine andere App im Vordergrund ist.</string>
+    <string name="record_start">Aufzeichnung starten</string>
+    <string name="record_pause">Pausieren</string>
+    <string name="record_resume">Fortsetzen</string>
+    <string name="record_stop">Beenden</string>
+    <string name="record_discard">Verwerfen</string>
+    <string name="record_points_so_far">%1$d Punkte</string>
+    <string name="record_distance_so_far">Bisherige Länge</string>
+    <string name="record_confirm_title">Weg bestätigen</string>
+    <string name="record_save">Weg speichern</string>
+    <string name="record_saving">Speichere …</string>
+    <string name="record_saved">Weg gespeichert.</string>
+    <string name="record_start_node">Startpunkt</string>
+    <string name="record_end_node">Endpunkt</string>
+    <string name="record_use_existing">Vorhandenen Knoten verwenden</string>
+    <string name="record_create_new">Neuen Knoten anlegen</string>
+    <string name="record_mark_as_home">Als Zuhause-Punkt markieren</string>
+    <string name="record_name_part1">Namensteil 1 (z.B. Straße/Weg)</string>
+    <string name="record_name_part2">Namensteil 2 (optional, z.B. Kreuzung/Landmarke)</string>
+    <string name="record_location_error">Standort konnte nicht ermittelt werden — Standortzugriff erforderlich.</string>
+
+    <string name="notification_recording_channel_name">Wegaufzeichnung</string>
+    <string name="notification_recording_title">Aufzeichnung läuft</string>
+    <string name="notification_recording_text">%1$d Punkte, %2$s km</string>
 </resources>

@@ -4,6 +4,7 @@ import com.routy.app.logic.geo.ElevationStats
 import com.routy.app.logic.geo.LatLng
 import com.routy.app.logic.geo.elevationStats
 import com.routy.app.logic.geo.estimateMinutes
+import com.routy.app.logic.geo.haversineMeters
 import com.routy.app.logic.geo.pathLengthMeters
 
 enum class RecordingPhase { IDLE, RECORDING, PAUSED, CONFIRM }
@@ -77,4 +78,16 @@ class RecordingSession {
     }
 
     fun elevation(): ElevationStats? = elevationStats(_points.mapNotNull { it.ele })
+}
+
+/**
+ * Mirrors RecordTrackWizard.tsx's GPS dedup (`haversineMeters(last, next) < 3`): a stationary or
+ * slow-drifting fix shouldn't pad the track with near-identical points. Kept separate from
+ * RecordingSession.addPoint() rather than folded into it, so the session's own tested contract
+ * (it records whatever point it's given) stays simple — the foreground service is the one place
+ * that decides whether a new fix is worth recording at all.
+ */
+fun shouldRecordPoint(lastPoint: RecordingPoint?, next: RecordingPoint, minDistanceM: Double = 3.0): Boolean {
+    if (lastPoint == null) return true
+    return haversineMeters(LatLng(lastPoint.lat, lastPoint.lng), LatLng(next.lat, next.lng)) >= minDistanceM
 }

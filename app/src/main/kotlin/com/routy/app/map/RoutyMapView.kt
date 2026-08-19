@@ -74,6 +74,10 @@ fun RoutyMapView(
     myLocation: GeoPoint?,
     fitKey: Any?,
     modifier: Modifier = Modifier,
+    /** "#2e6b49" (brand green) for an active/suggested route; the recording screen passes a
+     * distinct reddish-brown ("#9a3b29") for a track being recorded, matching MapView.tsx's
+     * own color choice for the same distinction (RecordTrackWizard.tsx's trackLine). */
+    routeColor: String = "#2e6b49",
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -109,10 +113,10 @@ fun RoutyMapView(
         }
     }
 
-    LaunchedEffect(loadedStyle, nodes, segments, routeGeometry, stations, myLocation) {
+    LaunchedEffect(loadedStyle, nodes, segments, routeGeometry, stations, myLocation, routeColor) {
         val currentStyle = loadedStyle ?: return@LaunchedEffect
         updateSegmentsLayer(currentStyle, segments)
-        updateRouteLayer(currentStyle, routeGeometry)
+        updateRouteLayer(currentStyle, routeGeometry, routeColor)
         updateNodesLayer(currentStyle, nodes)
         updateStationsLayer(currentStyle, stations)
         updateMyLocationLayer(currentStyle, myLocation)
@@ -153,7 +157,7 @@ private fun updateSegmentsLayer(style: Style, segments: List<SegmentDto>) {
     style.addLayer(layer)
 }
 
-private fun updateRouteLayer(style: Style, routeGeometry: List<GeoPoint>) {
+private fun updateRouteLayer(style: Style, routeGeometry: List<GeoPoint>, routeColor: String) {
     val collection = if (routeGeometry.size >= 2) {
         FeatureCollection.fromFeature(
             Feature.fromGeometry(LineString.fromLngLats(routeGeometry.map { Point.fromLngLat(it.lng, it.lat) })),
@@ -169,7 +173,7 @@ private fun updateRouteLayer(style: Style, routeGeometry: List<GeoPoint>) {
     style.addSource(GeoJsonSource(ROUTE_SOURCE, collection))
     val layer = LineLayer(ROUTE_LAYER, ROUTE_SOURCE)
     layer.setProperties(
-        PropertyFactory.lineColor("#2e6b49"),
+        PropertyFactory.lineColor(routeColor),
         PropertyFactory.lineWidth(5f),
         PropertyFactory.lineCap(Property.LINE_CAP_ROUND),
         PropertyFactory.lineJoin(Property.LINE_JOIN_ROUND),

@@ -81,4 +81,32 @@
     <string name="route_no_route_found">No route found within the configured length range.</string>
     <string name="route_no_alternative">No alternative found.</string>
     <string name="route_session_expired">Session expired — please suggest again.</string>
+
+    <string name="record_entry_point">Record a path</string>
+    <string name="record_title">Record a path</string>
+    <string name="record_instructions">Records your path by GPS while you walk — save it afterward like a drawn or imported path.</string>
+    <string name="record_background_capability">Keeps recording even with the screen off or another app in the foreground.</string>
+    <string name="record_start">Start recording</string>
+    <string name="record_pause">Pause</string>
+    <string name="record_resume">Resume</string>
+    <string name="record_stop">Stop</string>
+    <string name="record_discard">Discard</string>
+    <string name="record_points_so_far">%1$d points</string>
+    <string name="record_distance_so_far">Length so far</string>
+    <string name="record_confirm_title">Confirm path</string>
+    <string name="record_save">Save path</string>
+    <string name="record_saving">Saving …</string>
+    <string name="record_saved">Path saved.</string>
+    <string name="record_start_node">Start point</string>
+    <string name="record_end_node">End point</string>
+    <string name="record_use_existing">Use existing node</string>
+    <string name="record_create_new">Create new node</string>
+    <string name="record_mark_as_home">Mark as home point</string>
+    <string name="record_name_part1">Name part 1 (e.g. road/path)</string>
+    <string name="record_name_part2">Name part 2 (optional, e.g. junction/landmark)</string>
+    <string name="record_location_error">Couldn\'t get your location — location access required.</string>
+
+    <string name="notification_recording_channel_name">Path recording</string>
+    <string name="notification_recording_title">Recording in progress</string>
+    <string name="notification_recording_text">%1$d points, %2$s km</string>
 </resources>

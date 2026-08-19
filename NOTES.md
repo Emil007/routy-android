@@ -10,14 +10,16 @@ is which, so the first Android Studio sync isn't a surprise.
 ## `:logic` — fully verified
 
 Plain Kotlin/JVM module, no Android dependency, builds and tests with plain `gradle`
-regardless of SDK availability. **Actually run**: `./gradlew :logic:test` passes, 30 tests,
+regardless of SDK availability. **Actually run**: `./gradlew :logic:test` passes, 33 tests,
 0 failures. Covers:
 
 - `geo/Geo.kt` — haversine distance, bearing, 8-point compass.
 - `route/VoiceCueTracker.kt` — the 50m-trigger, sequential-next-station voice cue algorithm
   ported from `RouteGenerator.tsx`.
 - `recording/NodeMatching.kt`, `recording/RecordingSession.kt` — candidate-junction matching
-  and the recording-wizard state machine ported from `RecordTrackWizard.tsx`.
+  and the recording-wizard state machine ported from `RecordTrackWizard.tsx`, plus
+  `shouldRecordPoint()` (the ≥3m GPS dedup filter RecordingForegroundService applies before
+  ever calling `RecordingSession.addPoint()`, added for M4).
 - `api/*Models.kt` — every request/response shape, traced field-by-field against the actual
   Zod schemas and route handlers in `Emil007/routy` (not guessed) — e.g. `SaveFavoriteRequest`
   was initially modeled wrong and fixed after checking `src/app/api/favorites/route.ts`
@@ -66,7 +68,28 @@ any IDE inspection. What to expect on first sync:
   image tooling was available in the sandbox to generate proper per-density sizes) —
   cosmetically fine since Android downscales it, just larger than necessary in the APK.
   Worth regenerating from `public/icons/icon-512.png` with Android Studio's Image Asset tool
-  at some point.
+  at some point. `RecordingForegroundService`'s notification also reuses `R.mipmap.ic_launcher`
+  as its small icon (`setSmallIcon`) — works, but a proper monochrome/alpha-masked icon is what
+  notification icons are supposed to use; some OEM skins may render the full-color launcher
+  icon oddly (typically just a white silhouette, not broken, just not polished).
+- **Deliberately not ported**: `NamePartsInput.tsx`'s OSM-text/nearby-name-parts autocomplete
+  (`POST /api/nodes/suggest-name-parts`) for the "create new junction" fields in both the
+  recording confirm step and (if ever added) network editing — the native recording screen's
+  part1/part2 fields are plain text entry, no suggestion chips. `recording/RecordingScreen.kt`'s
+  candidate-node picker is also a plain expand/collapse list rather than
+  `ExposedDropdownMenuBox` (already used once in `RouteScreen.kt`'s `NodeDropdown` — deliberately
+  not reused here, to avoid stacking two use sites on the same not-fully-confirmed Material3 API
+  in one uncompiled milestone). Both are cosmetic/UX gaps, not functional ones — worth revisiting
+  once the app actually compiles.
+- **Real limitation, not just an unverified-code risk**: `RecordingForegroundService` holds all
+  recorded points in memory only (`:logic`'s `RecordingSession`, never persisted to disk). A
+  foreground service is high-priority and Android rarely kills one outright, but if the OS *does*
+  kill the process mid-recording (e.g. severe memory pressure) and later restarts the service via
+  `START_STICKY`, the restart begins a **new, empty** recording with no warning — everything
+  recorded before the kill is silently lost. Given how rarely this actually happens to a running
+  foreground service, it wasn't worth adding real persistence (e.g. streaming points to a local
+  file/DB as they arrive) to an already-large, entirely uncompiled milestone — but it's the one
+  thing here that isn't just "might need a small fix," it's a real edge case to eventually close.
 
 ## What's implemented so far (milestones, see the plan for the full M0-M7 list)
 
@@ -97,15 +120,40 @@ any IDE inspection. What to expect on first sync:
   highlighted on top, and an optional live-position dot from `FusedLocationProviderClient`
   (foreground-only here — M4 adds the backgroundable version for actual GPS recording). Voice
   guidance's on/off toggle is deliberately not in this screen yet — that's M5.
+- **M4** — background GPS recording. Reachable via a new "Record a path" button at the bottom
+  of the Route tab's suggesting-mode form. Needed one more server endpoint,
+  `GET /api/gpx/config` (`Emil007/routy` PR #22) — same RSC-only gap pattern as M3's
+  `/api/route/state`: the web recording wizard gets `merge_radius_m` and the effective walk
+  speed as props from the `/map` page's server component.
+  - `recording/RecordingForegroundService.kt`: a started+bound `Service`
+    (`foregroundServiceType="location"`) holding `:logic`'s `RecordingSession` — bound so
+    `RecordingScreen` can drive start/pause/resume/finish/discard and observe live
+    phase/points/distance directly, started so it survives the screen (or the whole app)
+    backgrounding. Notably, this does **not** request `ACCESS_BACKGROUND_LOCATION` — per
+    Android's own docs, a foreground service the user starts while the app is in the foreground
+    keeps receiving location after the app backgrounds without it; that permission is only for
+    location access initiated by something that isn't already "foreground" (WorkManager, a
+    plain background service, etc). The plan document written before M3/M4 assumed that
+    permission would be needed — building the service surfaced that it isn't, so it was removed
+    from the manifest rather than requested for nothing.
+  - `recording/RecordingViewModel.kt` + `RecordingScreen.kt`: the confirm-step wizard, porting
+    `RecordTrackWizard.tsx`'s `save()` and endpoint-decision UI (`EndpointFields.tsx`) using
+    `:logic`'s already-tested `findNodeCandidates`/`initialEndpointDecision` — same
+    existing-node-vs-new-junction choice, same `markStartAsHome` toggle, same
+    `POST /api/gpx/commit` payload shape.
+  - `map/RoutyMapView.kt` gained an optional `routeColor` parameter (M3 hardcoded the brand
+    green) so the recording screen's live track renders in the same reddish-brown
+    (`#9a3b29`) the web's `RecordTrackWizard.tsx` uses to distinguish "being recorded" from
+    "the network" or "a suggested route."
 
 ## Not started yet
 
-M4 (background recording foreground service), M5 (native voice guidance — the ported
-algorithm in `:logic` is ready, just not wired to `TextToSpeech`/`AudioManager` yet), M6 (CI +
-signed releases — needs a keystore you generate and add as repo secrets, not something I can
-do), M7 (polish: battery-optimization prompt, network-drop retry during recording, locale
-following the account setting, base-map-style switcher UI for the native Route screen — the
-three style assets exist but `RoutyMapView` is currently hardcoded to `BaseMapStyle.STREETS`).
+M5 (native voice guidance — the ported algorithm in `:logic` is ready, just not wired to
+`TextToSpeech`/`AudioManager` yet), M6 (CI + signed releases — needs a keystore you generate
+and add as repo secrets, not something I can do), M7 (polish: battery-optimization prompt,
+network-drop retry during recording, locale following the account setting, base-map-style
+switcher UI for the native Route/Recording screens — the three style assets exist but
+`RoutyMapView` callers are hardcoded to `BaseMapStyle.STREETS`).
 
 ## First things to do in Android Studio
 
