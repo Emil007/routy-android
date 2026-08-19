@@ -55,6 +55,10 @@ private const val NODES_SOURCE = "routy-nodes"
 private const val NODES_LAYER = "routy-nodes-layer"
 private const val STATIONS_SOURCE = "routy-stations"
 private const val STATIONS_LAYER = "routy-stations-layer"
+private const val OVERLAY_SOURCE = "routy-overlay"
+private const val OVERLAY_LAYER = "routy-overlay-layer"
+private const val HIGHLIGHT_SOURCE = "routy-segment-highlight"
+private const val HIGHLIGHT_LAYER = "routy-segment-highlight-layer"
 private const val ME_SOURCE = "routy-me"
 private const val ME_LAYER = "routy-me-layer"
 
@@ -62,8 +66,8 @@ private const val ME_LAYER = "routy-me-layer"
  * Read-only network + route display: every known segment drawn faint in the background, the
  * active/suggested route highlighted on top of it, network nodes as small dots, the current
  * route's stations as bigger accent-colored dots, and an optional live position marker.
- * Network editing (popups, segment geometry, trash) stays on the web admin — this native map
- * is for browsing the network and following routes on the go.
+ * Network editing (rename, move, draw, GPX import, segment geometry) is native on the Map tab;
+ * this view renders the graph and forwards taps to MapViewModel.
  */
 @Composable
 fun RoutyMapView(
@@ -77,6 +81,9 @@ fun RoutyMapView(
     /** When >= 0, stations at or below this index render as completed; the next station is highlighted. */
     completedWaypointIndex: Int = -1,
     selectedNodeId: Int? = null,
+    selectedSegmentId: Int? = null,
+    moveNodeId: Int? = null,
+    overlayLine: List<GeoPoint> = emptyList(),
     onMapClick: ((lat: Double, lng: Double) -> Unit)? = null,
     modifier: Modifier = Modifier,
     /** When true (default), camera fits route geometry + stations (+ myLocation), not the whole network. */
@@ -127,11 +134,13 @@ fun RoutyMapView(
         }
     }
 
-    LaunchedEffect(loadedStyle, nodes, segments, routeGeometry, stations, myLocation, routeColor, completedWaypointIndex, selectedNodeId, emphasizeNetworkSegments) {
+    LaunchedEffect(loadedStyle, nodes, segments, routeGeometry, stations, myLocation, routeColor, completedWaypointIndex, selectedNodeId, moveNodeId, selectedSegmentId, overlayLine, emphasizeNetworkSegments) {
         val currentStyle = loadedStyle ?: return@LaunchedEffect
         updateSegmentsLayer(currentStyle, segments, emphasizeNetworkSegments)
+        updateSelectedSegmentLayer(currentStyle, segments, selectedSegmentId)
+        updateOverlayLayer(currentStyle, overlayLine)
         updateRouteLayer(currentStyle, routeGeometry, routeColor)
-        updateNodesLayer(currentStyle, nodes, selectedNodeId)
+        updateNodesLayer(currentStyle, nodes, selectedNodeId, moveNodeId)
         updateStationsLayer(currentStyle, stations, completedWaypointIndex)
         updateMyLocationLayer(currentStyle, myLocation)
     }
@@ -213,15 +222,67 @@ private fun updateRouteLayer(style: Style, routeGeometry: List<GeoPoint>, routeC
     style.addLayer(layer)
 }
 
-private fun updateNodesLayer(style: Style, nodes: List<NodeDto>, selectedNodeId: Int?) {
+private fun updateSelectedSegmentLayer(style: Style, segments: List<SegmentDto>, selectedSegmentId: Int?) {
+    val segment = selectedSegmentId?.let { id -> segments.find { it.id == id } }
+    val collection = if (segment != null && segment.geometry.size >= 2) {
+        FeatureCollection.fromFeature(
+            Feature.fromGeometry(LineString.fromLngLats(segment.geometry.map { Point.fromLngLat(it.lng, it.lat) })),
+        )
+    } else {
+        FeatureCollection.fromFeatures(emptyList())
+    }
+    val existing = style.getSourceAs<GeoJsonSource>(HIGHLIGHT_SOURCE)
+    if (existing != null) {
+        existing.setGeoJson(collection)
+        return
+    }
+    style.addSource(GeoJsonSource(HIGHLIGHT_SOURCE, collection))
+    val layer = LineLayer(HIGHLIGHT_LAYER, HIGHLIGHT_SOURCE)
+    layer.setProperties(
+        PropertyFactory.lineColor("#2563eb"),
+        PropertyFactory.lineWidth(6f),
+        PropertyFactory.lineOpacity(0.95f),
+        PropertyFactory.lineCap(Property.LINE_CAP_ROUND),
+        PropertyFactory.lineJoin(Property.LINE_JOIN_ROUND),
+    )
+    style.addLayer(layer)
+}
+
+private fun updateOverlayLayer(style: Style, overlayLine: List<GeoPoint>) {
+    val collection = if (overlayLine.size >= 2) {
+        FeatureCollection.fromFeature(
+            Feature.fromGeometry(LineString.fromLngLats(overlayLine.map { Point.fromLngLat(it.lng, it.lat) })),
+        )
+    } else {
+        FeatureCollection.fromFeatures(emptyList())
+    }
+    val existing = style.getSourceAs<GeoJsonSource>(OVERLAY_SOURCE)
+    if (existing != null) {
+        existing.setGeoJson(collection)
+        return
+    }
+    style.addSource(GeoJsonSource(OVERLAY_SOURCE, collection))
+    val layer = LineLayer(OVERLAY_LAYER, OVERLAY_SOURCE)
+    layer.setProperties(
+        PropertyFactory.lineColor("#9a3b29"),
+        PropertyFactory.lineWidth(5f),
+        PropertyFactory.lineOpacity(0.9f),
+        PropertyFactory.lineCap(Property.LINE_CAP_ROUND),
+        PropertyFactory.lineJoin(Property.LINE_JOIN_ROUND),
+    )
+    style.addLayer(layer)
+}
+
+private fun updateNodesLayer(style: Style, nodes: List<NodeDto>, selectedNodeId: Int?, moveNodeId: Int?) {
     val features = nodes.map { node ->
         val color = when {
+            node.id == moveNodeId -> "#1e4a32"
             node.id == selectedNodeId -> "#2563eb"
             node.isHome -> "#a5711c"
             else -> "#2e6b49"
         }
         val radius = when {
-            node.id == selectedNodeId -> 8f
+            node.id == moveNodeId || node.id == selectedNodeId -> 8f
             node.isHome -> 5f
             else -> 3f
         }

@@ -25,7 +25,16 @@ import com.routy.app.logic.api.WeeklyLeaderboardResponse
 import com.routy.app.logic.api.PointsLeaderboardResponse
 import com.routy.app.logic.api.ProfilePatchRequest
 import com.routy.app.logic.api.ProfilePatchResponse
+import com.routy.app.logic.api.GpxParseResponse
+import com.routy.app.logic.api.NodeIdRequest
+import com.routy.app.logic.api.NodeMoveRequest
+import com.routy.app.logic.api.NodeRenameRequest
+import com.routy.app.logic.api.SegmentGeometryRequest
+import com.routy.app.logic.api.SegmentIdRequest
+import com.routy.app.logic.api.SegmentLockRequest
+import com.routy.app.logic.api.SegmentRenameRequest
 import com.routy.app.logic.api.RevokeOthersResponse
+import okhttp3.MultipartBody
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.RequestBody
 import okhttp3.RequestBody.Companion.toRequestBody
@@ -37,6 +46,8 @@ import retrofit2.http.Header
 import retrofit2.http.PATCH
 import retrofit2.http.POST
 import retrofit2.http.Path
+import retrofit2.http.Multipart
+import retrofit2.http.Part
 
 /**
  * OkHttp requires a non-null body on every POST (unlike GET) — a @POST method with no @Body
@@ -148,4 +159,35 @@ interface ApiService {
 
     @POST("api/auth/sessions/revoke-others")
     suspend fun revokeOtherSessions(@Body body: RequestBody = EMPTY_JSON_BODY): Response<RevokeOthersResponse>
+
+    @POST("api/nodes/rename")
+    suspend fun renameNode(@Body body: NodeRenameRequest): Response<Unit>
+
+    @POST("api/nodes/move")
+    suspend fun moveNode(@Body body: NodeMoveRequest): Response<Unit>
+
+    @POST("api/nodes/home")
+    suspend fun setHomeNode(@Body body: NodeIdRequest): Response<Unit>
+
+    @POST("api/nodes/delete")
+    suspend fun deleteNode(@Body body: NodeIdRequest): Response<Unit>
+
+    @POST("api/segments/rename")
+    suspend fun renameSegment(@Body body: SegmentRenameRequest): Response<Unit>
+
+    @POST("api/segments/lock")
+    suspend fun lockSegment(@Body body: SegmentLockRequest): Response<Unit>
+
+    @POST("api/segments/delete")
+    suspend fun deleteSegment(@Body body: SegmentIdRequest): Response<Unit>
+
+    @POST("api/segments/geometry")
+    suspend fun updateSegmentGeometry(@Body body: SegmentGeometryRequest): Response<Unit>
+
+    @POST("api/segments/split")
+    suspend fun splitSegment(@Body body: SegmentSplitRequest): Response<Unit>
+
+    @Multipart
+    @POST("api/gpx/parse")
+    suspend fun parseGpx(@Part file: MultipartBody.Part): Response<GpxParseResponse>
 }

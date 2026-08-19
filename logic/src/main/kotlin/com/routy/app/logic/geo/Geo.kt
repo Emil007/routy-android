@@ -87,3 +87,50 @@ fun elevationStats(elevationsM: List<Double>): ElevationStats? {
 }
 
 fun reversePoints(points: List<LatLng>): List<LatLng> = points.reversed()
+
+data class ClosestPointResult(val point: LatLng, val index: Int, val distanceM: Double)
+
+/** Port of src/lib/geo.ts closestPointOnPath — for segment tap / split placement. */
+fun closestPointOnPath(path: List<LatLng>, query: LatLng): ClosestPointResult? {
+    if (path.size < 2) return null
+    var best: ClosestPointResult? = null
+    for (i in 0 until path.size - 1) {
+        val a = path[i]
+        val b = path[i + 1]
+        val midLat = (a.lat + b.lat) / 2
+        val scale = cos(midLat * PI / 180)
+        val bx = (b.lng - a.lng) * scale
+        val by = b.lat - a.lat
+        val px = (query.lng - a.lng) * scale
+        val py = query.lat - a.lat
+        val lenSq = bx * bx + by * by
+        var t = if (lenSq > 0) (px * bx + py * by) / lenSq else 0.0
+        t = t.coerceIn(0.0, 1.0)
+        val point = LatLng(a.lat + t * by, a.lng + t * bx / scale)
+        val distanceM = haversineMeters(point, query)
+        if (best == null || distanceM < best.distanceM) {
+            best = ClosestPointResult(point, i, distanceM)
+        }
+    }
+    return best
+}
+
+private const val SEGMENT_TAP_RADIUS_M = 35.0
+
+/** Nearest canonical segment within tap radius, if any. */
+fun findSegmentAtTap(
+    segments: List<com.routy.app.logic.api.SegmentDto>,
+    tap: LatLng,
+): Pair<com.routy.app.logic.api.SegmentDto, ClosestPointResult>? {
+    var best: Pair<com.routy.app.logic.api.SegmentDto, ClosestPointResult>? = null
+    for (segment in segments) {
+        if (!segment.isCanonical()) continue
+        val path = segment.geometry.map { LatLng(it.lat, it.lng) }
+        val hit = closestPointOnPath(path, tap) ?: continue
+        if (hit.distanceM > SEGMENT_TAP_RADIUS_M) continue
+        if (best == null || hit.distanceM < best.second.distanceM) {
+            best = segment to hit
+        }
+    }
+    return best
+}
