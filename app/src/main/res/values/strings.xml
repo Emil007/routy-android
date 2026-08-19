@@ -163,6 +163,8 @@
     <string name="update_view">Ansehen</string>
     <string name="update_dismiss">Schließen</string>
 
+    <string name="shell_pending_uploads">%1$d Wege warten auf Upload</string>
+
     <string name="battery_optimization_hint">Für zuverlässige Aufzeichnung im Hintergrund: Akku-Optimierung für Routy deaktivieren.</string>
     <string name="battery_optimization_allow">Einstellungen öffnen</string>
     <string name="battery_optimization_dismiss">Nicht jetzt</string>

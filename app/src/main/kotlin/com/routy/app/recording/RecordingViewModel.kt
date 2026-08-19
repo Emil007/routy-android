@@ -182,6 +182,7 @@ class RecordingViewModel(
                 apiClientProvider.service.commitGpx(request)
             } catch (_: IOException) {
                 gpxCommitScheduler.enqueue(request)
+                confirmStore.clear()
                 _uiState.value = _uiState.value.copy(
                     saving = false,
                     isError = false,
@@ -195,6 +196,7 @@ class RecordingViewModel(
                 _uiState.value = _uiState.value.copy(saving = false, isError = false, messageRes = R.string.record_saved, saved = true)
             } else if (response.code() in 500..599) {
                 gpxCommitScheduler.enqueue(request)
+                confirmStore.clear()
                 _uiState.value = _uiState.value.copy(
                     saving = false,
                     isError = false,

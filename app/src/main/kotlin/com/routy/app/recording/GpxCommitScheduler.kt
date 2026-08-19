@@ -8,6 +8,7 @@ import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import com.routy.app.core.storage.GpxCommitQueueStore
+import com.routy.app.core.GpxQueueNotifier
 import com.routy.app.logic.api.PendingGpxCommit
 import com.routy.app.logic.api.GpxCommitRequest
 import java.util.UUID
@@ -20,12 +21,18 @@ class GpxCommitScheduler(
     fun enqueue(request: GpxCommitRequest): String {
         val id = UUID.randomUUID().toString()
         queueStore.enqueue(PendingGpxCommit(id = id, enqueuedAtMs = System.currentTimeMillis(), request = request))
+        refreshPendingCount()
         scheduleWork(id)
         return id
     }
 
     fun schedulePending() {
         queueStore.listAll().forEach { scheduleWork(it.id) }
+        refreshPendingCount()
+    }
+
+    private fun refreshPendingCount() {
+        GpxQueueNotifier.setPendingCount(queueStore.listAll().size)
     }
 
     private fun scheduleWork(commitId: String) {

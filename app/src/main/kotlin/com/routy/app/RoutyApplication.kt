@@ -6,6 +6,9 @@ import com.routy.app.core.network.ApiClientProvider
 import com.routy.app.core.storage.SecureStorage
 import com.routy.app.core.BootstrapLoader
 import com.routy.app.core.storage.NetworkCache
+import com.routy.app.core.GpxQueueNotifier
+import com.routy.app.map.MapTileHttp
+import com.routy.app.map.MapTilePrefetchScheduler
 import org.maplibre.android.MapLibre
 
 /** Application-scoped container — see ApiClientProvider's kdoc for why this is manual instead of a DI framework. */
@@ -26,6 +29,8 @@ class RoutyApplication : Application() {
         private set
     lateinit var gpxCommitScheduler: com.routy.app.recording.GpxCommitScheduler
         private set
+    lateinit var mapTilePrefetchScheduler: MapTilePrefetchScheduler
+        private set
     lateinit var bootstrapLoader: BootstrapLoader
         private set
 
@@ -40,8 +45,11 @@ class RoutyApplication : Application() {
         gpxCommitQueueStore = com.routy.app.core.storage.GpxCommitQueueStore(this)
         gpxCommitScheduler = com.routy.app.recording.GpxCommitScheduler(this, gpxCommitQueueStore)
         bootstrapLoader = BootstrapLoader(apiClientProvider, networkCache)
+        mapTilePrefetchScheduler = MapTilePrefetchScheduler(this)
         networkCache.loadBootstrap()?.user?.locale?.let { AccountLocale.apply(it) }
         gpxCommitScheduler.schedulePending()
+        GpxQueueNotifier.setPendingCount(gpxCommitQueueStore.listAll().size)
+        MapTileHttp.install(this)
         // Must run once before any MapView is created (native Route screen, M3) — mirrors the
         // MapLibre.getInstance(this) call every getting-started guide puts in Activity.onCreate,
         // just hoisted here so it's guaranteed to happen exactly once regardless of which screen
