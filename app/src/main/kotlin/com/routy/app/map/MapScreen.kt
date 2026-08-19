@@ -25,6 +25,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuAnchorType
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -47,6 +48,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.routy.app.R
+import com.routy.app.RoutyApplication
 import com.routy.app.ui.OfflineBanner
 import com.routy.app.logic.api.GeoPoint
 import com.routy.app.logic.api.NodeDto
@@ -395,7 +397,7 @@ private fun MapSplitPanel(state: MapUiState, viewModel: MapViewModel) {
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class)
+@OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
 @Composable
 private fun EndpointBlock(label: String, candidates: List<NodeCandidate>, decision: EndpointDecision, onDecisionChange: (EndpointDecision) -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
