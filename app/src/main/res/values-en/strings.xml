@@ -251,6 +251,11 @@
     <string name="settings_walk_speed_label">Walking speed (km/h)</string>
     <string name="settings_walk_speed_hint">Leave empty to use network default (currently %1$.1f km/h).</string>
     <string name="settings_walk_speed_save">Save</string>
+    <string name="settings_avoid_title">Paths to avoid</string>
+    <string name="settings_avoid_subtitle">Routes prefer other paths when possible — not a hard ban.</string>
+    <string name="settings_avoid_empty">You are not avoiding any paths.</string>
+    <string name="settings_avoid_add">Add path to avoid</string>
+    <string name="common_remove">Remove</string>
 
     <string name="notification_recording_channel_name">Path recording</string>
     <string name="notification_recording_title">Recording in progress</string>

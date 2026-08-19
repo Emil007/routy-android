@@ -9,4 +9,5 @@ data class AppBootstrapResponse(
     val nodes: List<NodeDto>,
     val segments: List<SegmentDto>,
     val routeState: RouteStateResponse,
+    val avoidSegmentIds: List<Int> = emptyList(),
 )

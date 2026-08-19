@@ -1,6 +1,8 @@
 package com.routy.app.core.network
 
 import com.routy.app.logic.api.AdjustRouteRequest
+import com.routy.app.logic.api.AvoidListResponse
+import com.routy.app.logic.api.AvoidSegmentRequest
 import com.routy.app.logic.api.AppBootstrapResponse
 import com.routy.app.logic.api.GenerateRouteRequest
 import com.routy.app.logic.api.GenerateRouteResponse
@@ -43,6 +45,7 @@ import retrofit2.Response
 import retrofit2.http.Body
 import retrofit2.http.DELETE
 import retrofit2.http.GET
+import retrofit2.http.HTTP
 import retrofit2.http.Header
 import retrofit2.http.PATCH
 import retrofit2.http.POST
@@ -157,6 +160,15 @@ interface ApiService {
 
     @PATCH("api/app/profile")
     suspend fun patchProfile(@Body body: RequestBody): Response<ProfilePatchResponse>
+
+    @GET("api/app/avoid")
+    suspend fun avoidList(): Response<AvoidListResponse>
+
+    @POST("api/app/avoid")
+    suspend fun addAvoidSegment(@Body body: AvoidSegmentRequest): Response<AvoidListResponse>
+
+    @HTTP(method = "DELETE", path = "api/app/avoid", hasBody = true)
+    suspend fun removeAvoidSegment(@Body body: AvoidSegmentRequest): Response<AvoidListResponse>
 
     @POST("api/auth/sessions/revoke-others")
     suspend fun revokeOtherSessions(@Body body: RequestBody = EMPTY_JSON_BODY): Response<RevokeOthersResponse>
