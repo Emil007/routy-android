@@ -21,6 +21,7 @@ data class StreakStatsDto(
 data class WalkLogEntryDto(
     val id: Int,
     val nodeChain: List<Int>,
+    val segmentIds: List<Int> = emptyList(),
     val lengthM: Int,
     val durationMin: Int,
     val nickname: String? = null,

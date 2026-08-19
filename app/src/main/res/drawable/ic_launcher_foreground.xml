@@ -7,17 +7,18 @@
     <path
         android:fillColor="#2E6B49"
         android:pathData="M0,0h108v108h-108z" />
+    <!-- Winding trail with start/end markers -->
     <path
         android:fillColor="#00000000"
-        android:pathData="M22,72 L38,34 L54,58 L70,28 L86,52"
+        android:pathData="M24,76 C34,58 42,62 52,44 C62,26 72,34 84,22"
         android:strokeColor="#FFFFFF"
-        android:strokeWidth="8"
+        android:strokeWidth="7"
         android:strokeLineCap="round"
         android:strokeLineJoin="round" />
     <path
         android:fillColor="#FFFFFF"
-        android:pathData="M20,72 m-6,0 a6,6 0 1,0 12,0 a6,6 0 1,0 -12,0" />
+        android:pathData="M24,76 m-7,0 a7,7 0 1,0 14,0 a7,7 0 1,0 -14,0" />
     <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M86,52 m-6,0 a6,6 0 1,0 12,0 a6,6 0 1,0 -12,0" />
+        android:fillColor="#C5E1A5"
+        android:pathData="M84,22 m-7,0 a7,7 0 1,0 14,0 a7,7 0 1,0 -14,0" />
 </vector>
