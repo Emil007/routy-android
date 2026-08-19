@@ -10,6 +10,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLocale
 import androidx.compose.ui.res.stringResource
 import com.routy.app.R
 import com.routy.app.logic.geo.CompassPoint
@@ -77,7 +78,8 @@ class VoiceGuidanceController(context: Context, private val ttsLocale: Locale) {
 @Composable
 fun rememberVoiceGuidanceController(accountLocaleTag: String): VoiceGuidanceController {
     val context = LocalContext.current
-    val targetLocale = if (accountLocaleTag.isBlank()) Locale.getDefault() else Locale.forLanguageTag(accountLocaleTag)
+    val deviceLocale = LocalLocale.current.platformLocale
+    val targetLocale = if (accountLocaleTag.isBlank()) deviceLocale else Locale.forLanguageTag(accountLocaleTag)
     val controller = remember(accountLocaleTag) { VoiceGuidanceController(context, targetLocale) }
     DisposableEffect(Unit) {
         onDispose { controller.shutdown() }
