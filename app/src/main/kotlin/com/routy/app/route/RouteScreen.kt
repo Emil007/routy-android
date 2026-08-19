@@ -380,7 +380,7 @@ private fun ActiveTrackingEffects(
     }
 
     pendingCue?.let { cue ->
-        val spokenText = cue.toSpokenText()
+        val spokenText = cue.toSpokenText(context, accountLocaleTag)
         LaunchedEffect(cue) {
             voiceController.speak(spokenText)
             pendingCue = null

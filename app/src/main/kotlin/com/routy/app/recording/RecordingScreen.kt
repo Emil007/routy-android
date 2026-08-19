@@ -11,12 +11,13 @@ import android.os.IBinder
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
@@ -42,6 +43,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -153,54 +155,58 @@ fun RecordingScreen(onDone: () -> Unit, modifier: Modifier = Modifier) {
             )
         },
     ) { padding ->
-        LazyColumn(modifier = modifier.fillMaxWidth().padding(padding).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            when {
-                serviceState.phase == RecordingPhase.CONFIRM -> {
-                    item {
-                        ConfirmSection(
-                            uiState = uiState,
-                            viewModel = viewModel,
-                            onDiscard = {
-                                service?.stopAfterCommitOrDiscard()
-                                viewModel.reset()
-                            },
-                        )
-                    }
-                }
-                serviceState.phase == RecordingPhase.RECORDING || serviceState.phase == RecordingPhase.PAUSED -> {
-                    item {
-                        ActiveRecordingSection(
-                            uiState = uiState,
-                            serviceState = serviceState,
-                            onPause = { service?.pause() },
-                            onResume = { service?.resume() },
-                            onStop = {
-                                val points = service?.finish().orEmpty()
-                                if (points.size >= 2) {
-                                    viewModel.setRecordedPoints(points)
-                                } else {
+        when {
+            serviceState.phase == RecordingPhase.RECORDING || serviceState.phase == RecordingPhase.PAUSED -> {
+                ActiveRecordingFullscreen(
+                    uiState = uiState,
+                    serviceState = serviceState,
+                    onPause = { service?.pause() },
+                    onResume = { service?.resume() },
+                    onStop = {
+                        val points = service?.finish().orEmpty()
+                        if (points.size >= 2) {
+                            viewModel.setRecordedPoints(points)
+                        } else {
+                            service?.stopAfterCommitOrDiscard()
+                        }
+                    },
+                    onDiscard = { service?.stopAfterCommitOrDiscard() },
+                    modifier = modifier.padding(padding).fillMaxSize(),
+                )
+            }
+            else -> LazyColumn(
+                modifier = modifier.fillMaxWidth().padding(padding).padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                when {
+                    serviceState.phase == RecordingPhase.CONFIRM -> {
+                        item {
+                            ConfirmSection(
+                                uiState = uiState,
+                                viewModel = viewModel,
+                                onDiscard = {
                                     service?.stopAfterCommitOrDiscard()
-                                }
-                            },
-                            onDiscard = { service?.stopAfterCommitOrDiscard() },
-                        )
+                                    viewModel.reset()
+                                },
+                            )
+                        }
                     }
-                }
-                else -> {
-                    item { BatteryOptimizationPrompt() }
-                    item {
-                        Text(stringResource(R.string.record_instructions), style = MaterialTheme.typography.bodyMedium)
-                    }
-                    item {
-                        Text(
-                            stringResource(R.string.record_background_capability),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                    item {
-                        Button(onClick = { requestStart() }, modifier = Modifier.fillMaxWidth()) {
-                            Text(stringResource(R.string.record_start))
+                    else -> {
+                        item { BatteryOptimizationPrompt() }
+                        item {
+                            Text(stringResource(R.string.record_instructions), style = MaterialTheme.typography.bodyMedium)
+                        }
+                        item {
+                            Text(
+                                stringResource(R.string.record_background_capability),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        item {
+                            Button(onClick = { requestStart() }, modifier = Modifier.fillMaxWidth()) {
+                                Text(stringResource(R.string.record_start))
+                            }
                         }
                     }
                 }
@@ -211,56 +217,70 @@ fun RecordingScreen(onDone: () -> Unit, modifier: Modifier = Modifier) {
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun ActiveRecordingSection(
+private fun ActiveRecordingFullscreen(
     uiState: RecordingUiState,
     serviceState: RecordingServiceState,
     onPause: () -> Unit,
     onResume: () -> Unit,
     onStop: () -> Unit,
     onDiscard: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     var mapStyle by remember { mutableStateOf(BaseMapStyle.STREETS) }
 
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    Box(modifier = modifier) {
+        RoutyMapView(
+            style = mapStyle,
+            nodes = uiState.nodes,
+            segments = emptyList(),
+            routeGeometry = emptyList(),
+            stations = emptyList(),
+            myLocation = serviceState.currentPosition,
+            fitKey = serviceState.pointCount,
+            routeColor = "#9a3b29",
+            modifier = Modifier.fillMaxSize(),
+        )
+
+        Column(
+            modifier = Modifier.align(Alignment.TopStart).padding(8.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
             MapStyleSwitcher(selected = mapStyle, onSelect = { mapStyle = it })
-            RoutyMapView(
-                style = mapStyle,
-                nodes = uiState.nodes,
-                segments = emptyList(),
-                routeGeometry = emptyList(),
-                stations = emptyList(),
-                myLocation = serviceState.currentPosition,
-                fitKey = null,
-                routeColor = "#9a3b29",
-                modifier = Modifier.fillMaxWidth().height(280.dp),
-            )
+        }
 
-            if (serviceState.locationError) {
-                Text(
-                    stringResource(R.string.record_location_error),
-                    color = MaterialTheme.colorScheme.error,
-                    style = MaterialTheme.typography.bodySmall,
-                )
-            }
-
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("${stringResource(R.string.record_points_so_far, serviceState.pointCount)}", style = MaterialTheme.typography.bodySmall)
-                Text(
-                    "${stringResource(R.string.record_distance_so_far)}: ${"%.2f".format(serviceState.lengthM / 1000.0)} ${stringResource(R.string.common_km)}",
-                    style = MaterialTheme.typography.bodySmall,
-                )
-            }
-
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                if (serviceState.phase == RecordingPhase.RECORDING) {
-                    OutlinedButton(onClick = onPause) { Text(stringResource(R.string.record_pause)) }
-                } else {
-                    OutlinedButton(onClick = onResume) { Text(stringResource(R.string.record_resume)) }
+        Card(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .padding(8.dp),
+        ) {
+            Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                if (serviceState.locationError) {
+                    Text(
+                        stringResource(R.string.record_location_error),
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
                 }
-                Button(onClick = onStop) { Text(stringResource(R.string.record_stop)) }
-                if (serviceState.phase == RecordingPhase.PAUSED) {
-                    OutlinedButton(onClick = onDiscard) { Text(stringResource(R.string.record_discard)) }
+
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("${stringResource(R.string.record_points_so_far, serviceState.pointCount)}", style = MaterialTheme.typography.bodySmall)
+                    Text(
+                        "${stringResource(R.string.record_distance_so_far)}: ${"%.2f".format(serviceState.lengthM / 1000.0)} ${stringResource(R.string.common_km)}",
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (serviceState.phase == RecordingPhase.RECORDING) {
+                        OutlinedButton(onClick = onPause) { Text(stringResource(R.string.record_pause)) }
+                    } else {
+                        OutlinedButton(onClick = onResume) { Text(stringResource(R.string.record_resume)) }
+                    }
+                    Button(onClick = onStop) { Text(stringResource(R.string.record_stop)) }
+                    if (serviceState.phase == RecordingPhase.PAUSED) {
+                        OutlinedButton(onClick = onDiscard) { Text(stringResource(R.string.record_discard)) }
+                    }
                 }
             }
         }
