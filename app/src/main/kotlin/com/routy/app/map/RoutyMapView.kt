@@ -45,6 +45,7 @@ import org.maplibre.geojson.Point
 enum class BaseMapStyle(val assetUri: String) {
     STREETS("asset://styles/streets.json"),
     HIKING("asset://styles/hiking.json"),
+    WAYMARKED("asset://styles/waymarked.json"),
     SATELLITE("asset://styles/satellite.json"),
 }
 

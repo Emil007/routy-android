@@ -61,6 +61,7 @@ data class RouteUiState(
     val nickname: String = "",
     val nicknameSaving: Boolean = false,
 
+    val suggestFavoriteName: String = "",
     val savingFavorite: Boolean = false,
 
     val myLocation: GeoPoint? = null,
@@ -216,6 +217,7 @@ class RouteViewModel(
     fun setWaypointNodeId(id: Int?) { _uiState.value = _uiState.value.copy(waypointNodeId = id) }
     fun setExplorerMode(enabled: Boolean) { _uiState.value = _uiState.value.copy(explorerMode = enabled) }
     fun setNickname(value: String) { _uiState.value = _uiState.value.copy(nickname = value) }
+    fun setSuggestFavoriteName(value: String) { _uiState.value = _uiState.value.copy(suggestFavoriteName = value) }
     fun setMyLocation(point: GeoPoint?) { _uiState.value = _uiState.value.copy(myLocation = point) }
     fun setWatchingLocation(watching: Boolean) {
         _uiState.value = _uiState.value.copy(
@@ -502,6 +504,31 @@ class RouteViewModel(
                 completedWaypointIndex = -1,
                 voiceAnnouncedIndex = 0,
             )
+        }
+    }
+
+    fun saveFavoriteFromSuggestion(name: String) {
+        val route = _uiState.value.route ?: return
+        val trimmed = name.trim()
+        if (trimmed.isEmpty()) return
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(savingFavorite = true)
+            val response = try {
+                apiClientProvider.service.saveFavorite(
+                    SaveFavoriteRequest(trimmed, route.nodeChain, route.segmentIds, route.lengthM, route.durationMin),
+                )
+            } catch (_: IOException) {
+                _uiState.value = _uiState.value.copy(savingFavorite = false, messageRes = R.string.common_error)
+                return@launch
+            }
+            _uiState.value = _uiState.value.copy(savingFavorite = false)
+            if (response.isSuccessful) {
+                _uiState.value = _uiState.value.copy(
+                    suggestFavoriteName = "",
+                    messageRes = R.string.route_favorite_saved,
+                )
+                refreshFavorites()
+            }
         }
     }
 

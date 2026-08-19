@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AssistChip
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
@@ -59,6 +60,8 @@ import com.routy.app.logic.recording.EndpointDecision
 import com.routy.app.logic.recording.NodeCandidate
 import java.io.File
 import kotlinx.coroutines.delay
+import java.text.Collator
+import java.util.Locale
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -163,9 +166,9 @@ fun MapScreen(onStartRecording: () -> Unit, modifier: Modifier = Modifier) {
 
             when (uiState.mode) {
                 MapMode.View -> {
-                    if (uiState.proposals.isNotEmpty()) {
-                        ProposalsPanel(uiState, viewModel)
-                    }
+                    SegmentsTablePanel(uiState, viewModel)
+                    TrashPanel(uiState, viewModel)
+                    ProposalsPanel(uiState, viewModel)
                     uiState.selectedNode?.let { MapNodePanel(it, uiState, viewModel) }
                     uiState.selectedSegment?.let { MapSegmentPanel(it, uiState, viewModel) }
                     MapViewToolbar(uiState, onStartRecording, { viewModel.setMode(MapMode.Draw) }, { gpxPicker.launch("*/*") })
@@ -245,18 +248,24 @@ private fun ProposalsPanel(state: MapUiState, viewModel: MapViewModel) {
     Surface(color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.94f), shape = MaterialTheme.shapes.medium) {
         Column(Modifier.fillMaxWidth().padding(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text(stringResource(R.string.map_proposals_title, state.proposals.size), style = MaterialTheme.typography.titleSmall)
-            state.proposals.forEach { proposal ->
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        proposal.segmentName ?: stringResource(R.string.map_proposal_segment, proposal.segmentId),
-                        modifier = Modifier.weight(1f),
-                        style = MaterialTheme.typography.bodySmall,
-                    )
-                    CompactOutlinedButton({ viewModel.acceptProposal(proposal.id) }) {
-                        Text(stringResource(R.string.map_proposal_accept), style = MaterialTheme.typography.labelSmall)
-                    }
-                    CompactOutlinedButton({ viewModel.dismissProposal(proposal.id) }) {
-                        Text(stringResource(R.string.map_proposal_dismiss), style = MaterialTheme.typography.labelSmall)
+            if (state.proposals.isEmpty()) {
+                Text(stringResource(R.string.map_proposals_empty), style = MaterialTheme.typography.bodySmall)
+            } else {
+                state.proposals.forEach { proposal ->
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            proposal.segmentName ?: stringResource(R.string.map_proposal_segment, proposal.segmentId),
+                            modifier = Modifier.weight(1f),
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                        if (viewModel.canEditProposal(proposal)) {
+                            CompactOutlinedButton({ viewModel.acceptProposal(proposal.id) }) {
+                                Text(stringResource(R.string.map_proposal_accept), style = MaterialTheme.typography.labelSmall)
+                            }
+                        }
+                        CompactOutlinedButton({ viewModel.dismissProposal(proposal.id) }) {
+                            Text(stringResource(R.string.map_proposal_dismiss), style = MaterialTheme.typography.labelSmall)
+                        }
                     }
                 }
             }
@@ -268,6 +277,45 @@ private fun ProposalsPanel(state: MapUiState, viewModel: MapViewModel) {
 @Composable
 private fun MapSegmentPanel(segment: SegmentDto, state: MapUiState, viewModel: MapViewModel) {
     val conditions = viewModel.conditionsForSegment(segment.id)
+    var showLockDialog by remember { mutableStateOf(false) }
+    var lockDays by remember { mutableStateOf("7") }
+    var lockReason by remember { mutableStateOf("") }
+
+    if (showLockDialog) {
+        AlertDialog(
+            onDismissRequest = { showLockDialog = false },
+            title = { Text(stringResource(R.string.map_lock)) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = lockDays,
+                        onValueChange = { lockDays = it.filter { ch -> ch.isDigit() } },
+                        label = { Text(stringResource(R.string.map_lock_days)) },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    OutlinedTextField(
+                        value = lockReason,
+                        onValueChange = { lockReason = it },
+                        label = { Text(stringResource(R.string.map_lock_reason)) },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    showLockDialog = false
+                    val days = lockDays.toIntOrNull()?.coerceAtLeast(1) ?: 7
+                    viewModel.lockSegment(days, lockReason.ifBlank { null })
+                }) { Text(stringResource(R.string.map_lock)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showLockDialog = false }) { Text(stringResource(R.string.common_cancel)) }
+            },
+        )
+    }
+
     Surface(color = MaterialTheme.colorScheme.surface.copy(alpha = 0.94f), shape = MaterialTheme.shapes.medium) {
         Column(Modifier.fillMaxWidth().padding(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
@@ -297,7 +345,7 @@ private fun MapSegmentPanel(segment: SegmentDto, state: MapUiState, viewModel: M
             } else {
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     CompactOutlinedButton(viewModel::startRenameSegment) { Text(stringResource(R.string.map_rename)) }
-                    CompactOutlinedButton({ viewModel.lockSegment(7) }) { Text(stringResource(R.string.map_lock)) }
+                    CompactOutlinedButton({ showLockDialog = true }) { Text(stringResource(R.string.map_lock)) }
                     if (segment.lockedUntil != null) CompactOutlinedButton({ viewModel.lockSegment(null) }) { Text(stringResource(R.string.map_unlock)) }
                     CompactOutlinedButton(viewModel::startEditSegmentShape) { Text(stringResource(R.string.map_edit_shape)) }
                     CompactOutlinedButton(viewModel::startSplitSegment) { Text(stringResource(R.string.map_split)) }
@@ -462,6 +510,147 @@ private fun ConditionReasonPicker(selected: String, onSelect: (String) -> Unit) 
             }
         }
     }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun TrashPanel(state: MapUiState, viewModel: MapViewModel) {
+    var expanded by remember { mutableStateOf(false) }
+    val isEmpty = state.deletedNodes.isEmpty() && state.deletedSegments.isEmpty()
+
+    Surface(color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.94f), shape = MaterialTheme.shapes.medium) {
+        Column(Modifier.fillMaxWidth().padding(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(stringResource(R.string.map_trash_title), style = MaterialTheme.typography.titleSmall)
+                TextButton(onClick = { expanded = !expanded }) {
+                    Text(if (expanded) stringResource(R.string.common_close) else stringResource(R.string.map_trash_show))
+                }
+            }
+            if (expanded) {
+                if (isEmpty) {
+                    Text(stringResource(R.string.map_trash_empty), style = MaterialTheme.typography.bodySmall)
+                } else {
+                    if (state.deletedNodes.isNotEmpty()) {
+                        Text(stringResource(R.string.map_trash_nodes), style = MaterialTheme.typography.labelMedium)
+                        state.deletedNodes.forEach { node ->
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Text(node.name ?: "#${node.id}", modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
+                                CompactOutlinedButton({ viewModel.restoreNode(node.id) }) { Text(stringResource(R.string.map_restore), style = MaterialTheme.typography.labelSmall) }
+                                CompactOutlinedButton({ viewModel.purgeNode(node.id) }) { Text(stringResource(R.string.map_purge), style = MaterialTheme.typography.labelSmall) }
+                            }
+                        }
+                    }
+                    if (state.deletedSegments.isNotEmpty()) {
+                        Text(stringResource(R.string.map_trash_segments), style = MaterialTheme.typography.labelMedium)
+                        state.deletedSegments.forEach { segment ->
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Text(segment.name ?: "#${segment.id}", modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
+                                CompactOutlinedButton({ viewModel.restoreSegment(segment.id) }) { Text(stringResource(R.string.map_restore), style = MaterialTheme.typography.labelSmall) }
+                                CompactOutlinedButton({ viewModel.purgeSegment(segment.id) }) { Text(stringResource(R.string.map_purge), style = MaterialTheme.typography.labelSmall) }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+private enum class SegmentSortKey { START, END, LENGTH, DURATION, USAGE, NAME }
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun SegmentsTablePanel(state: MapUiState, viewModel: MapViewModel) {
+    var expanded by remember { mutableStateOf(false) }
+    var sortKey by remember { mutableStateOf(SegmentSortKey.START) }
+    var sortAsc by remember { mutableStateOf(true) }
+    val collator = remember { Collator.getInstance() }
+    val nodesById = remember(state.nodes) { state.nodes.associateBy { it.id } }
+    fun nodeName(id: Int) = nodesById[id]?.name ?: "#$id"
+
+    val sorted = remember(state.segments, sortKey, sortAsc, state.segmentUsage) {
+        val rows = state.segments.map { segment ->
+            segment to SegmentRowSort(
+                start = nodeName(segment.startNodeId),
+                end = nodeName(segment.endNodeId),
+                length = segment.lengthM,
+                duration = segment.durationMin,
+                usage = state.segmentUsage[segment.id] ?: 0,
+                name = segment.name ?: "",
+            )
+        }
+        rows.sortedWith { a, b ->
+            val cmp = when (sortKey) {
+                SegmentSortKey.START -> collator.compare(a.second.start, b.second.start)
+                SegmentSortKey.END -> collator.compare(a.second.end, b.second.end)
+                SegmentSortKey.LENGTH -> a.second.length.compareTo(b.second.length)
+                SegmentSortKey.DURATION -> a.second.duration.compareTo(b.second.duration)
+                SegmentSortKey.USAGE -> a.second.usage.compareTo(b.second.usage)
+                SegmentSortKey.NAME -> collator.compare(a.second.name, b.second.name)
+            }
+            if (sortAsc) cmp else -cmp
+        }
+    }
+
+    Surface(color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.94f), shape = MaterialTheme.shapes.medium) {
+        Column(Modifier.fillMaxWidth().padding(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(stringResource(R.string.map_segments_table_title, state.segments.size), style = MaterialTheme.typography.titleSmall)
+                TextButton(onClick = { expanded = !expanded }) {
+                    Text(if (expanded) stringResource(R.string.common_close) else stringResource(R.string.map_segments_table_show))
+                }
+            }
+            if (expanded) {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    SegmentSortKey.entries.forEach { key ->
+                        FilterChip(
+                            selected = sortKey == key,
+                            onClick = {
+                                if (sortKey == key) sortAsc = !sortAsc else { sortKey = key; sortAsc = true }
+                            },
+                            label = { Text(segmentSortLabel(key), style = MaterialTheme.typography.labelSmall) },
+                        )
+                    }
+                }
+                sorted.take(50).forEach { (segment, row) ->
+                    Text(
+                        "${row.start} → ${row.end} · ${"%.2f".format(Locale.US, row.length / 1000.0)} km · ${row.duration} min · ${row.usage}× ${segment.name?.let { "· $it" } ?: ""}",
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+                if (sorted.size > 50) {
+                    Text(stringResource(R.string.map_segments_table_more, sorted.size - 50), style = MaterialTheme.typography.labelSmall)
+                }
+            }
+        }
+    }
+}
+
+private data class SegmentRowSort(
+    val start: String,
+    val end: String,
+    val length: Int,
+    val duration: Int,
+    val usage: Int,
+    val name: String,
+)
+
+@Composable
+private fun segmentSortLabel(key: SegmentSortKey): String = when (key) {
+    SegmentSortKey.START -> stringResource(R.string.map_sort_start)
+    SegmentSortKey.END -> stringResource(R.string.map_sort_end)
+    SegmentSortKey.LENGTH -> stringResource(R.string.map_sort_length)
+    SegmentSortKey.DURATION -> stringResource(R.string.map_sort_duration)
+    SegmentSortKey.USAGE -> stringResource(R.string.map_sort_usage)
+    SegmentSortKey.NAME -> stringResource(R.string.map_sort_name)
 }
 
 @Composable
