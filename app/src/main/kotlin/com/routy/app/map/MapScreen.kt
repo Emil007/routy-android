@@ -17,6 +17,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -28,6 +30,8 @@ import androidx.compose.material3.ExposedDropdownMenuAnchorType
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -45,6 +49,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
@@ -75,6 +80,7 @@ fun MapScreen(onStartRecording: () -> Unit, modifier: Modifier = Modifier) {
     )
     val uiState by viewModel.uiState.collectAsState()
     var mapStyle by remember { mutableStateOf(BaseMapStyle.STREETS) }
+    var showExtras by remember { mutableStateOf(false) }
 
     val gpxPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         if (uri == null) return@rememberLauncherForActivityResult
@@ -143,7 +149,16 @@ fun MapScreen(onStartRecording: () -> Unit, modifier: Modifier = Modifier) {
         )
 
         if (uiState.offlineCached) {
-            OfflineBanner(modifier = Modifier.align(Alignment.TopCenter).padding(top = 48.dp))
+            OfflineBanner(modifier = Modifier.align(Alignment.TopStart).padding(start = 8.dp, top = 56.dp))
+        }
+
+        if (uiState.mode == MapMode.View) {
+            IconButton(
+                onClick = { showExtras = !showExtras },
+                modifier = Modifier.align(Alignment.TopEnd).padding(4.dp).background(MaterialTheme.colorScheme.surface.copy(alpha = 0.9f)),
+            ) {
+                Icon(Icons.Filled.Menu, contentDescription = stringResource(R.string.map_more_options))
+            }
         }
 
         if (uiState.actionBusy) {
@@ -170,7 +185,7 @@ fun MapScreen(onStartRecording: () -> Unit, modifier: Modifier = Modifier) {
                     uiState.selectedNode?.let { MapNodePanel(it, uiState, viewModel) }
                     uiState.selectedSegment?.let { MapSegmentPanel(it, uiState, viewModel) }
                     MapViewToolbar(uiState, onStartRecording, { viewModel.setMode(MapMode.Draw) }, { gpxPicker.launch("*/*") })
-                    MapExtrasMenu(uiState, viewModel)
+                    MapExtrasContent(uiState, viewModel, visible = showExtras)
                 }
                 MapMode.Draw -> MapDrawPanel(uiState, viewModel)
                 MapMode.Gpx -> MapGpxPanel(uiState, viewModel)
@@ -195,15 +210,44 @@ private fun mapHint(state: MapUiState): String = when (state.mode) {
     MapMode.SplitSegment -> stringResource(R.string.map_hint_split)
 }
 
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun MapViewToolbar(state: MapUiState, onStartRecording: () -> Unit, onDraw: () -> Unit, onGpx: () -> Unit) {
     Surface(color = MaterialTheme.colorScheme.surface.copy(alpha = 0.94f), shape = MaterialTheme.shapes.medium) {
-        FlowRow(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            AssistChip(onClick = {}, enabled = false, label = { Text(stringResource(R.string.map_nodes_count, state.nodes.size), style = MaterialTheme.typography.labelSmall) })
-            CompactButton(onDraw) { Text(stringResource(R.string.map_draw_path), style = MaterialTheme.typography.labelMedium) }
-            CompactOutlinedButton(onGpx) { Text(stringResource(R.string.map_import_gpx), style = MaterialTheme.typography.labelMedium) }
-            CompactButton(onStartRecording) { Text(stringResource(R.string.map_record_track), style = MaterialTheme.typography.labelMedium) }
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                stringResource(R.string.map_nodes_count, state.nodes.size),
+                style = MaterialTheme.typography.labelSmall,
+                maxLines = 1,
+                modifier = Modifier.padding(horizontal = 2.dp),
+            )
+            CompactButton(onDraw, modifier = Modifier.weight(1f), contentPadding = ToolbarPadding) {
+                Text(
+                    stringResource(R.string.map_toolbar_draw),
+                    style = MaterialTheme.typography.labelSmall,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            CompactOutlinedButton(onGpx, modifier = Modifier.weight(1f), contentPadding = ToolbarPadding) {
+                Text(
+                    stringResource(R.string.map_toolbar_gpx),
+                    style = MaterialTheme.typography.labelSmall,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            CompactButton(onStartRecording, modifier = Modifier.weight(1f), contentPadding = ToolbarPadding) {
+                Text(
+                    stringResource(R.string.map_toolbar_record),
+                    style = MaterialTheme.typography.labelSmall,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
         }
     }
 }
@@ -242,19 +286,10 @@ private fun MapNodePanel(node: NodeDto, state: MapUiState, viewModel: MapViewMod
 }
 
 @Composable
-private fun MapExtrasMenu(state: MapUiState, viewModel: MapViewModel) {
-    var expanded by remember { mutableStateOf(false) }
-    val proposalCount = state.proposals.size
-
-    TextButton(onClick = { expanded = !expanded }) {
-        Text(
-            stringResource(if (expanded) R.string.route_less_options else R.string.map_more_options),
-            style = MaterialTheme.typography.labelSmall,
-        )
-    }
-    AnimatedVisibility(visible = expanded) {
+private fun MapExtrasContent(state: MapUiState, viewModel: MapViewModel, visible: Boolean) {
+    AnimatedVisibility(visible = visible) {
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            if (proposalCount > 0) {
+            if (state.proposals.isNotEmpty()) {
                 ProposalsPanel(state, viewModel)
             }
             SegmentsTablePanel(state, viewModel)
@@ -489,6 +524,7 @@ private fun EndpointBlock(label: String, candidates: List<NodeCandidate>, decisi
 }
 
 private val CompactPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
+private val ToolbarPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp)
 
 private val CONDITION_REASONS = listOf("muddy", "flooded", "construction", "dog", "icy", "overgrown")
 
@@ -675,11 +711,23 @@ private fun segmentSortLabel(key: SegmentSortKey): String = when (key) {
 }
 
 @Composable
-private fun CompactButton(onClick: () -> Unit, enabled: Boolean = true, content: @Composable RowScope.() -> Unit) {
-    Button(onClick, enabled = enabled, contentPadding = CompactPadding, content = content)
+private fun CompactButton(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    contentPadding: PaddingValues = CompactPadding,
+    content: @Composable RowScope.() -> Unit,
+) {
+    Button(onClick, modifier, enabled = enabled, contentPadding = contentPadding, content = content)
 }
 
 @Composable
-private fun CompactOutlinedButton(onClick: () -> Unit, enabled: Boolean = true, content: @Composable RowScope.() -> Unit) {
-    OutlinedButton(onClick, enabled = enabled, contentPadding = CompactPadding, content = content)
+private fun CompactOutlinedButton(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    contentPadding: PaddingValues = CompactPadding,
+    content: @Composable RowScope.() -> Unit,
+) {
+    OutlinedButton(onClick, modifier, enabled = enabled, contentPadding = contentPadding, content = content)
 }
