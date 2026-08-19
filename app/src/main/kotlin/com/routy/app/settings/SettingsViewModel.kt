@@ -69,7 +69,16 @@ class SettingsViewModel(
                     avoidSegmentIds = avoidIds,
                 )
             } catch (_: IOException) {
-                _uiState.value = _uiState.value.copy(loading = false, error = true, offlineCached = offline)
+                _uiState.value = SettingsUiState(
+                    loading = false,
+                    offlineCached = offline,
+                    user = user,
+                    sessions = emptyList(),
+                    networkWalkSpeedKmh = _uiState.value.networkWalkSpeedKmh,
+                    segments = segments,
+                    avoidSegmentIds = avoidIds,
+                    error = user == null,
+                )
             }
         }
     }

@@ -23,6 +23,18 @@
     <string name="login_error_locked">Zu viele Fehlversuche. Kurz warten und erneut versuchen.</string>
     <string name="login_error_generic">Anmeldung fehlgeschlagen. Erneut versuchen.</string>
     <string name="login_device_name_label">Gerätename</string>
+    <string name="login_captcha_hint">Captcha unten lösen.</string>
+    <string name="login_captcha_required">Bitte Captcha lösen.</string>
+    <string name="login_captcha_error">Captcha fehlgeschlagen — erneut versuchen.</string>
+
+    <string name="setup_title">Ersteinrichtung</string>
+    <string name="setup_subtitle">Erstelle das Admin-Konto für diesen Server. Setup-Token steht in den Docker-Logs.</string>
+    <string name="setup_token_label">Setup-Token</string>
+    <string name="setup_display_name">Anzeigename</string>
+    <string name="setup_submit">Konto erstellen</string>
+    <string name="setup_error_invalid">Bitte alle Pflichtfelder ausfüllen (Passwort min. 6 Zeichen).</string>
+    <string name="setup_error_invalid_token">Setup-Token ungültig.</string>
+    <string name="setup_error_already_setup">Server ist bereits eingerichtet — bitte anmelden.</string>
 
     <string name="nav_route">Route</string>
     <string name="nav_map">Karte</string>
@@ -73,6 +85,10 @@
     <string name="stats_points">Punkte</string>
     <string name="stats_weekly_points">Wochenpunkte</string>
     <string name="stats_points_leaderboard">Punkte-Rangliste</string>
+    <string name="stats_network_usage_title">Netzwerk-Nutzung</string>
+    <string name="stats_network_most_used">Am häufigsten genutzt</string>
+    <string name="stats_network_least_used">Am seltensten genutzt</string>
+    <string name="stats_network_usage_row">Knoten %1$d → %2$d · %3$d×</string>
 
     <string name="route_active_notice">Du hast eine aktive Route. Bestätige sie als gegangen, oder verwirf sie, um eine neue vorzuschlagen.</string>
     <string name="route_name_label">Routenname</string>
@@ -141,6 +157,7 @@
     <string name="record_save">Weg speichern</string>
     <string name="record_saving">Speichere …</string>
     <string name="record_saved">Weg gespeichert.</string>
+    <string name="record_proposals_hint">Nach dem Speichern können Weg-Vorschläge auf der Karte erscheinen — prüfe den Vorschläge-Bereich.</string>
     <string name="record_queued_for_upload">Upload fehlgeschlagen — wird automatisch wiederholt, sobald Netz verfügbar ist.</string>
     <string name="record_upload_completed_background">Weg im Hintergrund hochgeladen — Statistik aktualisiert.</string>
     <string name="record_start_node">Startpunkt</string>
@@ -181,6 +198,7 @@
 
     <string name="map_style_streets">Straßenkarte</string>
     <string name="map_style_hiking">Wanderkarte</string>
+    <string name="map_style_waymarked">Waymarked Trails</string>
     <string name="map_style_satellite">Satellit</string>
 
     <string name="common_close">Schließen</string>
@@ -203,6 +221,29 @@
     <string name="map_proposal_accept">Teilen</string>
     <string name="map_proposal_dismiss">Verwerfen</string>
     <string name="map_proposal_accepted">Vorschlag übernommen.</string>
+    <string name="map_proposal_not_owner">Nur der Wegeigentümer kann Vorschläge annehmen.</string>
+    <string name="map_proposals_empty">Keine offenen Weg-Vorschläge.</string>
+    <string name="map_condition_active">Weg ist Teil einer aktiven Route — Teilen nicht möglich.</string>
+    <string name="map_lock_days">Tage sperren</string>
+    <string name="map_lock_reason">Grund (optional)</string>
+    <string name="map_trash_title">Papierkorb</string>
+    <string name="map_trash_show">Anzeigen</string>
+    <string name="map_trash_empty">Papierkorb ist leer.</string>
+    <string name="map_trash_nodes">Gelöschte Knoten</string>
+    <string name="map_trash_segments">Gelöschte Wege</string>
+    <string name="map_restore">Wiederherstellen</string>
+    <string name="map_purge">Endgültig löschen</string>
+    <string name="map_restored">Wiederhergestellt.</string>
+    <string name="map_purged">Endgültig gelöscht.</string>
+    <string name="map_segments_table_title">Wege (%1$d)</string>
+    <string name="map_segments_table_show">Tabelle</string>
+    <string name="map_segments_table_more">… und %1$d weitere</string>
+    <string name="map_sort_start">Start</string>
+    <string name="map_sort_end">Ziel</string>
+    <string name="map_sort_length">Länge</string>
+    <string name="map_sort_duration">Dauer</string>
+    <string name="map_sort_usage">Nutzung</string>
+    <string name="map_sort_name">Name</string>
     <string name="map_load_error">Wegnetz konnte nicht geladen werden.</string>
     <string name="map_record_track">Weg aufzeichnen</string>
     <string name="map_tap_hint">Tippe auf Knoten oder Weg zum Bearbeiten. Zeichnen oder GPX importieren.</string>
@@ -276,6 +317,8 @@
     <string name="settings_account_security_title">Kontosicherheit</string>
     <string name="settings_account_security_subtitle">Passwort, Zwei-Faktor-Auth und Konto deaktivieren — in den Browser-Einstellungen.</string>
     <string name="settings_account_security_open">Kontosicherheit öffnen</string>
+    <string name="settings_crash_consent_title">Absturzberichte</string>
+    <string name="settings_crash_consent_subtitle">Anonyme Absturzberichte an den Server senden (nur mit Einwilligung).</string>
     <string name="common_remove">Entfernen</string>
 
     <string name="notification_recording_channel_name">Wegaufzeichnung</string>

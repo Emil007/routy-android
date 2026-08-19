@@ -23,6 +23,18 @@
     <string name="login_error_locked">Too many failed attempts. Wait a moment and try again.</string>
     <string name="login_error_generic">Sign-in failed. Try again.</string>
     <string name="login_device_name_label">Device name</string>
+    <string name="login_captcha_hint">Complete the captcha below.</string>
+    <string name="login_captcha_required">Please complete the captcha.</string>
+    <string name="login_captcha_error">Captcha failed — try again.</string>
+
+    <string name="setup_title">Initial setup</string>
+    <string name="setup_subtitle">Create the admin account for this server. The setup token is in the Docker logs.</string>
+    <string name="setup_token_label">Setup token</string>
+    <string name="setup_display_name">Display name</string>
+    <string name="setup_submit">Create account</string>
+    <string name="setup_error_invalid">Fill in all required fields (password at least 6 characters).</string>
+    <string name="setup_error_invalid_token">Invalid setup token.</string>
+    <string name="setup_error_already_setup">Server is already set up — please sign in.</string>
 
     <string name="nav_route">Route</string>
     <string name="nav_map">Map</string>
@@ -73,6 +85,10 @@
     <string name="stats_points">Points</string>
     <string name="stats_weekly_points">Weekly points</string>
     <string name="stats_points_leaderboard">Points leaderboard</string>
+    <string name="stats_network_usage_title">Network usage</string>
+    <string name="stats_network_most_used">Most used</string>
+    <string name="stats_network_least_used">Least used</string>
+    <string name="stats_network_usage_row">Node %1$d → %2$d · %3$d×</string>
 
     <string name="route_active_notice">You have an active route. Confirm it as walked, or discard it to get a new suggestion.</string>
     <string name="route_name_label">Route name</string>
@@ -141,6 +157,7 @@
     <string name="record_save">Save path</string>
     <string name="record_saving">Saving …</string>
     <string name="record_saved">Path saved.</string>
+    <string name="record_proposals_hint">After saving, path proposals may appear on the map — check the proposals section.</string>
     <string name="record_queued_for_upload">Upload failed — will retry automatically when network is available.</string>
     <string name="record_upload_completed_background">Track uploaded in background — stats updated.</string>
     <string name="record_start_node">Start point</string>
@@ -181,6 +198,7 @@
 
     <string name="map_style_streets">Streets</string>
     <string name="map_style_hiking">Hiking</string>
+    <string name="map_style_waymarked">Waymarked Trails</string>
     <string name="map_style_satellite">Satellite</string>
 
     <string name="common_close">Close</string>
@@ -203,6 +221,29 @@
     <string name="map_proposal_accept">Split here</string>
     <string name="map_proposal_dismiss">Dismiss</string>
     <string name="map_proposal_accepted">Proposal accepted.</string>
+    <string name="map_proposal_not_owner">Only the path owner can accept proposals.</string>
+    <string name="map_proposals_empty">No open path proposals.</string>
+    <string name="map_condition_active">Path is part of an active route — cannot split now.</string>
+    <string name="map_lock_days">Lock days</string>
+    <string name="map_lock_reason">Reason (optional)</string>
+    <string name="map_trash_title">Trash</string>
+    <string name="map_trash_show">Show</string>
+    <string name="map_trash_empty">Trash is empty.</string>
+    <string name="map_trash_nodes">Deleted nodes</string>
+    <string name="map_trash_segments">Deleted paths</string>
+    <string name="map_restore">Restore</string>
+    <string name="map_purge">Delete permanently</string>
+    <string name="map_restored">Restored.</string>
+    <string name="map_purged">Permanently deleted.</string>
+    <string name="map_segments_table_title">Paths (%1$d)</string>
+    <string name="map_segments_table_show">Table</string>
+    <string name="map_segments_table_more">… and %1$d more</string>
+    <string name="map_sort_start">Start</string>
+    <string name="map_sort_end">End</string>
+    <string name="map_sort_length">Length</string>
+    <string name="map_sort_duration">Duration</string>
+    <string name="map_sort_usage">Usage</string>
+    <string name="map_sort_name">Name</string>
     <string name="map_load_error">Could not load path network.</string>
     <string name="map_record_track">Record track</string>
     <string name="map_tap_hint">Tap a node or path to edit. Draw or import GPX to add paths.</string>
@@ -276,6 +317,8 @@
     <string name="settings_account_security_title">Account security</string>
     <string name="settings_account_security_subtitle">Change password, enable two-factor auth, or deactivate your account in the browser settings page.</string>
     <string name="settings_account_security_open">Open account security</string>
+    <string name="settings_crash_consent_title">Crash reports</string>
+    <string name="settings_crash_consent_subtitle">Send anonymous crash reports to the server (only with consent).</string>
     <string name="common_remove">Remove</string>
 
     <string name="notification_recording_channel_name">Path recording</string>

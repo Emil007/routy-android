@@ -35,6 +35,10 @@ class SecureStorage(context: Context) {
         get() = prefs.getString(KEY_TOKEN, null)
         set(value) = prefs.edit().putString(KEY_TOKEN, value).apply()
 
+    var crashReportConsent: Boolean
+        get() = prefs.getBoolean(KEY_CRASH_CONSENT, false)
+        set(value) = prefs.edit().putBoolean(KEY_CRASH_CONSENT, value).apply()
+
     /** Clears the token (sign-out) but keeps the server URL — no need to re-onboard for a re-login. */
     fun clearToken() {
         prefs.edit().remove(KEY_TOKEN).apply()
@@ -47,5 +51,6 @@ class SecureStorage(context: Context) {
     private companion object {
         const val KEY_SERVER_URL = "server_url"
         const val KEY_TOKEN = "token"
+        const val KEY_CRASH_CONSENT = "crash_report_consent"
     }
 }

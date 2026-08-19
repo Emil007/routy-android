@@ -21,7 +21,7 @@ import androidx.compose.material3.ExposedDropdownMenuAnchorType
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Switch
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -212,6 +212,30 @@ fun SettingsScreen(
                     enabled = !uiState.saving,
                     onSave = viewModel::setWalkSpeed,
                 )
+            }
+        }
+
+        item {
+            SettingsSection(title = stringResource(R.string.settings_crash_consent_title)) {
+                var consent by remember { mutableStateOf(app.secureStorage.crashReportConsent) }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        stringResource(R.string.settings_crash_consent_subtitle),
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Switch(
+                        checked = consent,
+                        onCheckedChange = {
+                            consent = it
+                            app.secureStorage.crashReportConsent = it
+                        },
+                    )
+                }
             }
         }
 

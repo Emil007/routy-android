@@ -13,6 +13,7 @@ import com.routy.app.logic.api.LeaderboardEntryDto
 import com.routy.app.logic.api.PointsLeaderboardEntryDto
 import com.routy.app.logic.api.StreakStatsDto
 import com.routy.app.logic.api.UserPointsDto
+import com.routy.app.logic.api.SegmentUsageStat
 import com.routy.app.logic.api.UserStatsDto
 import com.routy.app.logic.api.WalkLogEntryDto
 import com.routy.app.logic.api.WalkLogIdRequest
@@ -37,6 +38,7 @@ data class StatsUiState(
     val leaderboard: List<LeaderboardEntryDto> = emptyList(),
     val pointsLeaderboard: List<PointsLeaderboardEntryDto> = emptyList(),
     val points: UserPointsDto? = null,
+    val networkUsage: List<SegmentUsageStat> = emptyList(),
     val currentUserId: Int? = null,
     val nodeCoords: Map<Int, GeoPoint> = emptyMap(),
     val segmentGeometry: Map<Int, List<GeoPoint>> = emptyMap(),
@@ -84,6 +86,7 @@ class StatsViewModel(
                         leaderboard = boardResponse?.takeIf { it.isSuccessful }?.body()?.leaderboard.orEmpty(),
                         currentUserId = boardResponse?.body()?.userId,
                         points = body?.points,
+                        networkUsage = body?.networkUsage.orEmpty(),
                         pointsLeaderboard = pointsBoard?.takeIf { it.isSuccessful }?.body()?.leaderboard.orEmpty(),
                         nodeCoords = coords,
                         segmentGeometry = geometry,
