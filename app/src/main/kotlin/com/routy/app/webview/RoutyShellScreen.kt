@@ -28,7 +28,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -42,7 +41,6 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import com.routy.app.R
 import com.routy.app.RoutyApplication
 import com.routy.app.route.RouteScreen
-import com.routy.app.map.MapEditorScreen
 import com.routy.app.map.MapScreen
 import com.routy.app.settings.SettingsScreen
 import com.routy.app.stats.StatsScreen
@@ -73,10 +71,8 @@ fun RoutyShellScreen(onSignedOut: () -> Unit, onStartRecording: () -> Unit) {
     )
     val uiState by viewModel.uiState.collectAsState()
     var selectedTab by remember { mutableIntStateOf(0) }
-    var mapEditorOpen by remember { mutableStateOf(false) }
 
     val baseUrl = app.secureStorage.serverUrl
-    val token = app.secureStorage.token
 
     LaunchedEffect(uiState.signedOut) {
         if (uiState.signedOut) {
@@ -86,6 +82,7 @@ fun RoutyShellScreen(onSignedOut: () -> Unit, onStartRecording: () -> Unit) {
     }
 
     LaunchedEffect(Unit) {
+        val token = app.secureStorage.token
         if (baseUrl != null && token != null) {
             CookieBridge.installSessionCookie(baseUrl, token)
         }
@@ -99,7 +96,7 @@ fun RoutyShellScreen(onSignedOut: () -> Unit, onStartRecording: () -> Unit) {
     val webViewStates = remember { mutableMapOf<String, Bundle>() }
     val webViews = remember { mutableMapOf<String, WebView>() }
 
-    BackHandler(enabled = !mapEditorOpen && webViews[currentTab.path]?.canGoBack() == true) {
+    BackHandler(enabled = webViews[currentTab.path]?.canGoBack() == true) {
         webViews[currentTab.path]?.goBack()
     }
 
@@ -118,25 +115,22 @@ fun RoutyShellScreen(onSignedOut: () -> Unit, onStartRecording: () -> Unit) {
         }
     }
 
-    Box(modifier = Modifier.fillMaxSize()) {
-        Scaffold(
-            snackbarHost = { SnackbarHost(snackbarHostState) },
-            bottomBar = {
-                if (!mapEditorOpen) {
-                    NavigationBar {
-                        visibleTabs.forEachIndexed { index, tab ->
-                            NavigationBarItem(
-                                selected = currentTab == tab,
-                                onClick = { selectedTab = index },
-                                icon = { Icon(tab.icon, contentDescription = null) },
-                                label = { Text(stringResource(tab.labelRes)) },
-                            )
-                        }
-                    }
+    Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
+        bottomBar = {
+            NavigationBar {
+                visibleTabs.forEachIndexed { index, tab ->
+                    NavigationBarItem(
+                        selected = currentTab == tab,
+                        onClick = { selectedTab = index },
+                        icon = { Icon(tab.icon, contentDescription = null) },
+                        label = { Text(stringResource(tab.labelRes)) },
+                    )
                 }
-            },
-        ) { padding ->
-            Column(modifier = Modifier.padding(padding).fillMaxSize()) {
+            }
+        },
+    ) { padding ->
+        Column(modifier = Modifier.padding(padding).fillMaxSize()) {
             // Sideload-only distribution means no auto-update — worth surfacing regardless of
             // which tab is open, not just on one screen. weight(1f) on the tab content below
             // (not fillMaxSize()) so the banner keeps its own natural height and the tab content
@@ -175,7 +169,6 @@ fun RoutyShellScreen(onSignedOut: () -> Unit, onStartRecording: () -> Unit) {
                     ) {
                         MapScreen(
                             onStartRecording = onStartRecording,
-                            onEditNetwork = { mapEditorOpen = true },
                             modifier = Modifier.fillMaxSize(),
                         )
                     }
@@ -196,16 +189,6 @@ fun RoutyShellScreen(onSignedOut: () -> Unit, onStartRecording: () -> Unit) {
                     }
                 }
             }
-        }
-
-        if (mapEditorOpen && token != null) {
-            MapEditorScreen(
-                baseUrl = baseUrl,
-                token = token,
-                onBack = { mapEditorOpen = false },
-                onNavigateToLogin = { viewModel.signOut() },
-                modifier = Modifier.fillMaxSize().zIndex(10f),
-            )
         }
     }
 }
