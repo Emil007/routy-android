@@ -251,6 +251,11 @@
     <string name="settings_walk_speed_label">Gehgeschwindigkeit (km/h)</string>
     <string name="settings_walk_speed_hint">Leer lassen für Netzwerk-Standard (aktuell %1$.1f km/h).</string>
     <string name="settings_walk_speed_save">Speichern</string>
+    <string name="settings_avoid_title">Wege meiden</string>
+    <string name="settings_avoid_subtitle">Routen bevorzugen andere Wege wenn möglich — kein hartes Verbot.</string>
+    <string name="settings_avoid_empty">Du meidest derzeit keine Wege.</string>
+    <string name="settings_avoid_add">Weg zur Meideliste hinzufügen</string>
+    <string name="common_remove">Entfernen</string>
 
     <string name="notification_recording_channel_name">Wegaufzeichnung</string>
     <string name="notification_recording_title">Aufzeichnung läuft</string>

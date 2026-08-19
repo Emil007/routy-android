@@ -30,6 +30,7 @@ class NetworkCache(context: Context) {
             nodes = body.nodes,
             segments = body.segments,
             routeState = body.routeState,
+            avoidSegmentIds = body.avoidSegmentIds,
             cachedAtMs = System.currentTimeMillis(),
         )
         bootstrapFile.writeText(json.encodeToString(payload))
