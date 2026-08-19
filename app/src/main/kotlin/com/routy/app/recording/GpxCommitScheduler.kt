@@ -8,7 +8,7 @@ import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import com.routy.app.core.storage.GpxCommitQueueStore
-import com.routy.app.core.storage.PendingGpxCommit
+import com.routy.app.logic.api.PendingGpxCommit
 import com.routy.app.logic.api.GpxCommitRequest
 import java.util.UUID
 import java.util.concurrent.TimeUnit
