@@ -116,7 +116,13 @@ dependencies {
     implementation(project(":logic"))
 
     // --- Compose ---
-    val composeBom = platform("androidx.compose:compose-bom:2024.12.01")
+    // 2026.06.01: current stable as of Aug 2026 (verified via WebSearch, since compose-bom is
+    // Google-Maven-only and unreachable from this sandbox). Was pinned at 2024.12.01 originally
+    // (unverifiable at the time — no compiler feedback loop existed) and turned out to be too
+    // old to have Material3's standalone ExposedDropdownMenu composable, which RouteScreen.kt
+    // uses — first real Android Studio build after the Gradle/AGP sync saga flagged it as
+    // Unresolved reference.
+    val composeBom = platform("androidx.compose:compose-bom:2026.06.01")
     implementation(composeBom)
     androidTestImplementation(composeBom)
     implementation("androidx.compose.ui:ui")
@@ -138,7 +144,18 @@ dependencies {
     implementation("com.squareup.retrofit2:retrofit:2.11.0")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")
-    implementation("com.jakewharton.retrofit:retrofit2-kotlinx-serialization-converter:1.0.0")
+    // com.squareup.retrofit2:converter-kotlinx-serialization, not the old third-party
+    // com.jakewharton.retrofit:retrofit2-kotlinx-serialization-converter (which this used
+    // originally) — that project was folded into Retrofit itself as of 2.10.0, and while the
+    // old artifact still resolves fine as a dependency (verified: it's real, downloadable, and
+    // this project's :app builds packaged its .jar), its classes never actually became visible
+    // to compileDebugKotlin — first real Android Studio build after the Gradle/AGP sync saga
+    // flagged every retrofit2.converter.kotlinx.serialization.* import as Unresolved reference.
+    // Pinned to the exact same version as the main retrofit artifact above, matching Square's
+    // own versioning convention for all retrofit-converters — same package name
+    // (retrofit2.converter.kotlinx.serialization), verified directly against the published jar,
+    // so no import changes needed in ApiClientProvider.kt/GithubReleaseClient.kt.
+    implementation("com.squareup.retrofit2:converter-kotlinx-serialization:2.11.0")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
 
     // --- Secure token/server-URL storage ---
@@ -149,7 +166,22 @@ dependencies {
     implementation("com.google.android.gms:play-services-location:21.3.0")
 
     // --- Map (M3) ---
-    implementation("org.maplibre.gl:android-sdk:10.2.0")
+    // 12.3.1, not 10.2.0 (this project's original pin): MapLibre renamed its entire package from
+    // com.mapbox.mapboxsdk.* to org.maplibre.android.* at v11.0.0 — 10.2.0 predates that rename
+    // and still ships the old namespace, which is why every org.maplibre.android.*/
+    // org.maplibre.geojson.* import this codebase uses (written assuming the *new* namespace)
+    // came back Unresolved reference on the first real compile. 12.3.1 is the latest stable
+    // release before v13.0.0's architecture change (Vulkan becomes the default rendering
+    // backend, OpenGL ES moves to a separate android-sdk-opengl artifact, GeoJsonSource's sync
+    // update API changes) — picked deliberately to land on the *last* version where this
+    // module's existing MapView/Style/Layer/GeoJsonSource usage needs no further code changes
+    // beyond the version bump itself, verified directly: downloaded the AAR and confirmed every
+    // class this module imports (MapView, MapLibreMap, Style, CircleLayer, LineLayer,
+    // PropertyFactory, GeoJsonSource, CameraUpdateFactory, LatLng, LatLngBounds, Expression,
+    // Property, MapLibre) is present, with org.maplibre.geojson.* (Feature, FeatureCollection,
+    // LineString, Point) pulled in transitively via this artifact's own dependency on
+    // org.maplibre.gl:android-sdk-geojson.
+    implementation("org.maplibre.gl:android-sdk:12.3.1")
 
     // --- Tests ---
     testImplementation(kotlin("test-junit5"))
