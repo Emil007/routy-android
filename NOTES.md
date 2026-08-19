@@ -607,7 +607,11 @@ Pushing a `v*` tag runs `.github/workflows/release.yml`, which decodes the keyst
 
 Optional repo **variable** `DEEP_LINK_HOST` (Settings → Secrets and variables → Actions → Variables) sets the manifest deep-link host at release build time (defaults to `localhost`).
 
-Once secrets exist, `git tag v0.1.0 && git push origin v0.1.0` produces a signed `app-release.apk` on a new GitHub Release.
+Once secrets exist, `git tag v0.13a && git push origin v0.13a` produces a signed `app-release.apk` on a new GitHub Release.
+
+- `.github/workflows/apk-publish.yml` — every push to `main` (after CI passes) builds the same signed release APK and uploads it as a **GitHub Actions artifact** (14-day retention), mirroring the server's Docker publish on push. Download from Actions → workflow run → Artifacts.
+- `.github/actions/build-signed-apk/` — shared keystore decode + `assembleRelease` used by both release and apk-publish workflows.
+- Optional secret **`SENTRY_DSN`** — when set, release/APK builds pass `-PsentryDsn=…` and `CrashReporting.kt` enables Sentry crash reporting. Omit (or leave empty) to ship without crash telemetry.
 
 - **M7** — polish. Three of the plan's four items landed; the fourth is a deliberate, documented
   punt (see below) rather than a risky blind change this late in an uncompiled session.

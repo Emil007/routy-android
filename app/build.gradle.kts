@@ -58,6 +58,8 @@ android {
         // — see .github/workflows/release.yml. Tags use the `a` suffix (e.g. v0.13a).
         versionCode = (project.findProperty("appVersionCode") as String?)?.toIntOrNull() ?: 13
         versionName = (project.findProperty("appVersionName") as String?) ?: "0.13a"
+        val sentryDsn = (project.findProperty("sentryDsn") as String?)?.trim().orEmpty()
+        buildConfigField("String", "SENTRY_DSN", "\"${sentryDsn.replace("\"", "\\\"")}\"")
     }
 
     signingConfigs {
@@ -169,8 +171,8 @@ dependencies {
     implementation("com.google.android.gms:play-services-location:21.3.0")
 
     // --- Map (M3) ---
-    // 12.3.1, not 10.2.0 (this project's original pin): MapLibre renamed its entire package from
-    // com.mapbox.mapboxsdk.* to org.maplibre.android.* at v11.0.0 — 10.2.0 predates that rename
+    // 12.3.1, not 10.2.0: MapLibre renamed com.mapbox.mapboxsdk.* to org.maplibre.android.* at v11.0.0 —
+    // 10.2.0 predates that rename
     // and still ships the old namespace, which is why every org.maplibre.android.*/
     // org.maplibre.geojson.* import this codebase uses (written assuming the *new* namespace)
     // came back Unresolved reference on the first real compile. 12.3.1 is the latest stable
@@ -185,6 +187,9 @@ dependencies {
     // LineString, Point) pulled in transitively via this artifact's own dependency on
     // org.maplibre.gl:android-sdk-geojson.
     implementation("org.maplibre.gl:android-sdk:12.3.1")
+
+    // --- Crash reporting (optional — SENTRY_DSN build property) ---
+    implementation("io.sentry:sentry-android:8.12.0")
 
     // --- Tests ---
     testImplementation(kotlin("test-junit5"))

@@ -1,0 +1,58 @@
+name: Build signed release APK
+description: Decode release keystore, run assembleRelease, remove secrets from the runner.
+
+inputs:
+  version_name:
+    description: Gradle -PappVersionName
+    required: true
+  version_code:
+    description: Gradle -PappVersionCode
+    required: true
+  sentry_dsn:
+    description: Optional Sentry DSN (-PsentryDsn); empty disables crash reporting
+    required: false
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    - name: Decode signing keystore
+      shell: bash
+      run: echo "${ANDROID_KEYSTORE_BASE64}" | base64 --decode > "${GITHUB_WORKSPACE}/release.jks"
+      env:
+        ANDROID_KEYSTORE_BASE64: ${{ env.ANDROID_KEYSTORE_BASE64 }}
+
+    - name: Write keystore.properties
+      shell: bash
+      run: |
+        cat > "${GITHUB_WORKSPACE}/keystore.properties" <<PROPS
+        storeFile=${GITHUB_WORKSPACE}/release.jks
+        storePassword=${ANDROID_KEYSTORE_PASSWORD}
+        keyAlias=${ANDROID_KEY_ALIAS}
+        keyPassword=${ANDROID_KEY_PASSWORD}
+        PROPS
+      env:
+        ANDROID_KEYSTORE_PASSWORD: ${{ env.ANDROID_KEYSTORE_PASSWORD }}
+        ANDROID_KEY_ALIAS: ${{ env.ANDROID_KEY_ALIAS }}
+        ANDROID_KEY_PASSWORD: ${{ env.ANDROID_KEY_PASSWORD }}
+
+    - name: Build signed release APK
+      shell: bash
+      run: |
+        SENTRY_ARGS=""
+        if [ -n "${SENTRY_DSN}" ]; then
+          SENTRY_ARGS="-PsentryDsn=${SENTRY_DSN}"
+        fi
+        ./gradlew :app:assembleRelease \
+          -PappVersionName="${VERSION_NAME}" \
+          -PappVersionCode="${VERSION_CODE}" \
+          ${SENTRY_ARGS}
+      env:
+        VERSION_NAME: ${{ inputs.version_name }}
+        VERSION_CODE: ${{ inputs.version_code }}
+        SENTRY_DSN: ${{ inputs.sentry_dsn }}
+
+    - name: Remove keystore and credentials from the runner
+      if: always()
+      shell: bash
+      run: rm -f "${GITHUB_WORKSPACE}/release.jks" "${GITHUB_WORKSPACE}/keystore.properties"

@@ -8,6 +8,7 @@ import com.routy.app.core.storage.SecureStorage
 import com.routy.app.core.BootstrapLoader
 import com.routy.app.core.storage.NetworkCache
 import com.routy.app.core.GpxQueueNotifier
+import com.routy.app.core.CrashReporting
 import com.routy.app.map.MapTileHttp
 import com.routy.app.map.MapTilePrefetchScheduler
 import org.maplibre.android.MapLibre
@@ -37,6 +38,7 @@ class RoutyApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        CrashReporting.install(this)
         secureStorage = SecureStorage(this)
         apiClientProvider = ApiClientProvider(secureStorage)
         routeProgressStore = com.routy.app.core.storage.RouteProgressStore(this)
