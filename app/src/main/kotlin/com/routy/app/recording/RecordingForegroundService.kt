@@ -89,11 +89,13 @@ class RecordingForegroundService : Service() {
             appendedPointsAfterSnapshot(snapshot, snapshotStore.loadAppendedPoints())
                 .forEach { session.addPoint(it) }
         }
-        _state.value = RecordingServiceState(
-            phase = session.phase,
-            pointCount = session.points.size,
-            lengthM = session.stats(walkSpeedKmhFallback = 5.0).lengthM,
-            trackGeometry = trackGeometry(),
+        emitState(
+            RecordingServiceState(
+                phase = session.phase,
+                pointCount = session.points.size,
+                lengthM = session.stats(walkSpeedKmhFallback = 5.0).lengthM,
+                trackGeometry = trackGeometry(),
+            ),
         )
         if (session.phase == RecordingPhase.RECORDING) startLocationUpdates()
     }
@@ -108,7 +110,7 @@ class RecordingForegroundService : Service() {
         if (session.phase != RecordingPhase.IDLE) return
         session.start(System.currentTimeMillis())
         persistSnapshot()
-        _state.value = RecordingServiceState(phase = session.phase)
+        emitState(RecordingServiceState(phase = session.phase))
         startLocationUpdates()
     }
 
@@ -140,11 +142,13 @@ class RecordingForegroundService : Service() {
                     session.addPoint(point)
                     snapshotStore.appendPoint(point)
                     persistSnapshot()
-                    _state.value = _state.value.copy(
-                        pointCount = session.points.size,
-                        lengthM = session.stats(walkSpeedKmhFallback = 5.0).lengthM,
-                        currentPosition = currentPosition,
-                        trackGeometry = trackGeometry(),
+                    emitState(
+                        _state.value.copy(
+                            pointCount = session.points.size,
+                            lengthM = session.stats(walkSpeedKmhFallback = 5.0).lengthM,
+                            currentPosition = currentPosition,
+                            trackGeometry = trackGeometry(),
+                        ),
                     )
                     updateNotification()
                     val nextInterval = recordingLocationIntervalMs(session.points)
@@ -152,26 +156,26 @@ class RecordingForegroundService : Service() {
                         startLocationUpdates()
                     }
                 } else {
-                    _state.value = _state.value.copy(currentPosition = currentPosition)
+                    emitState(_state.value.copy(currentPosition = currentPosition))
                 }
             }
         }
         locationCallback = callback
         fusedLocationClient.requestLocationUpdates(request, callback, Looper.getMainLooper())
-            .addOnFailureListener { _state.value = _state.value.copy(locationError = true) }
+            .addOnFailureListener { emitState(_state.value.copy(locationError = true)) }
     }
 
     fun pause() {
         session.pause()
         persistSnapshot()
-        _state.value = _state.value.copy(phase = session.phase)
+        emitState(_state.value.copy(phase = session.phase))
         updateNotification()
     }
 
     fun resume() {
         session.resume()
         persistSnapshot()
-        _state.value = _state.value.copy(phase = session.phase)
+        emitState(_state.value.copy(phase = session.phase))
         startLocationUpdates()
         updateNotification()
     }
@@ -179,7 +183,7 @@ class RecordingForegroundService : Service() {
     fun finish(): List<RecordingPoint> {
         session.finish()
         persistSnapshot()
-        _state.value = _state.value.copy(phase = session.phase)
+        emitState(_state.value.copy(phase = session.phase))
         stopLocationUpdates()
         return session.points
     }
@@ -188,6 +192,7 @@ class RecordingForegroundService : Service() {
         session.discard()
         snapshotStore.clear()
         stopLocationUpdates()
+        syncRecordingActive(RecordingPhase.IDLE)
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
     }
@@ -244,5 +249,17 @@ class RecordingForegroundService : Service() {
         private const val ACTION_PAUSE = "com.routy.app.recording.PAUSE"
         private const val ACTION_RESUME = "com.routy.app.recording.RESUME"
         private const val ACTION_STOP = "com.routy.app.recording.STOP"
+
+        private val _recordingActive = MutableStateFlow(false)
+        val recordingActive: StateFlow<Boolean> = _recordingActive.asStateFlow()
+
+        fun syncRecordingActive(phase: RecordingPhase) {
+            _recordingActive.value = phase == RecordingPhase.RECORDING || phase == RecordingPhase.PAUSED
+        }
+    }
+
+    private fun emitState(state: RecordingServiceState) {
+        _state.value = state
+        syncRecordingActive(state.phase)
     }
 }

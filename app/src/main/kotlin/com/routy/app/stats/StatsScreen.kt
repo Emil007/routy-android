@@ -31,7 +31,8 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import com.routy.app.R
 import com.routy.app.RoutyApplication
 import com.routy.app.logic.api.WalkLogEntryDto
-import java.time.Instant
+import com.routy.app.logic.time.formatDurationHours
+import com.routy.app.logic.time.parseServerInstant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -88,7 +89,7 @@ fun StatsScreen(modifier: Modifier = Modifier) {
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     StatChip("${formatKm(stats.totalLengthM)} ${stringResource(R.string.common_km)}")
                     StatChip("${stats.walkCount} ${stringResource(R.string.stats_walks)}")
-                    StatChip("${stats.totalDurationMin / 60}h")
+                    StatChip("${formatDurationHours(stats.totalDurationMin)}h")
                     StatChip("${stats.segmentsExplored}/${stats.totalSegments} ${stringResource(R.string.stats_segments)}")
                     if (streak != null) {
                         StatChip("${stringResource(R.string.stats_streak_current)}: ${streak.currentStreak}")
@@ -218,7 +219,6 @@ private fun WalkRow(walk: WalkLogEntryDto) {
 private fun formatKm(lengthM: Int): String = "%.1f".format(Locale.US, lengthM / 1000.0)
 
 private fun formatWalkDate(iso: String): String {
-    val instant = Instant.parse(iso.replace(" ", "T") + "Z")
     val formatter = DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm").withZone(ZoneId.systemDefault())
-    return formatter.format(instant)
+    return formatter.format(parseServerInstant(iso))
 }

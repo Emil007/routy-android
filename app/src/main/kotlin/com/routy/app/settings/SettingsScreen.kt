@@ -45,7 +45,7 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.routy.app.R
 import com.routy.app.RoutyApplication
-import java.time.Instant
+import com.routy.app.logic.time.parseServerInstant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
@@ -354,9 +354,8 @@ private fun SessionRow(
 }
 
 private fun formatSessionDate(iso: String): String {
-    val instant = Instant.parse(iso.replace(" ", "T") + "Z")
     val formatter = DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm").withZone(ZoneId.systemDefault())
-    return formatter.format(instant)
+    return formatter.format(parseServerInstant(iso))
 }
 
 private val CompactPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)

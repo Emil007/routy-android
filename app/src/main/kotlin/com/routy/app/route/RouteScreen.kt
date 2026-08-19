@@ -346,6 +346,27 @@ private fun RouteOverlayPanel(
         hasLocationPermission = granted
         if (granted) viewModel.setWatchingLocation(true)
     }
+    var pendingDiscard by remember { mutableStateOf(false) }
+
+    if (pendingDiscard) {
+        AlertDialog(
+            onDismissRequest = { pendingDiscard = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    pendingDiscard = false
+                    viewModel.discardActive()
+                }) {
+                    Text(stringResource(R.string.route_discard_button))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingDiscard = false }) {
+                    Text(stringResource(R.string.route_cancel))
+                }
+            },
+            text = { Text(stringResource(R.string.route_discard_confirm)) },
+        )
+    }
 
     ActiveRouteLocationEffect(uiState, hasLocationPermission, viewModel)
 
@@ -416,7 +437,7 @@ private fun RouteOverlayPanel(
                     CompactButton(onClick = viewModel::complete, enabled = canComplete) {
                         Text(stringResource(R.string.route_complete_button), style = MaterialTheme.typography.labelMedium)
                     }
-                    CompactOutlinedButton(onClick = viewModel::discardActive) {
+                    CompactOutlinedButton(onClick = { pendingDiscard = true }) {
                         Text(stringResource(R.string.route_discard_button), style = MaterialTheme.typography.labelMedium)
                     }
                 }

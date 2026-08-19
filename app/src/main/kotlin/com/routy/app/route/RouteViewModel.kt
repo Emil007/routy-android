@@ -121,10 +121,10 @@ class RouteViewModel(
                     cachedBootstrap.nodes,
                     cachedBootstrap.segments,
                     cachedBootstrap.routeState,
-                    offlineCached = true,
+                    offlineCached = false,
                 )
             } else if (cachedNetwork != null) {
-                applyNetworkState(cachedNetwork.nodes, cachedNetwork.segments, null, offlineCached = true)
+                applyNetworkState(cachedNetwork.nodes, cachedNetwork.segments, null, offlineCached = false)
             }
 
             when (val result = bootstrapLoader.load()) {
@@ -154,9 +154,9 @@ class RouteViewModel(
         cachedNetwork: CachedNetwork?,
     ) {
         val service = apiClientProvider.service
-        val etag = cachedBootstrap?.networkVersion ?: cachedNetwork?.etag
-        val nodesResponse = runCatching { service.nodes(etag) }.getOrNull()
-        val segmentsResponse = runCatching { service.segments(etag) }.getOrNull()
+        val networkEtag = cachedBootstrap?.networkVersion ?: cachedNetwork?.etag
+        val nodesResponse = runCatching { service.nodes(networkEtag) }.getOrNull()
+        val segmentsResponse = runCatching { service.segments(networkEtag) }.getOrNull()
         val stateResponse = runCatching { service.routeState() }.getOrNull()
 
         val nodes = nodesResponse?.takeIf { it.isSuccessful }?.body()?.nodes
@@ -165,7 +165,10 @@ class RouteViewModel(
             ?: cachedBootstrap?.segments ?: cachedNetwork?.segments.orEmpty()
         val state = stateResponse?.takeIf { it.isSuccessful }?.body() ?: cachedBootstrap?.routeState
         if (nodes.isNotEmpty() && segments.isNotEmpty()) {
-            networkCache.save(etag ?: "legacy", nodes, segments)
+            val freshEtag = nodesResponse?.headers()?.get("ETag")?.trim('"')
+                ?: segmentsResponse?.headers()?.get("ETag")?.trim('"')
+                ?: networkEtag
+            networkCache.save(freshEtag ?: "legacy", nodes, segments)
         }
         applyNetworkState(nodes, segments, state, offlineCached = nodesResponse?.isSuccessful != true)
         restoreProgress(state?.activeRoute)

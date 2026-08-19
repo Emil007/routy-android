@@ -51,7 +51,7 @@
     <string name="common_error">Etwas ist schiefgelaufen.</string>
     <string name="common_ok">OK</string>
 
-    <string name="route_offline_cached">Offline — zwischengespeicherte Netzwerkdaten</string>
+    <string name="route_offline_cached">Server nicht erreichbar — gecachte Netzwerkdaten</string>
     <string name="route_track">Track</string>
     <string name="route_tracking_on">Tracking an</string>
     <string name="route_keep_screen_on">Bildschirm an</string>
@@ -170,6 +170,7 @@
     <string name="shell_pending_uploads">%1$d Wege warten auf Upload</string>
     <string name="shell_failed_uploads">%1$d Wege konnten nicht hochgeladen werden — prüfe die Verbindung oder kontaktiere den Admin</string>
     <string name="shell_upload_failed_snackbar">Weg-Upload fehlgeschlagen (HTTP %1$d) — Eintrag bleibt gespeichert</string>
+    <string name="shell_recording_active">Aufzeichnung läuft — tippen zum Zurückkehren</string>
 
     <string name="battery_optimization_hint">Für zuverlässige Aufzeichnung im Hintergrund: Akku-Optimierung für Routy deaktivieren.</string>
     <string name="battery_optimization_allow">Einstellungen öffnen</string>
@@ -182,7 +183,7 @@
     <string name="common_close">Schließen</string>
 
     <string name="map_nodes_count">%1$d Knoten</string>
-    <string name="map_offline_cached">Gecachte Netzwerkdaten</string>
+    <string name="map_offline_cached">Server nicht erreichbar — gecachte Netzwerkdaten</string>
     <string name="map_load_error">Wegnetz konnte nicht geladen werden.</string>
     <string name="map_record_track">Weg aufzeichnen</string>
     <string name="map_tap_hint">Tippe auf Knoten oder Weg zum Bearbeiten. Zeichnen oder GPX importieren.</string>

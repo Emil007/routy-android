@@ -51,7 +51,7 @@
     <string name="common_error">Something went wrong.</string>
     <string name="common_ok">OK</string>
 
-    <string name="route_offline_cached">Offline — showing cached network data</string>
+    <string name="route_offline_cached">Could not reach server — showing cached network data</string>
     <string name="route_track">Track</string>
     <string name="route_tracking_on">Tracking on</string>
     <string name="route_keep_screen_on">Keep screen on</string>
@@ -170,6 +170,7 @@
     <string name="shell_pending_uploads">%1$d tracks waiting to upload</string>
     <string name="shell_failed_uploads">%1$d tracks failed to upload — check connection or contact admin</string>
     <string name="shell_upload_failed_snackbar">Track upload failed (HTTP %1$d) — entry kept on device</string>
+    <string name="shell_recording_active">Recording in progress — tap to return</string>
 
     <string name="battery_optimization_hint">For reliable background recording: turn off battery optimization for Routy.</string>
     <string name="battery_optimization_allow">Open settings</string>
@@ -182,7 +183,7 @@
     <string name="common_close">Close</string>
 
     <string name="map_nodes_count">%1$d nodes</string>
-    <string name="map_offline_cached">Cached network data</string>
+    <string name="map_offline_cached">Could not reach server — cached network data</string>
     <string name="map_load_error">Could not load path network.</string>
     <string name="map_record_track">Record track</string>
     <string name="map_tap_hint">Tap a node or path to edit. Draw or import GPX to add paths.</string>

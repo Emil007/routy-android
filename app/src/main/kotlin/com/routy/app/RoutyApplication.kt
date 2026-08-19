@@ -44,6 +44,7 @@ class RoutyApplication : Application() {
         routeProgressStore = com.routy.app.core.storage.RouteProgressStore(this)
         networkCache = com.routy.app.core.storage.NetworkCache(this)
         recordingSnapshotStore = com.routy.app.core.storage.RecordingSnapshotStore(this)
+        recordingSnapshotStore.loadSnapshot()?.phase?.let { com.routy.app.recording.RecordingForegroundService.syncRecordingActive(it) }
         recordingConfirmStore = com.routy.app.core.storage.RecordingConfirmStore(this)
         gpxCommitQueueStore = com.routy.app.core.storage.GpxCommitQueueStore(this)
         gpxCommitScheduler = com.routy.app.recording.GpxCommitScheduler(this, gpxCommitQueueStore)
