@@ -596,22 +596,18 @@ check.
     out-of-date sideloaded APK is everyone's problem, not just the sysop's), as a dismissible
     banner above whichever tab is open. Dismissal is session-only, not persisted.
 
-### Before the first release — what you need to do that I can't
+### Release signing secrets — configured ✅
 
-Generate a release keystore and add these four repo secrets (Settings → Secrets and
-variables → Actions, on `Emil007/routy-android`) before pushing a `v*` tag — `release.yml`
-will fail without them:
+These four repo secrets are set on `Emil007/routy-android` (Settings → Secrets and variables → Actions):
 
-- `ANDROID_KEYSTORE_BASE64` — a release `.jks`, base64-encoded (`keytool -genkeypair ...` to
-  create one, then `base64 -w0 your.jks` to encode it; keep the original `.jks` somewhere safe
-  outside git — losing it means every future release needs a new signing identity, and Android
-  won't accept an update signed by a different key over an existing sideloaded install).
-- `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD` — whatever you set
-  when generating the keystore.
+- `ANDROID_KEYSTORE_BASE64` — release `.jks`, base64-encoded
+- `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`
 
-Once those exist, `git tag v0.1.0 && git push origin v0.1.0` should produce a signed
-`app-release.apk` on a new GitHub Release. First one will also be the first real end-to-end
-proof this whole app compiles.
+Pushing a `v*` tag runs `.github/workflows/release.yml`, which decodes the keystore, builds a signed APK, and prints the **SHA256 certificate fingerprint** in the workflow summary — paste that into `public/.well-known/assetlinks.json` on the server for production App Links.
+
+Optional repo **variable** `DEEP_LINK_HOST` (Settings → Secrets and variables → Actions → Variables) sets the manifest deep-link host at release build time (defaults to `localhost`).
+
+Once secrets exist, `git tag v0.1.0 && git push origin v0.1.0` produces a signed `app-release.apk` on a new GitHub Release.
 
 - **M7** — polish. Three of the plan's four items landed; the fourth is a deliberate, documented
   punt (see below) rather than a risky blind change this late in an uncompiled session.

@@ -1,0 +1,34 @@
+name: Print signing fingerprint
+
+# Run manually to get the release cert SHA256 for assetlinks.json without cutting a release.
+on:
+  workflow_dispatch:
+
+jobs:
+  fingerprint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Decode signing keystore
+        run: echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 --decode > "${{ github.workspace }}/release.jks"
+
+      - name: Print release cert SHA256
+        run: |
+          FINGERPRINT=$(keytool -list -v \
+            -keystore "${{ github.workspace }}/release.jks" \
+            -alias "${{ secrets.ANDROID_KEY_ALIAS }}" \
+            -storepass "${{ secrets.ANDROID_KEYSTORE_PASSWORD }}" \
+            2>/dev/null | grep "SHA256:" | head -1 | sed 's/.*SHA256: //' | tr -d ' ')
+          echo "Release SHA256: $FINGERPRINT"
+          {
+            echo "## Release signing certificate"
+            echo ""
+            echo "Paste into \`public/.well-known/assetlinks.json\` for \`com.routy.app\`:"
+            echo ""
+            echo "\`\`\`json"
+            echo "\"sha256_cert_fingerprints\": [\"$FINGERPRINT\"]"
+            echo "\`\`\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Cleanup keystore
+        if: always()
+        run: rm -f "${{ github.workspace }}/release.jks"
