@@ -15,8 +15,9 @@ project being scaffolded and actually being opened that Android Gradle Plugin cr
 version (8.x → 9.x) in the meantime — AGP 9.0 removed the old Variant API wholesale
 (`BaseVariant` and everything built on it), which is exactly what that error means.
 
-**Nine attempts confirmed failed (the eighth and ninth themselves deliberate diagnostics); a
-tenth found the actual unverified gap** (kept below, struck through in spirit rather than
+**Nine attempts confirmed failed (the eighth and ninth themselves deliberate diagnostics); the
+tenth was the actual fix, confirmed working in a real Android Studio sync** (kept below, struck
+through in spirit rather than
 deleted, because the reasoning in each is real and each later attempt builds directly on what the
 previous ones ruled out):
 
@@ -289,11 +290,33 @@ real remaining variable — contradicting the "closed, must be local machine" co
     real this time, on the theory that the resolution *path* itself, not just the final resolved
     version, might matter to whatever produces the `BaseVariant` class-generation failure.
 
-## `:logic` — fully verified
+**Confirmed fixed.** Android Studio sync succeeded — ten attempts, but the actual cause really
+was that specific, previously-unverified difference: `com.android.application` needs to be
+declared at the root with `apply false` and applied bare in `app/build.gradle.kts`, not requested
+with an explicit version directly in the subproject. Restored `:logic` to the build afterward
+(`settings.gradle.kts`'s `include(":logic")`, `app/build.gradle.kts`'s
+`implementation(project(":logic"))`, and root `build.gradle.kts`'s `org.jetbrains.kotlin.jvm` +
+`.plugin.serialization` declarations — all three had been temporarily pulled for attempts 8-9's
+now-resolved diagnostic) — multi-module-ness itself was never the problem, only ever a red
+herring the diagnostic had to rule out along the way.
 
-Plain Kotlin/JVM module, no Android dependency, builds and tests with plain `gradle`
-regardless of SDK availability. **Actually run**: `./gradlew :logic:test` passes, 39 tests,
-0 failures. Covers:
+One real, permanent cost of the actual fix: with `com.android.application` now declared at the
+root, *every* Gradle invocation in this project — including `./gradlew :logic:test` — needs
+Google's Maven to resolve AGP, even though `:logic` itself has no Android dependency at all. That
+specifically breaks self-verification in this sandbox (`dl.google.com` blocked), which is why
+`:logic:test` was kept working here for as long as it was. CI's `logic-test` job
+(`.github/workflows/ci.yml`) is unaffected — `ubuntu-latest` has both a real SDK and full
+internet access — so `:logic` is still verified on every push, just not from this sandbox anymore.
+
+## `:logic` — verified via CI, not this sandbox
+
+Plain Kotlin/JVM module, no Android dependency in its own code, builds and tests with plain
+`gradle` regardless of SDK availability — but as of the fix above, the *build's* root-level
+plugin declarations now require Google's Maven regardless of which module's tests are being run,
+so `./gradlew :logic:test` can no longer run in this specific sandbox (see the "confirmed fixed"
+paragraph). Last **actually run** here before that: `./gradlew :logic:test` passed, 39 tests,
+0 failures — and it continues to run on every push via `.github/workflows/ci.yml`'s `logic-test`
+job, which has no such network restriction. Covers:
 
 - `geo/Geo.kt` — haversine distance, bearing, 8-point compass.
 - `route/VoiceCueTracker.kt` — the 50m-trigger, sequential-next-station voice cue algorithm

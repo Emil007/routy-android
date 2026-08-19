@@ -113,8 +113,7 @@ kotlin {
 }
 
 dependencies {
-    // TEMPORARILY COMMENTED — see settings.gradle.kts's matching include(":logic") comment.
-    // implementation(project(":logic"))
+    implementation(project(":logic"))
 
     // --- Compose ---
     val composeBom = platform("androidx.compose:compose-bom:2024.12.01")
