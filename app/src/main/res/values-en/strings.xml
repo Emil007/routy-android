@@ -58,6 +58,7 @@
     <string name="route_track_progress">Progress %1$d / %2$d</string>
     <string name="route_next_waypoint">Next station: %1$s</string>
     <string name="route_share_preview">Shared route</string>
+    <string name="route_share_dismiss">Dismiss</string>
     <string name="route_share_not_found">Shared route not found.</string>
     <string name="route_completion_title">Route completed</string>
     <string name="route_completion_points">+%1$d points (×%2$.1f streak)</string>
@@ -75,6 +76,9 @@
     <string name="route_favorite_take">Take this route</string>
     <string name="route_favorite_unshare">Stop sharing</string>
     <string name="route_favorite_share">Share</string>
+    <string name="route_favorite_copy_link">Copy link</string>
+    <string name="route_favorite_share_copied">Link copied!</string>
+    <string name="route_favorite_unshared">Sharing stopped.</string>
     <string name="route_favorite_delete">Delete</string>
     <string name="route_favorite_delete_confirm">Delete this favorite route?</string>
     <string name="route_favorite_saved">Favorite saved.</string>

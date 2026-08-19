@@ -101,8 +101,7 @@ fun RoutyShellScreen(onSignedOut: () -> Unit, onStartRecording: () -> Unit) {
 
     Scaffold(
         topBar = {
-            // Route already has its own top bar; webview tabs don't.
-            if (currentTab.path != "route") {
+            if (currentTab.path == "settings") {
                 TopAppBar(
                     title = { Text(stringResource(R.string.app_name)) },
                     actions = {
