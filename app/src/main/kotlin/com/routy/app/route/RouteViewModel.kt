@@ -26,6 +26,7 @@ import java.io.IOException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 
@@ -85,9 +86,16 @@ class RouteViewModel(
     val uiState: StateFlow<RouteUiState> = _uiState.asStateFlow()
 
     private val errorJson = Json { ignoreUnknownKeys = true }
+    private val initialLoadDone = MutableStateFlow(false)
 
     init {
         loadInitial()
+        viewModelScope.launch {
+            initialLoadDone.first { it }
+            DeepLinkHolder.shareToken.collect { token ->
+                if (token != null) consumeDeepLink()
+            }
+        }
     }
 
     private fun routeKey(route: RouteDisplayPayload): String = route.nodeChain.joinToString("-")
@@ -125,6 +133,7 @@ class RouteViewModel(
                 }
                 BootstrapResult.Unauthorized, BootstrapResult.Failed -> fallbackLoad(cachedBootstrap, cachedNetwork)
             }
+            initialLoadDone.value = true
         }
     }
 
