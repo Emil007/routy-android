@@ -18,6 +18,7 @@ private const val NODE_TAP_RADIUS_M = 45.0
 
 data class MapUiState(
     val loading: Boolean = true,
+    val loadFailed: Boolean = false,
     val offlineCached: Boolean = false,
     val nodes: List<NodeDto> = emptyList(),
     val segments: List<SegmentDto> = emptyList(),
@@ -37,6 +38,7 @@ class MapViewModel(
 
     fun refresh() {
         bootstrapLoader.invalidate()
+        _uiState.value = _uiState.value.copy(loading = true, loadFailed = false)
         loadNetwork(forceRefresh = true)
     }
 
@@ -67,7 +69,7 @@ class MapViewModel(
                 is BootstrapResult.CachedOnly -> applyNetwork(result.cached.nodes, result.cached.segments, offline = true)
                 BootstrapResult.Unauthorized, BootstrapResult.Failed -> {
                     if (_uiState.value.nodes.isEmpty()) {
-                        _uiState.value = _uiState.value.copy(loading = false)
+                        _uiState.value = _uiState.value.copy(loading = false, loadFailed = true)
                     }
                 }
             }
@@ -77,6 +79,7 @@ class MapViewModel(
     private fun applyNetwork(nodes: List<NodeDto>, segments: List<SegmentDto>, offline: Boolean) {
         _uiState.value = _uiState.value.copy(
             loading = false,
+            loadFailed = false,
             offlineCached = offline,
             nodes = nodes,
             segments = segments,

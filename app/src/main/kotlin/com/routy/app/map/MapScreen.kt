@@ -19,6 +19,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -51,9 +52,23 @@ fun MapScreen(
     val uiState by viewModel.uiState.collectAsState()
     var mapStyle by remember { mutableStateOf(BaseMapStyle.STREETS) }
 
-    if (uiState.loading && uiState.nodes.isEmpty()) {
+    if (uiState.loading && uiState.nodes.isEmpty() && !uiState.loadFailed) {
         Box(modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             CircularProgressIndicator()
+        }
+        return
+    }
+
+    if (uiState.loadFailed && uiState.nodes.isEmpty()) {
+        Column(
+            modifier = modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp),
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Text(stringResource(R.string.map_load_error))
+            TextButton(onClick = viewModel::refresh) {
+                Text(stringResource(R.string.stats_retry))
+            }
         }
         return
     }

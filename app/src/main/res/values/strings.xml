@@ -181,7 +181,8 @@
     <string name="common_close">Schließen</string>
 
     <string name="map_nodes_count">%1$d Knoten</string>
-    <string name="map_offline_cached">Offline-Cache</string>
+    <string name="map_offline_cached">Gecachte Netzwerkdaten</string>
+    <string name="map_load_error">Wegnetz konnte nicht geladen werden.</string>
     <string name="map_record_track">Weg aufzeichnen</string>
     <string name="map_tap_hint">Tippe auf einen Knoten für Details. Netzwerk bearbeiten: Web-Admin.</string>
     <string name="map_node_home">Startknoten</string>
