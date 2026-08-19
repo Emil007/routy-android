@@ -246,6 +246,38 @@ multiple-Kotlin-Gradle-Plugin-declaration scenario, just with the consuming modu
    under half a dozen different AGP/Kotlin/Gradle version combinations already) rather than
    anything left to change in the repository's files.
 
+**Result: the identical crash reproduced.** Same `NoClassDefFoundError: BaseVariant`, same
+`initBuiltInKotlinSupport` → `KotlinAndroidTarget` path, `CONFIGURE FAILED in 2s`, on a
+single-module build whose plugin declarations, `settings.gradle.kts`, and Gradle/AGP/Kotlin
+versions are now a structural match for a project confirmed to sync clean *on the same machine,
+in the same Android Studio install*. There is nothing left in this repository's files that
+plausibly differs from that working baseline in a way reachable by a crash this early in Gradle's
+plugin-application phase. **This closes the repository-configuration side of the
+investigation** — nine attempts across every axis that could matter (plugin choice, AGP version,
+Kotlin version ×3 separate rounds, Gradle version, `gradle.properties` flags, module structure,
+root-level plugin co-declaration, repository/resolver configuration) have been ruled out one at a
+time, each verified against the one thing that actually matters: a real Android Studio sync on
+the machine this has to work on.
+
+What's left is local machine/environment state, specifically:
+- **Android Studio's Gradle JDK setting** (Settings/Preferences → Build, Execution, Deployment →
+  Build Tools → Gradle → "Gradle JDK") — worth confirming it's pointed at a real JDK 17+, not
+  something stale or misconfigured left over from whichever AGP/Gradle version was current when
+  this project was first opened.
+- **Stale/corrupted Gradle caches specific to this project's history** — this exact project
+  directory has now been synced (and failed) under six different AGP versions (`9.2.1`, `8.13.2`,
+  `9.3.0`, `9.3.1` ×3) and four different Kotlin versions (`2.2.10` ×3, `2.3.20`, `2.4.10`) in
+  quick succession. Worth clearing both the project-local `.gradle/` folder (inside
+  `routy-android/`) and the global `~/.gradle/caches` (specifically anything under
+  `caches/modules-2/files-2.1/com.android.tools.build/` and
+  `caches/modules-2/files-2.1/org.jetbrains.kotlin/`) after stopping all Gradle daemons, then
+  syncing fresh. Android Studio's own "File → Invalidate Caches / Restart" covers IDE-level state
+  the Gradle cache clear doesn't.
+- If neither resolves it, the next real diagnostic step is a completely fresh clone into a new
+  directory (ruling out anything specific to this exact checkout's `.idea`/`.gradle` state) rather
+  than another change to a repository that's already been shown, structurally, to match a working
+  one.
+
 ## `:logic` — fully verified
 
 Plain Kotlin/JVM module, no Android dependency, builds and tests with plain `gradle`
