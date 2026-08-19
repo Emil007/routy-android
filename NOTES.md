@@ -486,6 +486,18 @@ check.
   token expiry, a device being revoked from Settings, and the web UI's own sign-out link)
   treated as a sign-out signal that routes back to the native `LoginScreen` rather than
   rendering the web login page inside the WebView.
+  - **Duplicate top nav, found on the first real device run**: the WebView tabs load the
+    website's own pages by URL, which brought the website's own top `NavBar` (brand, the same
+    Route/Map/Stats/Settings/Admin links, logout) along with them — stacked on top of this
+    shell's native bottom nav. Fixed entirely server-side, no Android changes: `Emil007/routy`
+    sessions already distinguish `client: "web" | "app"` (added earlier for device tracking),
+    and WebView tabs reuse the app's own session cookie, so the server's `(app)/layout.tsx` now
+    passes `embedded={user.client === "app"}` into `NavBar`, which skips its brand/nav-links
+    section whenever true. The logout button stays regardless — it's still the only sign-out
+    path from inside the app, since nothing native calls `/api/auth/logout` on its own yet (see
+    the M7 "what you need to do" list — a native settings/logout affordance is still a gap, not
+    just a cosmetic one, now that the web logout button is the *only* place the app's own bottom
+    nav doesn't reach).
 - **M3** — native map + native Route screen, replacing the WebView Route tab (the other four
   tabs are still WebView). Needed one new server endpoint, `GET /api/route/state`
   (`Emil007/routy` PR #22) — same gap as `/api/segments`: the web app gets the active route,
