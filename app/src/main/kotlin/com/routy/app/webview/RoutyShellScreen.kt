@@ -34,6 +34,7 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import com.routy.app.R
 import com.routy.app.RoutyApplication
 import com.routy.app.route.RouteScreen
+import com.routy.app.stats.StatsScreen
 import com.routy.app.update.UpdateBanner
 
 private data class ShellTab(val labelRes: Int, val path: String, val icon: ImageVector, val adminOnly: Boolean = false)
@@ -118,7 +119,13 @@ fun RoutyShellScreen(onSignedOut: () -> Unit, onStartRecording: () -> Unit) {
             // takes only what's left, rather than both fighting over the full column height.
             UpdateBanner()
             if (currentTab.path == "route") {
-                RouteScreen(onStartRecording = onStartRecording, modifier = Modifier.weight(1f))
+                RouteScreen(
+                    onStartRecording = onStartRecording,
+                    accountLocaleTag = uiState.user?.locale.orEmpty(),
+                    modifier = Modifier.weight(1f),
+                )
+            } else if (currentTab.path == "stats") {
+                StatsScreen(modifier = Modifier.weight(1f))
             } else {
                 RoutyWebView(
                     url = "$baseUrl/${currentTab.path}",

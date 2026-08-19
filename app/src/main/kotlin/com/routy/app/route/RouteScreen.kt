@@ -69,7 +69,7 @@ import com.routy.app.map.RoutyMapView
 import java.text.Collator
 
 @Composable
-fun RouteScreen(onStartRecording: () -> Unit, modifier: Modifier = Modifier) {
+fun RouteScreen(onStartRecording: () -> Unit, accountLocaleTag: String, modifier: Modifier = Modifier) {
     val app = LocalContext.current.applicationContext as RoutyApplication
     val baseUrl = app.secureStorage.serverUrl.orEmpty()
     val viewModel: RouteViewModel = viewModel(
@@ -281,7 +281,7 @@ private fun RouteResultCard(uiState: RouteUiState, route: com.routy.app.logic.ap
     val loading = uiState.status == RouteStatus.LOADING
 
     if (uiState.mode == RouteMode.ACTIVE) {
-        val voiceController = rememberVoiceGuidanceController()
+        val voiceController = rememberVoiceGuidanceController(accountLocaleTag)
         // Keyed on the route's own node chain, not on mode/voiceEnabled — a fresh tracker per
         // accepted route, same as RouteGenerator.tsx resetting announcedStationIndexRef on
         // accept/takeFavorite, so switching voice on/off mid-walk never skips or repeats a cue.

@@ -22,6 +22,7 @@ data class SessionUser(
     val active: Boolean,
     val theme: String,
     val totpEnabled: Boolean,
+    val client: String = "web",
 )
 
 @Serializable

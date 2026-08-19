@@ -13,6 +13,7 @@ import com.routy.app.logic.api.NicknameRequest
 import com.routy.app.logic.api.NodeDto
 import com.routy.app.logic.api.RouteDisplayPayload
 import com.routy.app.logic.api.RouteTokenRequest
+import com.routy.app.logic.api.RouteStateResponse
 import com.routy.app.logic.api.SaveFavoriteRequest
 import com.routy.app.logic.api.SegmentDto
 import com.routy.app.logic.api.ShareFavoriteRequest
@@ -81,6 +82,15 @@ class RouteViewModel(
     private fun loadInitial() {
         viewModelScope.launch {
             val service = apiClientProvider.service
+            val bootstrapResponse = runCatching { service.bootstrap() }.getOrNull()
+
+            if (bootstrapResponse?.isSuccessful == true) {
+                val body = bootstrapResponse.body() ?: return@launch
+                applyNetworkState(body.nodes, body.segments, body.routeState)
+                return@launch
+            }
+
+            // Older servers without /api/app/bootstrap — fall back to the three separate calls.
             val nodesResponse = runCatching { service.nodes() }.getOrNull()
             val segmentsResponse = runCatching { service.segments() }.getOrNull()
             val stateResponse = runCatching { service.routeState() }.getOrNull()
@@ -88,20 +98,27 @@ class RouteViewModel(
             val nodes = nodesResponse?.takeIf { it.isSuccessful }?.body()?.nodes.orEmpty()
             val segments = segmentsResponse?.takeIf { it.isSuccessful }?.body()?.segments.orEmpty()
             val state = stateResponse?.takeIf { it.isSuccessful }?.body()
-            val homeNodeId = nodes.firstOrNull { it.isHome }?.id
-
-            _uiState.value = _uiState.value.copy(
-                loadingInitial = false,
-                nodes = nodes,
-                segments = segments,
-                favorites = state?.favorites.orEmpty(),
-                startNodeId = homeNodeId,
-                destinationNodeId = homeNodeId,
-                mode = if (state?.activeRoute != null) RouteMode.ACTIVE else RouteMode.SUGGESTING,
-                route = state?.activeRoute,
-                nickname = state?.nickname ?: "",
-            )
+            applyNetworkState(nodes, segments, state)
         }
+    }
+
+    private fun applyNetworkState(
+        nodes: List<NodeDto>,
+        segments: List<SegmentDto>,
+        state: RouteStateResponse?,
+    ) {
+        val homeNodeId = nodes.firstOrNull { it.isHome }?.id
+        _uiState.value = _uiState.value.copy(
+            loadingInitial = false,
+            nodes = nodes,
+            segments = segments,
+            favorites = state?.favorites.orEmpty(),
+            startNodeId = homeNodeId,
+            destinationNodeId = homeNodeId,
+            mode = if (state?.activeRoute != null) RouteMode.ACTIVE else RouteMode.SUGGESTING,
+            route = state?.activeRoute,
+            nickname = state?.nickname ?: "",
+        )
     }
 
     fun setStartNodeId(id: Int) {
