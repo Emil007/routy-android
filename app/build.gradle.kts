@@ -8,12 +8,17 @@ import java.util.Properties
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
-    // AGP jumped a major version (8.x -> 9.x) after this was first written — 9.0 removed the
-    // old Variant API wholesale (com.android.build.gradle.api.BaseVariant and friends), which is
-    // exactly what "Unable to load class BaseVariant" during sync means. 9.2.1 is the current
-    // stable patch release as of this fix. See gradle.properties's android.builtInKotlin=false
-    // comment for the other AGP-9-driven change this pulled in.
-    id("com.android.application") version "9.2.1"
+    // AGP jumped a major version (8.x -> 9.x) after this was first written, and 9.0 removed the
+    // old Variant API wholesale (com.android.build.gradle.api.BaseVariant and friends) — first
+    // attempt bumped straight to AGP 9.2.1, which broke a second way: org.jetbrains.kotlin.android
+    // (the traditional Kotlin<->Android integration this project uses) still hard-references
+    // BaseVariant internally, and no gradle.properties flag brought that class back — it's
+    // genuinely gone from AGP 9's jar, not just hidden behind a flag. Settled on AGP 8.13.2
+    // instead: the last stable 8.x release, where BaseVariant still exists for real, paired with
+    // the exact Kotlin version Google's own compatibility table
+    // (developer.android.com/build/kotlin-support) lists for it — see the root build.gradle.kts's
+    // Kotlin plugin version comment.
+    id("com.android.application") version "8.13.2"
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
     id("org.jetbrains.kotlin.plugin.serialization")
