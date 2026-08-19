@@ -1,6 +1,7 @@
 package com.routy.app.logic.api
 
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonElement
 
 @Serializable
 data class NodeRenameRequest(val nodeId: Int, val part1: String, val part2: String = "")
@@ -22,9 +23,6 @@ data class SegmentLockRequest(val segmentId: Int, val days: Int? = 7, val reason
 
 @Serializable
 data class SegmentGeometryRequest(val segmentId: Int, val points: List<GpxPoint>)
-
-import kotlinx.serialization.Serializable
-import kotlinx.serialization.json.JsonElement
 
 @Serializable
 data class SegmentSplitRequest(

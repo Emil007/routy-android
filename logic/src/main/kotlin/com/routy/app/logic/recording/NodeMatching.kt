@@ -12,6 +12,7 @@ interface MatchableNode {
     val lng: Double
 }
 
+@Serializable
 data class NodeCandidate(val id: Int, val name: String?, val lat: Double, val lng: Double, val distanceM: Double)
 
 @Serializable

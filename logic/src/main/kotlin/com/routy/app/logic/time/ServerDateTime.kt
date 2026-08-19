@@ -1,6 +1,7 @@
 package com.routy.app.logic.time
 
 import java.time.Instant
+import java.util.Locale
 
 /** Parse server timestamps that may be SQLite space-separated or already ISO-8601 with a zone. */
 fun parseServerInstant(iso: String): Instant {
@@ -13,6 +14,6 @@ fun parseServerInstant(iso: String): Instant {
 
 /** Whole hours with one decimal — avoids truncating 90 min to 1 h. */
 fun formatDurationHours(totalMinutes: Int): String {
-    val hours = totalMinutes / 60.0
-    return if (hours % 1.0 == 0.0) hours.toInt().toString() else "%.1f".format(hours)
+    if (totalMinutes % 60 == 0) return (totalMinutes / 60).toString()
+    return "%.1f".format(Locale.US, totalMinutes / 60.0)
 }
