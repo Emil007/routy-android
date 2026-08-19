@@ -11,6 +11,7 @@ import com.routy.app.logic.api.LoginResponse
 import com.routy.app.logic.api.MeResponse
 import com.routy.app.logic.api.NicknameRequest
 import com.routy.app.logic.api.NodesResponse
+import com.routy.app.logic.api.CompleteRouteResponse
 import com.routy.app.logic.api.AppStatsMeResponse
 import com.routy.app.logic.api.RouteStateResponse
 import com.routy.app.logic.api.RouteTokenRequest
@@ -115,7 +116,7 @@ interface ApiService {
     suspend fun cancelRoute(@Body body: RouteTokenRequest): Response<Unit>
 
     @POST("api/route/complete")
-    suspend fun completeRoute(@Body body: RequestBody = EMPTY_JSON_BODY): Response<Unit>
+    suspend fun completeRoute(@Body body: RequestBody = EMPTY_JSON_BODY): Response<CompleteRouteResponse>
 
     @POST("api/route/discard")
     suspend fun discardRoute(@Body body: RequestBody = EMPTY_JSON_BODY): Response<Unit>

@@ -96,6 +96,14 @@ fun RecordingScreen(onDone: () -> Unit, modifier: Modifier = Modifier) {
         service?.state?.collect { serviceState = it }
     }
 
+    LaunchedEffect(service, serviceState.phase) {
+        if (serviceState.phase == RecordingPhase.CONFIRM) {
+            service?.recordedPoints()?.let { points ->
+                if (points.size >= 2) viewModel.setRecordedPoints(points)
+            }
+        }
+    }
+
     LaunchedEffect(uiState.saved) {
         if (uiState.saved) {
             service?.stopAfterCommitOrDiscard()

@@ -9,7 +9,6 @@ import com.routy.app.core.storage.NetworkCache
 import com.routy.app.core.storage.RouteProgressStore
 import com.routy.app.logic.api.AdjustRouteRequest
 import com.routy.app.logic.api.ApiErrorBody
-import com.routy.app.logic.api.AppStatsMeResponse
 import com.routy.app.logic.api.FavoriteEntry
 import com.routy.app.logic.api.GenerateRouteRequest
 import com.routy.app.logic.api.GeoPoint
@@ -65,9 +64,12 @@ data class RouteUiState(
     val showControls: Boolean = true,
 
     val pendingShareUrl: String? = null,
+    val pendingShareToken: String? = null,
     val sharedRouteName: String? = null,
 
-    val completionStats: AppStatsMeResponse? = null,
+    val completionPointsEarned: Int? = null,
+    val completionStreakMultiplier: Double? = null,
+    val completionCurrentStreak: Int? = null,
 )
 
 class RouteViewModel(
@@ -83,7 +85,6 @@ class RouteViewModel(
 
     init {
         loadInitial()
-        DeepLinkHolder.shareToken.value?.let { openShareToken(it) }
     }
 
     private fun routeKey(route: RouteDisplayPayload): String = route.nodeChain.joinToString("-")
@@ -174,7 +175,13 @@ class RouteViewModel(
     fun setKeepScreenOn(enabled: Boolean) { _uiState.value = _uiState.value.copy(keepScreenOn = enabled) }
     fun toggleControls() { _uiState.value = _uiState.value.copy(showControls = !_uiState.value.showControls) }
     fun clearPendingShareUrl() { _uiState.value = _uiState.value.copy(pendingShareUrl = null) }
-    fun dismissCompletionStats() { _uiState.value = _uiState.value.copy(completionStats = null) }
+    fun dismissCompletionStats() {
+        _uiState.value = _uiState.value.copy(
+            completionPointsEarned = null,
+            completionStreakMultiplier = null,
+            completionCurrentStreak = null,
+        )
+    }
 
     fun onWaypointCompleted(index: Int) {
         val route = _uiState.value.route ?: return
@@ -203,6 +210,7 @@ class RouteViewModel(
             _uiState.value = _uiState.value.copy(
                 status = RouteStatus.IDLE,
                 sharedRouteName = body.name,
+                pendingShareToken = token,
                 route = body.display,
                 mode = RouteMode.SUGGESTING,
                 messageRes = R.string.route_share_preview,
@@ -220,10 +228,15 @@ class RouteViewModel(
                 return@launch
             }
             if (response.isSuccessful) {
+                val state = runCatching { apiClientProvider.service.routeState() }.getOrNull()?.takeIf { it.isSuccessful }?.body()
                 routeProgressStore.clear()
+                if (state != null) {
+                    applyNetworkState(_uiState.value.nodes, _uiState.value.segments, state, offlineCached = _uiState.value.offlineCached)
+                }
                 _uiState.value = _uiState.value.copy(
                     mode = RouteMode.ACTIVE,
                     status = RouteStatus.IDLE,
+                    pendingShareToken = null,
                     sharedRouteName = null,
                     completedWaypointIndex = -1,
                     messageRes = null,
@@ -330,7 +343,7 @@ class RouteViewModel(
             }
             if (response.isSuccessful) {
                 routeProgressStore.clear()
-                val stats = runCatching { apiClientProvider.service.appStatsMe().body() }.getOrNull()
+                val body = response.body()
                 _uiState.value = _uiState.value.copy(
                     route = null,
                     mode = RouteMode.SUGGESTING,
@@ -341,7 +354,9 @@ class RouteViewModel(
                     tracking = false,
                     myLocation = null,
                     completedWaypointIndex = -1,
-                    completionStats = stats,
+                    completionPointsEarned = body?.pointsEarned,
+                    completionStreakMultiplier = body?.streakMultiplier,
+                    completionCurrentStreak = body?.currentStreak,
                 )
             } else {
                 _uiState.value = _uiState.value.copy(status = RouteStatus.IDLE, messageRes = R.string.common_error)
