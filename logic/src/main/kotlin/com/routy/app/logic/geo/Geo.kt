@@ -1,5 +1,6 @@
 package com.routy.app.logic.geo
 
+import com.routy.app.logic.api.isCanonical
 import kotlin.math.PI
 import kotlin.math.atan2
 import kotlin.math.cos

@@ -106,11 +106,9 @@ android {
 
     sourceSets {
         named("main") {
-            java.setSrcDirs(
-                listOf(
-                    "src/main/kotlin",
-                    if (sentryEnabled) "src/sentry/kotlin" else "src/noSentry/kotlin",
-                ),
+            java.srcDirs(
+                "src/main/kotlin",
+                if (sentryEnabled) "src/sentry/kotlin" else "src/noSentry/kotlin",
             )
         }
     }
