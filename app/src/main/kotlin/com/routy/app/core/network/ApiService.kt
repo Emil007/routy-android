@@ -43,7 +43,7 @@ import com.routy.app.logic.api.NodeMoveRequest
 import com.routy.app.logic.api.NodeRenameRequest
 import com.routy.app.logic.api.SegmentGeometryRequest
 import com.routy.app.logic.api.SegmentIdRequest
-import com.routy.app.logic.api.SegmentLockRequest
+import okhttp3.RequestBody
 import com.routy.app.logic.api.SegmentRenameRequest
 import com.routy.app.logic.api.SegmentSplitRequest
 import com.routy.app.logic.api.RevokeOthersResponse
@@ -211,7 +211,7 @@ interface ApiService {
     suspend fun renameSegment(@Body body: SegmentRenameRequest): Response<Unit>
 
     @POST("api/segments/lock")
-    suspend fun lockSegment(@Body body: SegmentLockRequest): Response<Unit>
+    suspend fun lockSegment(@Body body: RequestBody): Response<Unit>
 
     @POST("api/segments/delete")
     suspend fun deleteSegment(@Body body: SegmentIdRequest): Response<Unit>

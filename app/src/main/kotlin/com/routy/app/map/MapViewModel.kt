@@ -23,7 +23,7 @@ import com.routy.app.logic.api.SegmentConditionDto
 import com.routy.app.logic.api.SegmentDto
 import com.routy.app.logic.api.SegmentGeometryRequest
 import com.routy.app.logic.api.SegmentIdRequest
-import com.routy.app.logic.api.SegmentLockRequest
+import com.routy.app.core.network.segmentLockBody
 import com.routy.app.logic.api.SegmentRenameRequest
 import com.routy.app.logic.api.SegmentSplitRequest
 import com.routy.app.logic.api.SessionUser
@@ -290,7 +290,7 @@ class MapViewModel(
         val segment = _uiState.value.selectedSegment ?: return
         if (!canEditSegment(segment)) return denyNotAllowed()
         runMutation(R.string.map_saved) {
-            apiClientProvider.service.lockSegment(SegmentLockRequest(segment.id, days, reason?.trim()?.ifBlank { null }))
+            apiClientProvider.service.lockSegment(segmentLockBody(segment.id, days, reason?.trim()?.ifBlank { null }))
         }
     }
 

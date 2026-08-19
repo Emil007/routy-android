@@ -45,7 +45,14 @@ fun LoginScreen(onLoggedIn: () -> Unit) {
     var username by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var totpCode by remember { mutableStateOf("") }
+    var captchaReloadKey by remember { mutableStateOf(0) }
     val deviceName = remember { "${Build.MANUFACTURER} ${Build.MODEL}".trim() }
+
+    LaunchedEffect(uiState.errorRes) {
+        if (uiState.errorRes == R.string.login_captcha_error) {
+            captchaReloadKey++
+        }
+    }
 
     LaunchedEffect(uiState.loggedIn) {
         if (uiState.loggedIn) onLoggedIn()
@@ -94,6 +101,8 @@ fun LoginScreen(onLoggedIn: () -> Unit) {
             )
             CaptchaWebView(
                 config = uiState.captcha,
+                baseUrl = app.secureStorage.serverUrl.orEmpty(),
+                reloadKey = captchaReloadKey,
                 onToken = viewModel::setCaptchaToken,
                 modifier = Modifier.padding(top = 4.dp),
             )
