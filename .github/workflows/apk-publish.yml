@@ -31,8 +31,8 @@ jobs:
       - name: Build signed release APK
         uses: ./.github/actions/build-signed-apk
         with:
-          version_name: 0.31b
-          version_code: 23
+          version_name: 0.33a
+          version_code: 24
           sentry_dsn: ${{ secrets.SENTRY_DSN }}
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}

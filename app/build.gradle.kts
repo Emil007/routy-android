@@ -59,8 +59,8 @@ android {
         targetSdk = 36
         // Overridden by CI from the pushed release tag (-PappVersionName=0.13a -PappVersionCode=N)
         // — see .github/workflows/release.yml. Tags use the `a` suffix (e.g. v0.13a).
-        versionCode = (project.findProperty("appVersionCode") as String?)?.toIntOrNull() ?: 23
-        versionName = (project.findProperty("appVersionName") as String?) ?: "0.31b"
+        versionCode = (project.findProperty("appVersionCode") as String?)?.toIntOrNull() ?: 24
+        versionName = (project.findProperty("appVersionName") as String?) ?: "0.33a"
         buildConfigField("String", "SENTRY_DSN", "\"${sentryDsn.replace("\"", "\\\"")}\"")
     }
 
@@ -107,7 +107,7 @@ android {
     sourceSets {
         if (sentryEnabled) {
             getByName("release") {
-                java.srcDir("src/sentry/kotlin")
+                java.directories.add("src/sentry/kotlin")
             }
         }
     }
@@ -145,6 +145,7 @@ dependencies {
     debugImplementation("androidx.compose.ui:ui-tooling")
 
     implementation("androidx.core:core-ktx:1.15.0")
+    implementation("androidx.core:core-splashscreen:1.0.1")
     implementation("androidx.appcompat:appcompat:1.7.0")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
     implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.7")

@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Matches routy web PWA icon background (public/icons/icon-512.png) -->
+    <color name="routy_green">#2E6B49</color>
+</resources>
