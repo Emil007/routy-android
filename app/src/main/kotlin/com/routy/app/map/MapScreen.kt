@@ -1,5 +1,6 @@
 package com.routy.app.map
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -166,12 +167,10 @@ fun MapScreen(onStartRecording: () -> Unit, modifier: Modifier = Modifier) {
 
             when (uiState.mode) {
                 MapMode.View -> {
-                    SegmentsTablePanel(uiState, viewModel)
-                    TrashPanel(uiState, viewModel)
-                    ProposalsPanel(uiState, viewModel)
                     uiState.selectedNode?.let { MapNodePanel(it, uiState, viewModel) }
                     uiState.selectedSegment?.let { MapSegmentPanel(it, uiState, viewModel) }
                     MapViewToolbar(uiState, onStartRecording, { viewModel.setMode(MapMode.Draw) }, { gpxPicker.launch("*/*") })
+                    MapExtrasMenu(uiState, viewModel)
                 }
                 MapMode.Draw -> MapDrawPanel(uiState, viewModel)
                 MapMode.Gpx -> MapGpxPanel(uiState, viewModel)
@@ -238,6 +237,28 @@ private fun MapNodePanel(node: NodeDto, state: MapUiState, viewModel: MapViewMod
             } else if (!node.isHome) {
                 CompactOutlinedButton(viewModel::setHomeNode) { Text(stringResource(R.string.map_set_home)) }
             }
+        }
+    }
+}
+
+@Composable
+private fun MapExtrasMenu(state: MapUiState, viewModel: MapViewModel) {
+    var expanded by remember { mutableStateOf(false) }
+    val proposalCount = state.proposals.size
+
+    TextButton(onClick = { expanded = !expanded }) {
+        Text(
+            stringResource(if (expanded) R.string.route_less_options else R.string.map_more_options),
+            style = MaterialTheme.typography.labelSmall,
+        )
+    }
+    AnimatedVisibility(visible = expanded) {
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            if (proposalCount > 0) {
+                ProposalsPanel(state, viewModel)
+            }
+            SegmentsTablePanel(state, viewModel)
+            TrashPanel(state, viewModel)
         }
     }
 }

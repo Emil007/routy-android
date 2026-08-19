@@ -7,7 +7,7 @@ import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
-import okhttp3.RequestBody
+import okhttp3.RequestBody.Companion.toRequestBody
 import retrofit2.Response
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
@@ -47,11 +47,11 @@ class ApiClientProvider(private val secureStorage: SecureStorage) {
 
     /** PATCH walk speed — sends explicit JSON null when clearing to network default. */
     suspend fun patchProfileWalkSpeed(kmh: Double?): Response<ProfilePatchResponse> {
+        val mediaType = "application/json".toMediaType()
         val body = if (kmh == null) {
-            RequestBody.create("application/json".toMediaType(), """{"walkSpeedKmh":null}""")
+            """{"walkSpeedKmh":null}""".toRequestBody(mediaType)
         } else {
-            json.encodeToString(ProfilePatchRequest(walkSpeedKmh = kmh))
-                .let { RequestBody.create("application/json".toMediaType(), it) }
+            json.encodeToString(ProfilePatchRequest(walkSpeedKmh = kmh)).toRequestBody(mediaType)
         }
         return service.patchProfile(body)
     }
@@ -83,8 +83,5 @@ class ApiClientProvider(private val secureStorage: SecureStorage) {
     }
 }
 
-fun profilePatchBody(body: ProfilePatchRequest): RequestBody =
-    RequestBody.create(
-        "application/json".toMediaType(),
-        json.encodeToString(body),
-    )
+fun profilePatchBody(body: ProfilePatchRequest) =
+    json.encodeToString(body).toRequestBody("application/json".toMediaType())

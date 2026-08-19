@@ -205,6 +205,7 @@
     <string name="common_cancel">Abbrechen</string>
 
     <string name="map_nodes_count">%1$d Knoten</string>
+    <string name="map_more_options">Tabelle, Papierkorb &amp; mehr ▾</string>
     <string name="map_offline_cached">Server nicht erreichbar — gecachte Netzwerkdaten</string>
     <string name="map_condition_report">Zustand melden</string>
     <string name="map_condition_reason">Grund</string>
