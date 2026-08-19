@@ -74,6 +74,8 @@ fun RoutyMapView(
     myLocation: GeoPoint?,
     fitKey: Any?,
     modifier: Modifier = Modifier,
+    /** When true (default), camera fits route geometry + stations (+ myLocation), not the whole network. */
+    fitToRouteOnly: Boolean = true,
     /** "#2e6b49" (brand green) for an active/suggested route; the recording screen passes a
      * distinct reddish-brown ("#9a3b29") for a track being recorded, matching MapView.tsx's
      * own color choice for the same distinction (RecordTrackWizard.tsx's trackLine). */
@@ -122,12 +124,18 @@ fun RoutyMapView(
         updateMyLocationLayer(currentStyle, myLocation)
     }
 
-    LaunchedEffect(loadedStyle, fitKey) {
+    LaunchedEffect(loadedStyle, fitKey, fitToRouteOnly) {
         val map = maplibreMap ?: return@LaunchedEffect
         if (loadedStyle == null) return@LaunchedEffect
         val points = buildList {
-            nodes.forEach { add(LatLng(it.lat, it.lng)) }
-            routeGeometry.forEach { add(LatLng(it.lat, it.lng)) }
+            if (fitToRouteOnly) {
+                routeGeometry.forEach { add(LatLng(it.lat, it.lng)) }
+                stations.forEach { add(LatLng(it.lat, it.lng)) }
+                myLocation?.let { add(LatLng(it.lat, it.lng)) }
+            } else {
+                nodes.forEach { add(LatLng(it.lat, it.lng)) }
+                routeGeometry.forEach { add(LatLng(it.lat, it.lng)) }
+            }
         }
         when {
             points.isEmpty() -> {}

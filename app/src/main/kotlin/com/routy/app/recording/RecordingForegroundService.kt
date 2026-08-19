@@ -20,6 +20,8 @@ import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
 import com.routy.app.MainActivity
 import com.routy.app.R
+import com.routy.app.RoutyApplication
+import com.routy.app.core.storage.RecordingSnapshotStore
 import com.routy.app.logic.api.GeoPoint
 import com.routy.app.logic.recording.RecordingPhase
 import com.routy.app.logic.recording.RecordingPoint
@@ -37,22 +39,12 @@ data class RecordingServiceState(
     val locationError: Boolean = false,
 )
 
-/**
- * The one piece of this app that has to keep running with the screen off — everything else
- * (map, route suggestions, the WebView shell) can pause the moment the app leaves the
- * foreground, but a walk being recorded can't just stop because the phone went in a pocket.
- * Runs as a started + bound service: started so `startForegroundService()` keeps it alive past
- * whatever unbinds happen while the app backgrounds, bound so RecordingScreen can talk to it and
- * observe [state] directly while it's on screen. The actual point-buffering logic lives in
- * `:logic`'s RecordingSession, unchanged from the web port — this class only owns the
- * Android-specific parts: the location callback, the foreground notification, and translating
- * GPS fixes into RecordingSession.addPoint() calls.
- */
 class RecordingForegroundService : Service() {
     private val session = RecordingSession()
     private val binder = LocalBinder()
     private val fusedLocationClient by lazy { LocationServices.getFusedLocationProviderClient(this) }
     private var locationCallback: LocationCallback? = null
+    private lateinit var snapshotStore: RecordingSnapshotStore
 
     private val _state = MutableStateFlow(RecordingServiceState())
     val state: StateFlow<RecordingServiceState> = _state.asStateFlow()
@@ -65,27 +57,52 @@ class RecordingForegroundService : Service() {
 
     override fun onCreate() {
         super.onCreate()
+        snapshotStore = (application as RoutyApplication).recordingSnapshotStore
         createNotificationChannel()
+        restoreIfNeeded()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        when (intent?.action) {
+            ACTION_PAUSE -> pause()
+            ACTION_RESUME -> resume()
+            ACTION_STOP -> finish()
+        }
         ServiceCompat.startForeground(
             this,
             NOTIFICATION_ID,
             buildNotification(),
             ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION,
         )
-        beginRecording()
+        if (session.phase == RecordingPhase.IDLE) beginRecording()
         return START_STICKY
     }
 
-    /** Caller (RecordingScreen) must already hold ACCESS_FINE_LOCATION before starting this service at all. */
+    private fun restoreIfNeeded() {
+        val snapshot = snapshotStore.loadSnapshot() ?: return
+        if (snapshot.phase == RecordingPhase.IDLE || snapshot.phase == RecordingPhase.CONFIRM) return
+        session.restore(snapshot)
+        snapshotStore.loadAppendedPoints().forEach { session.addPoint(it) }
+        _state.value = RecordingServiceState(
+            phase = session.phase,
+            pointCount = session.points.size,
+            lengthM = session.stats(walkSpeedKmhFallback = 5.0).lengthM,
+        )
+        if (session.phase == RecordingPhase.RECORDING) startLocationUpdates()
+    }
+
     @SuppressLint("MissingPermission")
     private fun beginRecording() {
         if (session.phase != RecordingPhase.IDLE) return
         session.start(System.currentTimeMillis())
+        persistSnapshot()
         _state.value = RecordingServiceState(phase = session.phase)
+        startLocationUpdates()
+    }
 
+    @SuppressLint("MissingPermission")
+    private fun startLocationUpdates() {
+        if (locationCallback != null) return
         val request = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 3000L).build()
         val callback = object : LocationCallback() {
             override fun onLocationResult(result: LocationResult) {
@@ -97,8 +114,14 @@ class RecordingForegroundService : Service() {
                     timestampMs = System.currentTimeMillis(),
                 )
                 val currentPosition = GeoPoint(point.lat, point.lng)
-                if (session.phase == RecordingPhase.RECORDING && shouldRecordPoint(session.points.lastOrNull(), point)) {
+                val snap = session.snapshot()
+                val last = (snap.points + snap.pausedPoints).lastOrNull()
+                if ((session.phase == RecordingPhase.RECORDING || session.phase == RecordingPhase.PAUSED) &&
+                    shouldRecordPoint(last, point)
+                ) {
                     session.addPoint(point)
+                    snapshotStore.appendPoint(point)
+                    persistSnapshot()
                     _state.value = _state.value.copy(
                         pointCount = session.points.size,
                         lengthM = session.stats(walkSpeedKmhFallback = 5.0).lengthM,
@@ -117,30 +140,37 @@ class RecordingForegroundService : Service() {
 
     fun pause() {
         session.pause()
+        persistSnapshot()
         _state.value = _state.value.copy(phase = session.phase)
         updateNotification()
     }
 
     fun resume() {
         session.resume()
+        persistSnapshot()
         _state.value = _state.value.copy(phase = session.phase)
+        startLocationUpdates()
         updateNotification()
     }
 
-    /** Moves to CONFIRM and stops GPS updates (nothing left to record) — the notification stays up until [stopAfterCommitOrDiscard]. */
     fun finish(): List<RecordingPoint> {
         session.finish()
+        persistSnapshot()
         _state.value = _state.value.copy(phase = session.phase)
         stopLocationUpdates()
         return session.points
     }
 
-    /** Called once the confirm step is done, whichever way it ends — commit succeeded or the user discarded. */
     fun stopAfterCommitOrDiscard() {
         session.discard()
+        snapshotStore.clear()
         stopLocationUpdates()
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
+    }
+
+    private fun persistSnapshot() {
+        snapshotStore.saveSnapshot(session.snapshot())
     }
 
     private fun stopLocationUpdates() {
@@ -149,34 +179,36 @@ class RecordingForegroundService : Service() {
     }
 
     override fun onDestroy() {
+        persistSnapshot()
         stopLocationUpdates()
         super.onDestroy()
     }
 
     private fun createNotificationChannel() {
-        val channel = NotificationChannel(
-            CHANNEL_ID,
-            getString(R.string.notification_recording_channel_name),
-            NotificationManager.IMPORTANCE_LOW,
-        )
+        val channel = NotificationChannel(CHANNEL_ID, getString(R.string.notification_recording_channel_name), NotificationManager.IMPORTANCE_LOW)
         getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
     }
 
     private fun buildNotification(): Notification {
-        val openAppIntent = PendingIntent.getActivity(
-            this,
-            0,
-            Intent(this, MainActivity::class.java),
-            PendingIntent.FLAG_IMMUTABLE,
-        )
+        val openAppIntent = PendingIntent.getActivity(this, 0, Intent(this, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE)
+        val pauseIntent = PendingIntent.getService(this, 1, Intent(this, RecordingForegroundService::class.java).setAction(ACTION_PAUSE), PendingIntent.FLAG_IMMUTABLE)
+        val resumeIntent = PendingIntent.getService(this, 2, Intent(this, RecordingForegroundService::class.java).setAction(ACTION_RESUME), PendingIntent.FLAG_IMMUTABLE)
+        val stopIntent = PendingIntent.getService(this, 3, Intent(this, RecordingForegroundService::class.java).setAction(ACTION_STOP), PendingIntent.FLAG_IMMUTABLE)
         val distanceKm = "%.2f".format(session.stats(walkSpeedKmhFallback = 5.0).lengthM / 1000.0)
-        return NotificationCompat.Builder(this, CHANNEL_ID)
+        val builder = NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle(getString(R.string.notification_recording_title))
             .setContentText(getString(R.string.notification_recording_text, session.points.size, distanceKm))
             .setSmallIcon(R.mipmap.ic_launcher)
             .setOngoing(true)
             .setContentIntent(openAppIntent)
-            .build()
+        if (session.phase == RecordingPhase.RECORDING) {
+            builder.addAction(0, getString(R.string.record_pause), pauseIntent)
+            builder.addAction(0, getString(R.string.record_stop), stopIntent)
+        } else if (session.phase == RecordingPhase.PAUSED) {
+            builder.addAction(0, getString(R.string.record_resume), resumeIntent)
+            builder.addAction(0, getString(R.string.record_stop), stopIntent)
+        }
+        return builder.build()
     }
 
     private fun updateNotification() {
@@ -186,5 +218,8 @@ class RecordingForegroundService : Service() {
     companion object {
         private const val NOTIFICATION_ID = 1001
         private const val CHANNEL_ID = "recording"
+        private const val ACTION_PAUSE = "com.routy.app.recording.PAUSE"
+        private const val ACTION_RESUME = "com.routy.app.recording.RESUME"
+        private const val ACTION_STOP = "com.routy.app.recording.STOP"
     }
 }

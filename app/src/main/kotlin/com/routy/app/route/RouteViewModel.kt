@@ -3,9 +3,13 @@ package com.routy.app.route
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.routy.app.R
+import com.routy.app.core.DeepLinkHolder
 import com.routy.app.core.network.ApiClientProvider
+import com.routy.app.core.storage.NetworkCache
+import com.routy.app.core.storage.RouteProgressStore
 import com.routy.app.logic.api.AdjustRouteRequest
 import com.routy.app.logic.api.ApiErrorBody
+import com.routy.app.logic.api.AppStatsMeResponse
 import com.routy.app.logic.api.FavoriteEntry
 import com.routy.app.logic.api.GenerateRouteRequest
 import com.routy.app.logic.api.GeoPoint
@@ -29,6 +33,7 @@ enum class RouteStatus { IDLE, LOADING, ERROR }
 
 data class RouteUiState(
     val loadingInitial: Boolean = true,
+    val offlineCached: Boolean = false,
     val nodes: List<NodeDto> = emptyList(),
     val segments: List<SegmentDto> = emptyList(),
     val favorites: List<FavoriteEntry> = emptyList(),
@@ -54,21 +59,22 @@ data class RouteUiState(
     val myLocation: GeoPoint? = null,
     val watchingLocation: Boolean = false,
     val voiceEnabled: Boolean = false,
+    val tracking: Boolean = false,
+    val keepScreenOn: Boolean = true,
+    val completedWaypointIndex: Int = -1,
+    val showControls: Boolean = true,
 
-    /** One-shot: the composable copies this to the clipboard and calls [clearPendingShareUrl]. */
     val pendingShareUrl: String? = null,
+    val sharedRouteName: String? = null,
+
+    val completionStats: AppStatsMeResponse? = null,
 )
 
-/**
- * Ports RouteGenerator.tsx's suggesting/active state machine (see the plan's "What gets ported
- * vs. reused" section) — every handler here is a straight translation of that component's
- * eponymous handler, calling the exact same REST endpoints instead of `fetch`. Voice guidance
- * (the web component's voiceEnabled/announcedStationIndex bits) is deliberately not ported yet —
- * that's M5, wired in once TextToSpeech/AudioManager focus is in place.
- */
 class RouteViewModel(
     private val apiClientProvider: ApiClientProvider,
     private val baseUrl: String,
+    private val routeProgressStore: RouteProgressStore,
+    private val networkCache: NetworkCache,
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(RouteUiState())
     val uiState: StateFlow<RouteUiState> = _uiState.asStateFlow()
@@ -77,39 +83,66 @@ class RouteViewModel(
 
     init {
         loadInitial()
+        DeepLinkHolder.shareToken.value?.let { openShareToken(it) }
     }
+
+    private fun routeKey(route: RouteDisplayPayload): String = route.nodeChain.joinToString("-")
 
     private fun loadInitial() {
         viewModelScope.launch {
+            val cached = networkCache.load()
+            if (cached != null) {
+                applyNetworkState(cached.nodes, cached.segments, null, offlineCached = true)
+            }
+
             val service = apiClientProvider.service
             val bootstrapResponse = runCatching { service.bootstrap() }.getOrNull()
 
             if (bootstrapResponse?.isSuccessful == true) {
                 val body = bootstrapResponse.body() ?: return@launch
-                applyNetworkState(body.nodes, body.segments, body.routeState)
+                networkCache.save(body.networkVersion, body.nodes, body.segments)
+                applyNetworkState(body.nodes, body.segments, body.routeState, offlineCached = false)
+                restoreProgress(body.routeState.activeRoute)
+                consumeDeepLink()
                 return@launch
             }
 
-            // Older servers without /api/app/bootstrap — fall back to the three separate calls.
-            val nodesResponse = runCatching { service.nodes() }.getOrNull()
-            val segmentsResponse = runCatching { service.segments() }.getOrNull()
+            val nodesResponse = runCatching { service.nodes(cached?.etag) }.getOrNull()
+            val segmentsResponse = runCatching { service.segments(cached?.etag) }.getOrNull()
             val stateResponse = runCatching { service.routeState() }.getOrNull()
 
-            val nodes = nodesResponse?.takeIf { it.isSuccessful }?.body()?.nodes.orEmpty()
-            val segments = segmentsResponse?.takeIf { it.isSuccessful }?.body()?.segments.orEmpty()
+            val nodes = nodesResponse?.takeIf { it.isSuccessful }?.body()?.nodes ?: cached?.nodes.orEmpty()
+            val segments = segmentsResponse?.takeIf { it.isSuccessful }?.body()?.segments ?: cached?.segments.orEmpty()
             val state = stateResponse?.takeIf { it.isSuccessful }?.body()
-            applyNetworkState(nodes, segments, state)
+            if (nodes.isNotEmpty() && segments.isNotEmpty()) {
+                networkCache.save("legacy", nodes, segments)
+            }
+            applyNetworkState(nodes, segments, state, offlineCached = nodesResponse?.isSuccessful != true)
+            restoreProgress(state?.activeRoute)
+            consumeDeepLink()
         }
+    }
+
+    private fun consumeDeepLink() {
+        DeepLinkHolder.consumeShareToken()?.let { openShareToken(it) }
+    }
+
+    private fun restoreProgress(activeRoute: RouteDisplayPayload?) {
+        val route = activeRoute ?: return
+        val saved = routeProgressStore.load(routeKey(route)) ?: return
+        _uiState.value = _uiState.value.copy(completedWaypointIndex = saved)
     }
 
     private fun applyNetworkState(
         nodes: List<NodeDto>,
         segments: List<SegmentDto>,
         state: RouteStateResponse?,
+        offlineCached: Boolean,
     ) {
         val homeNodeId = nodes.firstOrNull { it.isHome }?.id
         _uiState.value = _uiState.value.copy(
             loadingInitial = false,
+            offlineCached = offlineCached,
             nodes = nodes,
             segments = segments,
             favorites = state?.favorites.orEmpty(),
@@ -121,48 +154,88 @@ class RouteViewModel(
         )
     }
 
-    fun setStartNodeId(id: Int) {
-        _uiState.value = _uiState.value.copy(startNodeId = id)
-    }
-
-    fun setIsLoop(loop: Boolean) {
-        _uiState.value = _uiState.value.copy(isLoop = loop)
-    }
-
-    fun setDestinationNodeId(id: Int) {
-        _uiState.value = _uiState.value.copy(destinationNodeId = id)
-    }
-
-    fun setWaypointNodeId(id: Int?) {
-        _uiState.value = _uiState.value.copy(waypointNodeId = id)
-    }
-
-    fun setExplorerMode(enabled: Boolean) {
-        _uiState.value = _uiState.value.copy(explorerMode = enabled)
-    }
-
-    fun setNickname(value: String) {
-        _uiState.value = _uiState.value.copy(nickname = value)
-    }
-
-    fun setFavoriteNameInput(value: String) {
-        _uiState.value = _uiState.value.copy(favoriteNameInput = value)
-    }
-
-    fun setMyLocation(point: GeoPoint?) {
-        _uiState.value = _uiState.value.copy(myLocation = point)
-    }
-
+    fun setStartNodeId(id: Int) { _uiState.value = _uiState.value.copy(startNodeId = id) }
+    fun setIsLoop(loop: Boolean) { _uiState.value = _uiState.value.copy(isLoop = loop) }
+    fun setDestinationNodeId(id: Int) { _uiState.value = _uiState.value.copy(destinationNodeId = id) }
+    fun setWaypointNodeId(id: Int?) { _uiState.value = _uiState.value.copy(waypointNodeId = id) }
+    fun setExplorerMode(enabled: Boolean) { _uiState.value = _uiState.value.copy(explorerMode = enabled) }
+    fun setNickname(value: String) { _uiState.value = _uiState.value.copy(nickname = value) }
+    fun setFavoriteNameInput(value: String) { _uiState.value = _uiState.value.copy(favoriteNameInput = value) }
+    fun setMyLocation(point: GeoPoint?) { _uiState.value = _uiState.value.copy(myLocation = point) }
     fun setWatchingLocation(watching: Boolean) {
-        _uiState.value = _uiState.value.copy(watchingLocation = watching, myLocation = if (watching) _uiState.value.myLocation else null)
+        _uiState.value = _uiState.value.copy(
+            watchingLocation = watching,
+            myLocation = if (watching) _uiState.value.myLocation else null,
+            tracking = if (watching) _uiState.value.tracking else false,
+        )
+    }
+    fun setVoiceEnabled(enabled: Boolean) { _uiState.value = _uiState.value.copy(voiceEnabled = enabled) }
+    fun setTracking(enabled: Boolean) { _uiState.value = _uiState.value.copy(tracking = enabled) }
+    fun setKeepScreenOn(enabled: Boolean) { _uiState.value = _uiState.value.copy(keepScreenOn = enabled) }
+    fun toggleControls() { _uiState.value = _uiState.value.copy(showControls = !_uiState.value.showControls) }
+    fun clearPendingShareUrl() { _uiState.value = _uiState.value.copy(pendingShareUrl = null) }
+    fun dismissCompletionStats() { _uiState.value = _uiState.value.copy(completionStats = null) }
+
+    fun onWaypointCompleted(index: Int) {
+        val route = _uiState.value.route ?: return
+        routeProgressStore.save(routeKey(route), index)
+        _uiState.value = _uiState.value.copy(completedWaypointIndex = index)
     }
 
-    fun setVoiceEnabled(enabled: Boolean) {
-        _uiState.value = _uiState.value.copy(voiceEnabled = enabled)
+    fun openShareToken(token: String) {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(status = RouteStatus.LOADING, sharedRouteName = null)
+            val response = try {
+                apiClientProvider.service.resolveShareToken(token)
+            } catch (_: IOException) {
+                _uiState.value = _uiState.value.copy(status = RouteStatus.IDLE, messageRes = R.string.common_error)
+                return@launch
+            }
+            if (!response.isSuccessful) {
+                _uiState.value = _uiState.value.copy(status = RouteStatus.IDLE, messageRes = R.string.route_share_not_found)
+                return@launch
+            }
+            val body = response.body() ?: return@launch
+            if (body.stale || body.display == null) {
+                _uiState.value = _uiState.value.copy(status = RouteStatus.IDLE, messageRes = R.string.route_favorite_stale)
+                return@launch
+            }
+            _uiState.value = _uiState.value.copy(
+                status = RouteStatus.IDLE,
+                sharedRouteName = body.name,
+                route = body.display,
+                mode = RouteMode.SUGGESTING,
+                messageRes = R.string.route_share_preview,
+            )
+        }
     }
 
-    fun clearPendingShareUrl() {
-        _uiState.value = _uiState.value.copy(pendingShareUrl = null)
+    fun acceptSharedRoute(token: String) {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(status = RouteStatus.LOADING)
+            val response = try {
+                apiClientProvider.service.acceptShareToken(token)
+            } catch (_: IOException) {
+                _uiState.value = _uiState.value.copy(status = RouteStatus.IDLE, messageRes = R.string.common_error)
+                return@launch
+            }
+            if (response.isSuccessful) {
+                routeProgressStore.clear()
+                _uiState.value = _uiState.value.copy(
+                    mode = RouteMode.ACTIVE,
+                    status = RouteStatus.IDLE,
+                    sharedRouteName = null,
+                    completedWaypointIndex = -1,
+                    messageRes = null,
+                )
+            } else {
+                val code = parseErrorCode(response.errorBody()?.string())
+                _uiState.value = _uiState.value.copy(
+                    status = RouteStatus.IDLE,
+                    messageRes = if (code == "favorite_stale") R.string.route_favorite_stale else R.string.common_error,
+                )
+            }
+        }
     }
 
     fun suggest(preset: String? = null) {
@@ -193,34 +266,15 @@ class RouteViewModel(
         }
     }
 
-    fun another() {
-        val token = _uiState.value.token
-        if (_uiState.value.route == null) return
-        viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(status = RouteStatus.LOADING)
-            val response = try {
-                apiClientProvider.service.widenRoute(RouteTokenRequest(token))
-            } catch (_: IOException) {
-                _uiState.value = _uiState.value.copy(status = RouteStatus.IDLE, messageRes = R.string.route_no_alternative)
-                return@launch
-            }
-            if (response.isSuccessful) {
-                val body = response.body()
-                _uiState.value = _uiState.value.copy(status = RouteStatus.IDLE, token = body?.token ?: token, route = body?.route, messageRes = null)
-            } else {
-                _uiState.value = _uiState.value.copy(status = RouteStatus.IDLE, messageRes = R.string.route_no_alternative)
-            }
-        }
-    }
+    fun another() = adjustInternal { apiClientProvider.service.widenRoute(RouteTokenRequest(_uiState.value.token)) }
+    fun adjust(direction: String) = adjustInternal { apiClientProvider.service.adjustRoute(AdjustRouteRequest(_uiState.value.token, direction)) }
 
-    fun adjust(direction: String) {
-        val token = _uiState.value.token
+    private fun adjustInternal(call: suspend () -> retrofit2.Response<com.routy.app.logic.api.GenerateRouteResponse>) {
         if (_uiState.value.route == null) return
+        val token = _uiState.value.token
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(status = RouteStatus.LOADING)
-            val response = try {
-                apiClientProvider.service.adjustRoute(AdjustRouteRequest(token, direction))
-            } catch (_: IOException) {
+            val response = try { call() } catch (_: IOException) {
                 _uiState.value = _uiState.value.copy(status = RouteStatus.IDLE, messageRes = R.string.route_no_alternative)
                 return@launch
             }
@@ -237,14 +291,13 @@ class RouteViewModel(
         val token = _uiState.value.token
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(status = RouteStatus.LOADING)
-            val response = try {
-                apiClientProvider.service.acceptRoute(RouteTokenRequest(token))
-            } catch (_: IOException) {
+            val response = try { apiClientProvider.service.acceptRoute(RouteTokenRequest(token)) } catch (_: IOException) {
                 _uiState.value = _uiState.value.copy(status = RouteStatus.IDLE, messageRes = R.string.route_session_expired)
                 return@launch
             }
             if (response.isSuccessful) {
-                _uiState.value = _uiState.value.copy(mode = RouteMode.ACTIVE, status = RouteStatus.IDLE, messageRes = null, nickname = "")
+                routeProgressStore.clear()
+                _uiState.value = _uiState.value.copy(mode = RouteMode.ACTIVE, status = RouteStatus.IDLE, messageRes = null, nickname = "", completedWaypointIndex = -1)
             } else {
                 _uiState.value = _uiState.value.copy(status = RouteStatus.IDLE, messageRes = R.string.route_session_expired)
             }
@@ -254,11 +307,7 @@ class RouteViewModel(
     fun saveNickname() {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(nicknameSaving = true)
-            try {
-                apiClientProvider.service.setRouteNickname(NicknameRequest(_uiState.value.nickname))
-            } catch (_: IOException) {
-                // Best-effort, like the web client — a failed nickname save just leaves the old one.
-            }
+            try { apiClientProvider.service.setRouteNickname(NicknameRequest(_uiState.value.nickname)) } catch (_: IOException) {}
             _uiState.value = _uiState.value.copy(nicknameSaving = false)
         }
     }
@@ -267,11 +316,7 @@ class RouteViewModel(
         val token = _uiState.value.token
         if (_uiState.value.route == null) return
         viewModelScope.launch {
-            try {
-                apiClientProvider.service.cancelRoute(RouteTokenRequest(token))
-            } catch (_: IOException) {
-                // Best-effort — the suggestion session just expires server-side on its own.
-            }
+            try { apiClientProvider.service.cancelRoute(RouteTokenRequest(token)) } catch (_: IOException) {}
             _uiState.value = _uiState.value.copy(route = null, messageRes = null)
         }
     }
@@ -279,13 +324,13 @@ class RouteViewModel(
     fun complete() {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(status = RouteStatus.LOADING)
-            val response = try {
-                apiClientProvider.service.completeRoute()
-            } catch (_: IOException) {
+            val response = try { apiClientProvider.service.completeRoute() } catch (_: IOException) {
                 _uiState.value = _uiState.value.copy(status = RouteStatus.IDLE, messageRes = R.string.common_error)
                 return@launch
             }
             if (response.isSuccessful) {
+                routeProgressStore.clear()
+                val stats = runCatching { apiClientProvider.service.appStatsMe().body() }.getOrNull()
                 _uiState.value = _uiState.value.copy(
                     route = null,
                     mode = RouteMode.SUGGESTING,
@@ -293,7 +338,10 @@ class RouteViewModel(
                     messageRes = R.string.route_completed_message,
                     nickname = "",
                     watchingLocation = false,
+                    tracking = false,
                     myLocation = null,
+                    completedWaypointIndex = -1,
+                    completionStats = stats,
                 )
             } else {
                 _uiState.value = _uiState.value.copy(status = RouteStatus.IDLE, messageRes = R.string.common_error)
@@ -304,11 +352,8 @@ class RouteViewModel(
     fun discardActive() {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(status = RouteStatus.LOADING)
-            try {
-                apiClientProvider.service.discardRoute()
-            } catch (_: IOException) {
-                // Best-effort — falls through to clearing local state regardless.
-            }
+            try { apiClientProvider.service.discardRoute() } catch (_: IOException) {}
+            routeProgressStore.clear()
             _uiState.value = _uiState.value.copy(
                 route = null,
                 mode = RouteMode.SUGGESTING,
@@ -316,7 +361,9 @@ class RouteViewModel(
                 messageRes = null,
                 nickname = "",
                 watchingLocation = false,
+                tracking = false,
                 myLocation = null,
+                completedWaypointIndex = -1,
             )
         }
     }
@@ -330,13 +377,7 @@ class RouteViewModel(
             _uiState.value = _uiState.value.copy(savingFavorite = true)
             val response = try {
                 apiClientProvider.service.saveFavorite(
-                    SaveFavoriteRequest(
-                        name = name,
-                        nodeChain = route.nodeChain,
-                        segmentIds = route.segmentIds,
-                        lengthM = route.lengthM,
-                        durationMin = route.durationMin,
-                    ),
+                    SaveFavoriteRequest(name, route.nodeChain, route.segmentIds, route.lengthM, route.durationMin),
                 )
             } catch (_: IOException) {
                 _uiState.value = _uiState.value.copy(savingFavorite = false)
@@ -353,13 +394,12 @@ class RouteViewModel(
     fun takeFavorite(favorite: FavoriteEntry) {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(status = RouteStatus.LOADING)
-            val response = try {
-                apiClientProvider.service.acceptFavorite(favorite.id)
-            } catch (_: IOException) {
+            val response = try { apiClientProvider.service.acceptFavorite(favorite.id) } catch (_: IOException) {
                 _uiState.value = _uiState.value.copy(status = RouteStatus.IDLE, messageRes = R.string.common_error)
                 return@launch
             }
             if (response.isSuccessful) {
+                routeProgressStore.clear()
                 _uiState.value = _uiState.value.copy(
                     route = favorite.display,
                     token = "",
@@ -367,6 +407,7 @@ class RouteViewModel(
                     status = RouteStatus.IDLE,
                     messageRes = null,
                     nickname = "",
+                    completedWaypointIndex = -1,
                 )
             } else {
                 val errorCode = parseErrorCode(response.errorBody()?.string())
@@ -380,11 +421,7 @@ class RouteViewModel(
 
     fun deleteFavorite(id: Int) {
         viewModelScope.launch {
-            try {
-                apiClientProvider.service.deleteFavorite(id)
-            } catch (_: IOException) {
-                return@launch
-            }
+            try { apiClientProvider.service.deleteFavorite(id) } catch (_: IOException) { return@launch }
             refreshFavorites()
         }
     }
@@ -393,12 +430,12 @@ class RouteViewModel(
         viewModelScope.launch {
             val response = try {
                 apiClientProvider.service.shareFavorite(favorite.id, ShareFavoriteRequest(enable = favorite.shareToken == null))
-            } catch (_: IOException) {
-                return@launch
-            }
+            } catch (_: IOException) { return@launch }
             if (!response.isSuccessful) return@launch
             val shareToken = response.body()?.shareToken
-            _uiState.value = _uiState.value.copy(pendingShareUrl = shareToken?.let { "$baseUrl/share/$it" })
+            _uiState.value = _uiState.value.copy(
+                pendingShareUrl = shareToken?.let { "$baseUrl/share/$it" },
+            )
             refreshFavorites()
         }
     }
@@ -411,10 +448,6 @@ class RouteViewModel(
 
     private fun parseErrorCode(errorBodyJson: String?): String? {
         if (errorBodyJson == null) return null
-        return try {
-            errorJson.decodeFromString(ApiErrorBody.serializer(), errorBodyJson).error
-        } catch (_: Exception) {
-            null
-        }
+        return try { errorJson.decodeFromString(ApiErrorBody.serializer(), errorBodyJson).error } catch (_: Exception) { null }
     }
 }

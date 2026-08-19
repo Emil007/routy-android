@@ -22,16 +22,17 @@ class RecordingSessionTest {
     }
 
     @Test
-    fun `points arriving while paused are dropped, not buffered for later`() {
+    fun `points arriving while paused are buffered and merged on finish`() {
         val session = RecordingSession()
         session.start(atMs = 0)
         session.addPoint(RecordingPoint(52.0, 13.0, timestampMs = 0))
         session.pause()
-        session.addPoint(RecordingPoint(52.001, 13.0, timestampMs = 5000)) // dropped
+        session.addPoint(RecordingPoint(52.001, 13.0, timestampMs = 5000))
         assertEquals(1, session.points.size)
         session.resume()
         session.addPoint(RecordingPoint(52.002, 13.0, timestampMs = 6000))
-        assertEquals(2, session.points.size)
+        session.finish()
+        assertEquals(3, session.points.size)
     }
 
     @Test

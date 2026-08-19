@@ -19,7 +19,9 @@ import com.routy.app.logic.api.SegmentsResponse
 import com.routy.app.logic.api.SessionsResponse
 import com.routy.app.logic.api.ShareFavoriteRequest
 import com.routy.app.logic.api.ShareFavoriteResponse
+import com.routy.app.logic.api.ShareRouteResponse
 import com.routy.app.logic.api.WeeklyLeaderboardResponse
+import com.routy.app.logic.api.PointsLeaderboardResponse
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.RequestBody
 import okhttp3.RequestBody.Companion.toRequestBody
@@ -84,6 +86,15 @@ interface ApiService {
 
     @GET("api/app/stats/leaderboard/weekly")
     suspend fun weeklyLeaderboard(): Response<WeeklyLeaderboardResponse>
+
+    @GET("api/app/stats/leaderboard/points")
+    suspend fun pointsLeaderboard(): Response<PointsLeaderboardResponse>
+
+    @GET("api/share/{token}")
+    suspend fun resolveShareToken(@Path("token") token: String): Response<ShareRouteResponse>
+
+    @POST("api/share/{token}/accept")
+    suspend fun acceptShareToken(@Path("token") token: String, @Body body: RequestBody = EMPTY_JSON_BODY): Response<Unit>
 
     @POST("api/route/generate")
     suspend fun generateRoute(@Body body: GenerateRouteRequest): Response<GenerateRouteResponse>
