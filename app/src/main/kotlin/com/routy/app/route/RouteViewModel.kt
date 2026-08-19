@@ -27,6 +27,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 
@@ -264,11 +265,16 @@ class RouteViewModel(
                 return@launch
             }
             if (response.isSuccessful) {
-                val state = runCatching { apiClientProvider.service.routeState() }.getOrNull()?.takeIf { it.isSuccessful }?.body()
-                routeProgressStore.clear()
-                if (state != null) {
-                    applyNetworkState(_uiState.value.nodes, _uiState.value.segments, state, offlineCached = _uiState.value.offlineCached)
+                val state = fetchRouteStateWithRetry()
+                if (state == null) {
+                    _uiState.value = _uiState.value.copy(
+                        status = RouteStatus.IDLE,
+                        messageRes = R.string.common_error,
+                    )
+                    return@launch
                 }
+                routeProgressStore.clear()
+                applyNetworkState(_uiState.value.nodes, _uiState.value.segments, state, offlineCached = _uiState.value.offlineCached)
                 _uiState.value = _uiState.value.copy(
                     mode = RouteMode.ACTIVE,
                     status = RouteStatus.IDLE,
@@ -495,6 +501,15 @@ class RouteViewModel(
         val response = runCatching { apiClientProvider.service.routeState() }.getOrNull()
         val favorites = response?.takeIf { it.isSuccessful }?.body()?.favorites ?: return
         _uiState.value = _uiState.value.copy(favorites = favorites)
+    }
+
+    private suspend fun fetchRouteStateWithRetry(): RouteStateResponse? {
+        repeat(2) { attempt ->
+            val response = runCatching { apiClientProvider.service.routeState() }.getOrNull()
+            if (response?.isSuccessful == true) return response.body()
+            if (attempt == 0) delay(400)
+        }
+        return null
     }
 
     private fun parseErrorCode(errorBodyJson: String?): String? {

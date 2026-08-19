@@ -1,6 +1,7 @@
 package com.routy.app.route
 
 import android.content.Context
+import android.content.res.Configuration
 import android.media.AudioAttributes
 import android.media.AudioFocusRequest
 import android.media.AudioManager
@@ -11,7 +12,6 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLocale
-import androidx.compose.ui.res.stringResource
 import com.routy.app.R
 import com.routy.app.logic.geo.CompassPoint
 import com.routy.app.logic.route.VoiceCue
@@ -43,8 +43,6 @@ class VoiceGuidanceController(context: Context, private val ttsLocale: Locale) {
         tts = TextToSpeech(context) { status ->
             ready = status == TextToSpeech.SUCCESS
             if (ready) {
-                // Voice cues should follow the account/server locale, not the device locale.
-                // (Full UI localization is intentionally bigger; TTS language is the low-risk first win.)
                 tts?.language = ttsLocale
                 tts?.setAudioAttributes(audioAttributes)
                 tts?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
@@ -87,31 +85,40 @@ fun rememberVoiceGuidanceController(accountLocaleTag: String): VoiceGuidanceCont
     return controller
 }
 
-/** Mirrors RouteGenerator.tsx's voiceArrivedNext/voiceArrivedFinal template strings — station.name || t("route.station") for the fallback. */
-@Composable
-fun VoiceCue.toSpokenText(): String = when (this) {
-    is VoiceCue.ArrivingAtNext -> stringResource(
+private fun Context.stringForAccountLocale(localeTag: String, resId: Int, vararg formatArgs: Any): String {
+    if (localeTag.isBlank()) return getString(resId, *formatArgs)
+    val config = Configuration(resources.configuration)
+    config.setLocale(Locale.forLanguageTag(localeTag))
+    return createConfigurationContext(config).getString(resId, *formatArgs)
+}
+
+/** Mirrors RouteGenerator.tsx voice templates — uses account locale for both TTS and cue text. */
+fun VoiceCue.toSpokenText(context: Context, accountLocaleTag: String): String = when (this) {
+    is VoiceCue.ArrivingAtNext -> context.stringForAccountLocale(
+        accountLocaleTag,
         R.string.route_voice_arrived_next,
-        hereName ?: stringResource(R.string.route_station_fallback),
-        nextName ?: stringResource(R.string.route_station_fallback),
-        direction.toSpokenLabel(),
+        hereName ?: context.stringForAccountLocale(accountLocaleTag, R.string.route_station_fallback),
+        nextName ?: context.stringForAccountLocale(accountLocaleTag, R.string.route_station_fallback),
+        direction.toSpokenLabel(context, accountLocaleTag),
     )
-    is VoiceCue.ArrivingAtFinal -> stringResource(
+    is VoiceCue.ArrivingAtFinal -> context.stringForAccountLocale(
+        accountLocaleTag,
         R.string.route_voice_arrived_final,
-        hereName ?: stringResource(R.string.route_station_fallback),
+        hereName ?: context.stringForAccountLocale(accountLocaleTag, R.string.route_station_fallback),
     )
 }
 
-@Composable
-private fun CompassPoint.toSpokenLabel(): String = stringResource(
-    when (this) {
-        CompassPoint.N -> R.string.route_compass_n
-        CompassPoint.NE -> R.string.route_compass_ne
-        CompassPoint.E -> R.string.route_compass_e
-        CompassPoint.SE -> R.string.route_compass_se
-        CompassPoint.S -> R.string.route_compass_s
-        CompassPoint.SW -> R.string.route_compass_sw
-        CompassPoint.W -> R.string.route_compass_w
-        CompassPoint.NW -> R.string.route_compass_nw
-    },
-)
+private fun CompassPoint.toSpokenLabel(context: Context, accountLocaleTag: String): String =
+    context.stringForAccountLocale(
+        accountLocaleTag,
+        when (this) {
+            CompassPoint.N -> R.string.route_compass_n
+            CompassPoint.NE -> R.string.route_compass_ne
+            CompassPoint.E -> R.string.route_compass_e
+            CompassPoint.SE -> R.string.route_compass_se
+            CompassPoint.S -> R.string.route_compass_s
+            CompassPoint.SW -> R.string.route_compass_sw
+            CompassPoint.W -> R.string.route_compass_w
+            CompassPoint.NW -> R.string.route_compass_nw
+        },
+    )
