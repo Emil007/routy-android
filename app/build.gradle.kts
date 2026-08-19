@@ -46,6 +46,9 @@ val keystoreProperties = Properties().apply {
     if (hasKeystoreProperties) load(keystorePropertiesFile.inputStream())
 }
 
+val sentryDsn = (project.findProperty("sentryDsn") as String?)?.trim().orEmpty()
+val sentryEnabled = sentryDsn.isNotEmpty()
+
 android {
     namespace = "com.routy.app"
     compileSdk = 36
@@ -56,9 +59,8 @@ android {
         targetSdk = 36
         // Overridden by CI from the pushed release tag (-PappVersionName=0.13a -PappVersionCode=N)
         // — see .github/workflows/release.yml. Tags use the `a` suffix (e.g. v0.13a).
-        versionCode = (project.findProperty("appVersionCode") as String?)?.toIntOrNull() ?: 18
-        versionName = (project.findProperty("appVersionName") as String?) ?: "0.20a"
-        val sentryDsn = (project.findProperty("sentryDsn") as String?)?.trim().orEmpty()
+        versionCode = (project.findProperty("appVersionCode") as String?)?.toIntOrNull() ?: 19
+        versionName = (project.findProperty("appVersionName") as String?) ?: "0.21a"
         buildConfigField("String", "SENTRY_DSN", "\"${sentryDsn.replace("\"", "\\\"")}\"")
     }
 
@@ -99,6 +101,17 @@ android {
     packaging {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
+        }
+    }
+
+    sourceSets {
+        named("main") {
+            java.setSrcDirs(
+                listOf(
+                    "src/main/kotlin",
+                    if (sentryEnabled) "src/sentry/kotlin" else "src/noSentry/kotlin",
+                ),
+            )
         }
     }
 }
@@ -188,8 +201,10 @@ dependencies {
     // org.maplibre.gl:android-sdk-geojson.
     implementation("org.maplibre.gl:android-sdk:12.3.1")
 
-    // --- Crash reporting (optional — SENTRY_DSN build property) ---
-    implementation("io.sentry:sentry-android:8.12.0")
+    // --- Crash reporting (optional — only when -PsentryDsn is set at build time) ---
+    if (sentryEnabled) {
+        implementation("io.sentry:sentry-android:8.12.0")
+    }
 
     // --- Tests ---
     testImplementation(kotlin("test-junit5"))

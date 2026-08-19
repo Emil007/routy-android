@@ -622,7 +622,7 @@ class MapViewModel(
         viewModelScope.launch {
             if (!forceRefresh) {
                 networkCache.loadBootstrap()?.let { cached ->
-                    applyNetwork(cached.user, cached.nodes, cached.segments, offline = true)
+                    applyNetwork(cached.user, cached.nodes, cached.segments, offline = false)
                 }
             }
 

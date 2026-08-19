@@ -132,6 +132,15 @@ fun MapScreen(onStartRecording: () -> Unit, modifier: Modifier = Modifier) {
             modifier = Modifier.align(Alignment.TopStart).padding(8.dp),
         )
 
+        if (uiState.offlineCached) {
+            AssistChip(
+                onClick = {},
+                enabled = false,
+                label = { Text(stringResource(R.string.map_offline_cached), style = MaterialTheme.typography.labelSmall) },
+                modifier = Modifier.align(Alignment.TopEnd).padding(8.dp),
+            )
+        }
+
         if (uiState.actionBusy) {
             CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
         }
