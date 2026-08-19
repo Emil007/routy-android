@@ -9,38 +9,25 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
     // AGP 9's built-in Kotlin support (see gradle.properties's android.builtInKotlin), not the
-    // traditional org.jetbrains.kotlin.android plugin — this is the actual fix, after four
-    // failed attempts that were each solving the wrong problem:
-    //   1. AGP 9.2.1 + org.jetbrains.kotlin.android + android.builtInKotlin=false: wrong flag.
-    //      builtInKotlin=false doesn't opt back into the legacy DSL that kotlin-android needs —
-    //      android.newDsl (a *different* flag) defaults to true on AGP 9 regardless, so AGP still
-    //      exposed the new DSL's extension types, and kotlin-android's internal BaseVariant
-    //      references broke: NoClassDefFoundError: com/android/build/gradle/api/BaseVariant.
-    //   2. Same setup + android.enableLegacyVariantApi=true: doesn't address android.newDsl
-    //      either — identical error.
-    //   3. Reverted to AGP 8.13.2 to sidestep AGP 9 entirely: traded one conflict for another.
-    //      Kotlin Gradle Plugin 2.3.20's own AgpWithBuiltInKotlinAppliedCheck diagnostic (which
-    //      runs unconditionally whenever org.jetbrains.kotlin.android is applied, regardless of
-    //      AGP major version) tried to reference com.android.build.gradle.BaseExtension and hit
-    //      NoClassDefFoundError — a KGP-side check for exactly this legacy-plugin-vs-new-DSL
-    //      conflict, not a real absence of BaseExtension in AGP 8.13.2's jar.
-    //   4. Removed org.jetbrains.kotlin.android entirely, AGP 9.3.0, Kotlin 2.2.10 for the
-    //      remaining compiler plugins (compose/serialization) — right idea, wrong Kotlin
-    //      version. The *exact same* BaseVariant NoClassDefFoundError came back anyway, from a
-    //      different code path: KotlinAndroidPlugin.Companion.dynamicallyApplyWhenAndroidPluginIsApplied,
-    //      a decades-old Kotlin Gradle Plugin convenience that auto-applies kotlin-android the
-    //      moment it sees com.android.application on a project — regardless of whether anyone
-    //      declared it — for people who forgot to apply kotlin-android explicitly. At 2.2.10
-    //      that mechanism doesn't yet know to back off when AGP's built-in Kotlin is already
-    //      handling the target, so it fired anyway and hit the same legacy BaseVariant reference.
-    // Fix: bump Kotlin to 2.4.10 (see root build.gradle.kts's comment for why — Google's own
-    // compatibility table caps 2.2.x/2.3.x at the last 8.x AGP release each and only leaves
-    // 2.4.x open-ended into AGP 9, which is the version where KGP's auto-apply was actually
-    // taught to cooperate with built-in Kotlin). AGP 9.3.0 (current stable as of Aug 2026,
-    // developer.android.com/build/releases/gradle-plugin) was never the wrong part of attempt 4.
-    id("com.android.application") version "9.3.0"
+    // traditional org.jetbrains.kotlin.android plugin — five failed attempts before this one,
+    // each solving a real but wrong problem (attempts 1-4 documented in NOTES.md; short version:
+    // wrong gradle.properties flag, a flag that didn't help, an AGP-8 retreat that hit a
+    // different KGP-side check, then a build-in-Kotlin setup that still crashed on BaseVariant
+    // regardless of Kotlin 2.2.10 vs 2.4.10). What finally broke the loop: the user generated a
+    // real, working Empty-Activity project from the *same* Android Studio install and sent back
+    // its exact files — verified-working ground truth instead of another guess from docs.
+    //
+    // That template applies only android-application + kotlin-compose — no
+    // org.jetbrains.kotlin.plugin.serialization at all, unlike this module, which had it for one
+    // reason: GithubReleaseDto (update-checker DTO) was declared directly in :app. Moved to
+    // :logic/api/GithubReleaseModels.kt instead (which already applies the serialization
+    // compiler plugin, and isn't an Android module, so it can never hit this AGP/KGP conflict in
+    // the first place) — :app only needs the kotlinx-serialization-json *runtime* dependency
+    // (still declared below) to use Json{} and the Retrofit converter factory, not the compiler
+    // plugin, once it has no @Serializable classes of its own. AGP/Gradle/Kotlin versions below
+    // are copied exactly from the working template, not independently guessed.
+    id("com.android.application") version "9.3.1"
     id("org.jetbrains.kotlin.plugin.compose")
-    id("org.jetbrains.kotlin.plugin.serialization")
 }
 
 // Release signing: keystore.properties (gitignored — see .gitignore) at the repo root, written

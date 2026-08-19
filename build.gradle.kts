@@ -10,21 +10,18 @@ plugins {
     // No org.jetbrains.kotlin.android here (deliberately — see app/build.gradle.kts): AGP 9
     // has built-in Kotlin support and applies its own Kotlin-Android integration internally,
     // which conflicts with the traditional kotlin-android plugin if both are applied at once.
-    // :logic still needs org.jetbrains.kotlin.jvm — it's a plain Kotlin/JVM module, not Android,
-    // so AGP's built-in Kotlin support doesn't cover it.
+    // :logic still needs org.jetbrains.kotlin.jvm and .plugin.serialization — it's a plain
+    // Kotlin/JVM module, not Android, so AGP's built-in Kotlin support doesn't cover it, and it
+    // has real @Serializable classes of its own (api/*Models.kt).
     //
-    // 2.4.10, not 2.2.10 (tried first, see app/build.gradle.kts's plugins-block comment for why
-    // it failed): AGP 9.0's release notes name 2.2.10 as its runtime-dependency *floor*, but
-    // that's not the same as "cooperates with built-in Kotlin". Google's own compatibility table
-    // (developer.android.com/build/kotlin-support) caps Kotlin 2.2.x and 2.3.x at the *last 8.x*
-    // AGP release each (8.10 and 8.13 respectively) and leaves 2.4.x open-ended starting at
-    // 8.5.2+ — the first line actually validated against AGP 9. That distinction turned out to
-    // be load-bearing: Kotlin Gradle Plugin has always auto-applied org.jetbrains.kotlin.android
-    // the moment it sees com.android.application on a project (a decades-old convenience for
-    // people who forgot to apply kotlin-android explicitly), and at 2.2.10 that auto-apply
-    // doesn't know to back off when AGP's built-in Kotlin is already handling the Android target
-    // — so it fires anyway, and its legacy KotlinAndroidTarget still references BaseVariant.
-    id("org.jetbrains.kotlin.jvm") version "2.4.10" apply false
-    id("org.jetbrains.kotlin.plugin.compose") version "2.4.10" apply false
-    id("org.jetbrains.kotlin.plugin.serialization") version "2.4.10" apply false
+    // 2.2.10, matching exactly what a real Android Studio "Empty Activity" project generated on
+    // the same machine this project is actually being synced on (app/build.gradle.kts's
+    // plugins-block comment has the full story of how many guesses that replaced) — 2.4.10 was
+    // tried in between on the theory that Google's compatibility table's open-ended range for
+    // 2.4.x meant it, not 2.2.10, was the version that cooperates with AGP 9's built-in Kotlin.
+    // That theory was wrong: a verified-working real project uses 2.2.10, so the actual variable
+    // was never the Kotlin version at all (see app/build.gradle.kts for what it really was).
+    id("org.jetbrains.kotlin.jvm") version "2.2.10" apply false
+    id("org.jetbrains.kotlin.plugin.compose") version "2.2.10" apply false
+    id("org.jetbrains.kotlin.plugin.serialization") version "2.2.10" apply false
 }

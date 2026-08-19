@@ -1,7 +1,6 @@
 package com.routy.app.update
 
-import kotlinx.serialization.SerialName
-import kotlinx.serialization.Serializable
+import com.routy.app.logic.api.GithubReleaseDto
 import kotlinx.serialization.json.Json
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -10,12 +9,6 @@ import retrofit2.Retrofit
 import retrofit2.converter.kotlinx.serialization.asConverterFactory
 import retrofit2.http.GET
 import retrofit2.http.Headers
-
-@Serializable
-data class GithubReleaseDto(
-    @SerialName("tag_name") val tagName: String? = null,
-    @SerialName("html_url") val htmlUrl: String? = null,
-)
 
 private interface GithubReleaseApi {
     @Headers("Accept: application/vnd.github+json")
