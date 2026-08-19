@@ -10,6 +10,7 @@ import com.routy.app.logic.api.LoginResponse
 import com.routy.app.logic.api.MeResponse
 import com.routy.app.logic.api.NicknameRequest
 import com.routy.app.logic.api.NodesResponse
+import com.routy.app.logic.api.AppStatsMeResponse
 import com.routy.app.logic.api.RouteStateResponse
 import com.routy.app.logic.api.RouteTokenRequest
 import com.routy.app.logic.api.SaveFavoriteRequest
@@ -17,6 +18,7 @@ import com.routy.app.logic.api.SegmentsResponse
 import com.routy.app.logic.api.SessionsResponse
 import com.routy.app.logic.api.ShareFavoriteRequest
 import com.routy.app.logic.api.ShareFavoriteResponse
+import com.routy.app.logic.api.WeeklyLeaderboardResponse
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.RequestBody
 import okhttp3.RequestBody.Companion.toRequestBody
@@ -71,6 +73,12 @@ interface ApiService {
 
     @GET("api/route/state")
     suspend fun routeState(): Response<RouteStateResponse>
+
+    @GET("api/app/stats/me")
+    suspend fun appStatsMe(): Response<AppStatsMeResponse>
+
+    @GET("api/app/stats/leaderboard/weekly")
+    suspend fun weeklyLeaderboard(): Response<WeeklyLeaderboardResponse>
 
     @POST("api/route/generate")
     suspend fun generateRoute(@Body body: GenerateRouteRequest): Response<GenerateRouteResponse>
