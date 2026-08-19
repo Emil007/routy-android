@@ -1,9 +1,11 @@
 package com.routy.app.core.network
 
+import com.routy.app.logic.api.AcceptProposalResponse
 import com.routy.app.logic.api.AdjustRouteRequest
 import com.routy.app.logic.api.AvoidListResponse
 import com.routy.app.logic.api.AvoidSegmentRequest
 import com.routy.app.logic.api.AppBootstrapResponse
+import com.routy.app.logic.api.CrashReportRequest
 import com.routy.app.logic.api.GenerateRouteRequest
 import com.routy.app.logic.api.GenerateRouteResponse
 import com.routy.app.logic.api.GpxCommitRequest
@@ -15,6 +17,10 @@ import com.routy.app.logic.api.NicknameRequest
 import com.routy.app.logic.api.NodesResponse
 import com.routy.app.logic.api.CompleteRouteResponse
 import com.routy.app.logic.api.AppStatsMeResponse
+import com.routy.app.logic.api.ProposalActionRequest
+import com.routy.app.logic.api.ProposalsResponse
+import com.routy.app.logic.api.ReportConditionRequest
+import com.routy.app.logic.api.ReportConditionResponse
 import com.routy.app.logic.api.RouteStateResponse
 import com.routy.app.logic.api.RouteTokenRequest
 import com.routy.app.logic.api.SaveFavoriteRequest
@@ -199,6 +205,21 @@ interface ApiService {
 
     @POST("api/segments/split")
     suspend fun splitSegment(@Body body: SegmentSplitRequest): Response<Unit>
+
+    @POST("api/segments/condition")
+    suspend fun reportSegmentCondition(@Body body: ReportConditionRequest): Response<ReportConditionResponse>
+
+    @GET("api/app/proposals")
+    suspend fun proposals(): Response<ProposalsResponse>
+
+    @POST("api/app/proposals/accept")
+    suspend fun acceptProposal(@Body body: ProposalActionRequest): Response<AcceptProposalResponse>
+
+    @POST("api/app/proposals/dismiss")
+    suspend fun dismissProposal(@Body body: ProposalActionRequest): Response<Unit>
+
+    @POST("api/app/crash")
+    suspend fun reportCrash(@Body body: CrashReportRequest): Response<Unit>
 
     @Multipart
     @POST("api/gpx/parse")

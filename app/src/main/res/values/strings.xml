@@ -104,6 +104,7 @@
     <string name="route_preset_short">Kurze Runde</string>
     <string name="route_preset_long">Lange Runde</string>
     <string name="route_preset_discover">Entdecken</string>
+    <string name="route_preset_surprise">Überrasch mich</string>
     <string name="route_distance_label">Strecke</string>
     <string name="route_duration_label">Dauer</string>
     <string name="route_elevation_gain">%1$d m bergauf</string>
@@ -185,6 +186,21 @@
 
     <string name="map_nodes_count">%1$d Knoten</string>
     <string name="map_offline_cached">Server nicht erreichbar — gecachte Netzwerkdaten</string>
+    <string name="map_condition_report">Zustand melden</string>
+    <string name="map_condition_reason">Grund</string>
+    <string name="map_condition_submit">Melden</string>
+    <string name="map_condition_reported">Zustand gemeldet.</string>
+    <string name="map_condition_muddy">Schlammig</string>
+    <string name="map_condition_flooded">Überflutet</string>
+    <string name="map_condition_construction">Baustelle</string>
+    <string name="map_condition_dog">Hunde</string>
+    <string name="map_condition_icy">Eisglätte</string>
+    <string name="map_condition_overgrown">Zugewachsen</string>
+    <string name="map_proposals_title">Weg-Vorschläge (%1$d)</string>
+    <string name="map_proposal_segment">Weg #%1$d</string>
+    <string name="map_proposal_accept">Teilen</string>
+    <string name="map_proposal_dismiss">Verwerfen</string>
+    <string name="map_proposal_accepted">Vorschlag übernommen.</string>
     <string name="map_load_error">Wegnetz konnte nicht geladen werden.</string>
     <string name="map_record_track">Weg aufzeichnen</string>
     <string name="map_tap_hint">Tippe auf Knoten oder Weg zum Bearbeiten. Zeichnen oder GPX importieren.</string>
@@ -255,6 +271,9 @@
     <string name="settings_avoid_subtitle">Routen bevorzugen andere Wege wenn möglich — kein hartes Verbot.</string>
     <string name="settings_avoid_empty">Du meidest derzeit keine Wege.</string>
     <string name="settings_avoid_add">Weg zur Meideliste hinzufügen</string>
+    <string name="settings_account_security_title">Kontosicherheit</string>
+    <string name="settings_account_security_subtitle">Passwort, Zwei-Faktor-Auth und Konto deaktivieren — in den Browser-Einstellungen.</string>
+    <string name="settings_account_security_open">Kontosicherheit öffnen</string>
     <string name="common_remove">Entfernen</string>
 
     <string name="notification_recording_channel_name">Wegaufzeichnung</string>

@@ -60,7 +60,7 @@ android {
         // Overridden by CI from the pushed release tag (-PappVersionName=0.13a -PappVersionCode=N)
         // — see .github/workflows/release.yml. Tags use the `a` suffix (e.g. v0.13a).
         versionCode = (project.findProperty("appVersionCode") as String?)?.toIntOrNull() ?: 19
-        versionName = (project.findProperty("appVersionName") as String?) ?: "0.26a"
+        versionName = (project.findProperty("appVersionName") as String?) ?: "0.29a"
         buildConfigField("String", "SENTRY_DSN", "\"${sentryDsn.replace("\"", "\\\"")}\"")
     }
 
@@ -163,6 +163,7 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.7")
     implementation("androidx.activity:activity-compose:1.9.3")
     implementation("androidx.navigation:navigation-compose:2.8.5")
+    implementation("androidx.browser:browser:1.8.0")
 
     // --- Networking ---
     implementation("com.squareup.retrofit2:retrofit:2.11.0")

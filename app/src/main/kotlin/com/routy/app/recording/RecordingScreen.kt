@@ -70,6 +70,7 @@ import com.routy.app.logic.recording.RecordingPhase
 import com.routy.app.map.BaseMapStyle
 import com.routy.app.map.MapStyleSwitcher
 import com.routy.app.map.RoutyMapView
+import com.routy.app.ui.OfflineBanner
 
 private val CompactPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
 
@@ -79,7 +80,7 @@ fun RecordingScreen(onDone: () -> Unit, modifier: Modifier = Modifier) {
     val context = LocalContext.current
     val app = context.applicationContext as RoutyApplication
     val viewModel: RecordingViewModel = viewModel(
-        factory = viewModelFactory { initializer { RecordingViewModel(app.apiClientProvider, app.gpxCommitScheduler, app.recordingConfirmStore) } },
+        factory = viewModelFactory { initializer { RecordingViewModel(app.apiClientProvider, app.gpxCommitScheduler, app.recordingConfirmStore, app.bootstrapLoader) } },
     )
     val uiState by viewModel.uiState.collectAsState()
 
@@ -195,6 +196,7 @@ fun RecordingScreen(onDone: () -> Unit, modifier: Modifier = Modifier) {
                 modifier = modifier.fillMaxWidth().padding(padding).padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
+                if (uiState.offlineCached) OfflineBanner()
                 BatteryOptimizationPrompt()
                 Text(stringResource(R.string.record_instructions), style = MaterialTheme.typography.bodyMedium)
                 Text(
@@ -238,6 +240,10 @@ private fun ConfirmFullscreen(
         )
 
         FloatingMapChrome(onBack = onBack, mapStyle = mapStyle, onMapStyle = { mapStyle = it })
+
+        if (uiState.offlineCached) {
+            OfflineBanner(modifier = Modifier.align(Alignment.TopCenter).padding(top = 56.dp))
+        }
 
         Surface(
             modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(8.dp),

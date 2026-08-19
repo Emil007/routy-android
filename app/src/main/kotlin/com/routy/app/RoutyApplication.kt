@@ -1,7 +1,7 @@
 package com.routy.app
 
 import android.app.Application
-import com.routy.app.core.AccountLocale
+import com.routy.app.core.CrashReporting
 import com.routy.app.core.AccountTheme
 import com.routy.app.core.network.ApiClientProvider
 import com.routy.app.core.storage.SecureStorage
@@ -40,6 +40,8 @@ class RoutyApplication : Application() {
         private set
     lateinit var bootstrapLoader: BootstrapLoader
         private set
+    lateinit var crashReportStore: com.routy.app.core.storage.CrashReportStore
+        private set
 
     private val appScope = CoroutineScope(SupervisorJob())
 
@@ -56,6 +58,7 @@ class RoutyApplication : Application() {
         gpxCommitQueueStore = com.routy.app.core.storage.GpxCommitQueueStore(this)
         gpxCommitScheduler = com.routy.app.recording.GpxCommitScheduler(this, gpxCommitQueueStore)
         bootstrapLoader = BootstrapLoader(apiClientProvider, networkCache)
+        crashReportStore = com.routy.app.core.storage.CrashReportStore(this)
         mapTilePrefetchScheduler = MapTilePrefetchScheduler(this)
         networkCache.loadBootstrap()?.user?.locale?.let { AccountLocale.apply(it) }
         networkCache.loadBootstrap()?.user?.theme?.let { AccountTheme.apply(it) }
@@ -70,5 +73,23 @@ class RoutyApplication : Application() {
                 WidgetUpdater.refreshFromApi(applicationContext, apiClientProvider.service)
             }
         }
+        appScope.launch {
+            uploadPendingCrashReport()
+        }
+    }
+
+    private suspend fun uploadPendingCrashReport() {
+        val pending = crashReportStore.load() ?: return
+        if (secureStorage.token.isNullOrBlank()) return
+        val res = runCatching {
+            apiClientProvider.service.reportCrash(
+                com.routy.app.logic.api.CrashReportRequest(
+                    message = pending.message,
+                    stack = pending.stack,
+                    appVersion = pending.appVersion,
+                ),
+            )
+        }.getOrNull()
+        if (res?.isSuccessful == true) crashReportStore.clear()
     }
 }

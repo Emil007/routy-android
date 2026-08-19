@@ -62,7 +62,8 @@ data class GenerateRouteRequest(
     val destinationNodeId: Int? = null,
     val waypointNodeId: Int? = null,
     val explorerMode: Boolean = false,
-    /** "short" | "long" — biases the search toward the lower/upper half of the configured length range. */
+    val surpriseMode: Boolean = false,
+    /** "short" | "long" | "surprise" — biases the search toward the lower/upper half of the configured length range. */
     val preset: String? = null,
 )
 

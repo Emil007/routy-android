@@ -17,7 +17,9 @@ import com.routy.app.logic.api.NodeDto
 import com.routy.app.logic.api.NodeIdRequest
 import com.routy.app.logic.api.NodeMoveRequest
 import com.routy.app.logic.api.NodeRenameRequest
-import com.routy.app.logic.api.SegmentDto
+import com.routy.app.logic.api.PathProposalDto
+import com.routy.app.logic.api.ReportConditionRequest
+import com.routy.app.logic.api.SegmentConditionDto
 import com.routy.app.logic.api.SegmentGeometryRequest
 import com.routy.app.logic.api.SegmentIdRequest
 import com.routy.app.logic.api.SegmentLockRequest
@@ -62,6 +64,10 @@ data class MapUiState(
     val walkSpeedKmh: Double = 5.0,
     val nodes: List<NodeDto> = emptyList(),
     val segments: List<SegmentDto> = emptyList(),
+    val segmentConditions: List<SegmentConditionDto> = emptyList(),
+    val proposals: List<PathProposalDto> = emptyList(),
+    val reportingCondition: Boolean = false,
+    val conditionReason: String = "muddy",
     val mode: MapMode = MapMode.View,
     val selectedNode: NodeDto? = null,
     val selectedSegment: SegmentDto? = null,
@@ -626,6 +632,80 @@ class MapViewModel(
         }
     }
 
+    fun refreshProposals() {
+        viewModelScope.launch {
+            val res = runCatching { apiClientProvider.service.proposals() }.getOrNull()
+            if (res?.isSuccessful == true) {
+                _uiState.value = _uiState.value.copy(proposals = res.body()?.proposals.orEmpty())
+            }
+        }
+    }
+
+    fun startReportCondition() {
+        _uiState.value = _uiState.value.copy(reportingCondition = true, conditionReason = "muddy")
+    }
+
+    fun cancelReportCondition() {
+        _uiState.value = _uiState.value.copy(reportingCondition = false)
+    }
+
+    fun setConditionReason(reason: String) {
+        _uiState.value = _uiState.value.copy(conditionReason = reason)
+    }
+
+    fun submitConditionReport() {
+        val segment = _uiState.value.selectedSegment ?: return
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(actionBusy = true)
+            val res = runCatching {
+                apiClientProvider.service.reportSegmentCondition(
+                    ReportConditionRequest(segment.id, _uiState.value.conditionReason),
+                )
+            }.getOrNull()
+            if (res?.isSuccessful == true) {
+                bootstrapLoader.invalidate()
+                loadNetwork(forceRefresh = true)
+                _uiState.value = _uiState.value.copy(
+                    actionBusy = false,
+                    reportingCondition = false,
+                    messageRes = R.string.map_condition_reported,
+                    isError = false,
+                )
+            } else {
+                _uiState.value = _uiState.value.copy(actionBusy = false, messageRes = R.string.common_error, isError = true)
+            }
+        }
+    }
+
+    fun acceptProposal(proposalId: Int) {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(actionBusy = true)
+            val res = runCatching {
+                apiClientProvider.service.acceptProposal(com.routy.app.logic.api.ProposalActionRequest(proposalId))
+            }.getOrNull()
+            if (res?.isSuccessful == true) {
+                bootstrapLoader.invalidate()
+                loadNetwork(forceRefresh = true)
+                refreshProposals()
+                _uiState.value = _uiState.value.copy(actionBusy = false, messageRes = R.string.map_proposal_accepted, isError = false)
+            } else {
+                _uiState.value = _uiState.value.copy(actionBusy = false, messageRes = R.string.common_error, isError = true)
+            }
+        }
+    }
+
+    fun dismissProposal(proposalId: Int) {
+        viewModelScope.launch {
+            val res = runCatching {
+                apiClientProvider.service.dismissProposal(com.routy.app.logic.api.ProposalActionRequest(proposalId))
+            }.getOrNull()
+            if (res?.isSuccessful == true) refreshProposals()
+        }
+    }
+
+    fun conditionsForSegment(segmentId: Int): List<SegmentConditionDto> =
+        _uiState.value.segmentConditions.filter { it.segmentId == segmentId }
+
     private fun loadGpxConfig() {
         viewModelScope.launch {
             val config = runCatching { apiClientProvider.service.gpxConfig() }.getOrNull()
@@ -643,24 +723,31 @@ class MapViewModel(
         viewModelScope.launch {
             if (!forceRefresh) {
                 networkCache.loadBootstrap()?.let { cached ->
-                    applyNetwork(cached.user, cached.nodes, cached.segments, offline = false)
+                    applyNetwork(cached.user, cached.nodes, cached.segments, cached.segmentConditions, offline = false)
                 }
             }
 
             when (val result = bootstrapLoader.load()) {
-                is BootstrapResult.Fresh -> applyNetwork(result.body.user, result.body.nodes, result.body.segments, offline = false)
-                is BootstrapResult.NotModified -> applyNetwork(result.cached.user, result.cached.nodes, result.cached.segments, offline = false)
-                is BootstrapResult.CachedOnly -> applyNetwork(result.cached.user, result.cached.nodes, result.cached.segments, offline = true)
+                is BootstrapResult.Fresh -> applyNetwork(result.body.user, result.body.nodes, result.body.segments, result.body.segmentConditions, offline = false)
+                is BootstrapResult.NotModified -> applyNetwork(result.cached.user, result.cached.nodes, result.cached.segments, result.cached.segmentConditions, offline = false)
+                is BootstrapResult.CachedOnly -> applyNetwork(result.cached.user, result.cached.nodes, result.cached.segments, result.cached.segmentConditions, offline = true)
                 BootstrapResult.Unauthorized, BootstrapResult.Failed -> {
                     if (_uiState.value.nodes.isEmpty()) {
                         _uiState.value = _uiState.value.copy(loading = false, loadFailed = true)
                     }
                 }
             }
+            refreshProposals()
         }
     }
 
-    private fun applyNetwork(user: SessionUser, nodes: List<NodeDto>, segments: List<SegmentDto>, offline: Boolean) {
+    private fun applyNetwork(
+        user: SessionUser,
+        nodes: List<NodeDto>,
+        segments: List<SegmentDto>,
+        segmentConditions: List<SegmentConditionDto>,
+        offline: Boolean,
+    ) {
         val prev = _uiState.value
         _uiState.value = prev.copy(
             loading = false,
@@ -669,6 +756,7 @@ class MapViewModel(
             user = user,
             nodes = nodes,
             segments = segments.filter { it.isCanonical() },
+            segmentConditions = segmentConditions,
             selectedNode = prev.selectedNode?.let { sel -> nodes.find { it.id == sel.id } },
             selectedSegment = prev.selectedSegment?.let { sel -> segments.find { it.id == sel.id && it.isCanonical() } },
         )

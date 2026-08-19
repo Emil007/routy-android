@@ -23,6 +23,7 @@ data class CachedBootstrap(
     val segments: List<SegmentDto>,
     val routeState: RouteStateResponse,
     val avoidSegmentIds: List<Int> = emptyList(),
+    val segmentConditions: List<com.routy.app.logic.api.SegmentConditionDto> = emptyList(),
     val cachedAtMs: Long,
 )
 

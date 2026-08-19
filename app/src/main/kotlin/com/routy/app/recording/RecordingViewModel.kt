@@ -3,7 +3,8 @@ package com.routy.app.recording
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.routy.app.R
-import com.routy.app.core.StatsInvalidation
+import com.routy.app.core.BootstrapLoader
+import com.routy.app.core.BootstrapResult
 import com.routy.app.core.network.ApiClientProvider
 import com.routy.app.core.storage.RecordingConfirmStore
 import com.routy.app.logic.api.GpxCommitRequest
@@ -30,6 +31,7 @@ import kotlinx.coroutines.launch
 
 data class RecordingUiState(
     val loadingConfig: Boolean = true,
+    val offlineCached: Boolean = false,
     val nodes: List<NodeDto> = emptyList(),
     val mergeRadiusM: Double = 50.0,
     val walkSpeedKmh: Double = 5.0,
@@ -60,6 +62,7 @@ class RecordingViewModel(
     private val apiClientProvider: ApiClientProvider,
     private val gpxCommitScheduler: GpxCommitScheduler,
     private val confirmStore: RecordingConfirmStore,
+    private val bootstrapLoader: BootstrapLoader,
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(RecordingUiState())
     val uiState: StateFlow<RecordingUiState> = _uiState.asStateFlow()
@@ -70,6 +73,7 @@ class RecordingViewModel(
 
     private fun loadConfig() {
         viewModelScope.launch {
+            val offline = bootstrapLoader.load() is BootstrapResult.CachedOnly
             val service = apiClientProvider.service
             val nodesResponse = runCatching { service.nodes() }.getOrNull()
             val configResponse = runCatching { service.gpxConfig() }.getOrNull()
@@ -77,6 +81,7 @@ class RecordingViewModel(
             val config = configResponse?.takeIf { it.isSuccessful }?.body()
             _uiState.value = _uiState.value.copy(
                 loadingConfig = false,
+                offlineCached = offline,
                 nodes = nodes,
                 mergeRadiusM = config?.mergeRadiusM ?: _uiState.value.mergeRadiusM,
                 walkSpeedKmh = config?.walkSpeedKmh ?: _uiState.value.walkSpeedKmh,

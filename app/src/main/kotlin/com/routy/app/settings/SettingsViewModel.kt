@@ -27,6 +27,7 @@ data class SettingsUiState(
     val messageRes: Int? = null,
     val error: Boolean = false,
     val needsRecreate: Boolean = false,
+    val offlineCached: Boolean = false,
     val segments: List<SegmentDto> = emptyList(),
     val avoidSegmentIds: List<Int> = emptyList(),
 )
@@ -45,8 +46,9 @@ class SettingsViewModel(
     fun load() {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(loading = true, error = false, messageRes = null)
+            val bootstrapResult = bootstrapLoader.load()
+            val offline = bootstrapResult is BootstrapResult.CachedOnly
             try {
-                val bootstrapResult = bootstrapLoader.load()
                 val (user, segments, avoidIds) = when (bootstrapResult) {
                     is BootstrapResult.Fresh -> Triple(bootstrapResult.body.user, bootstrapResult.body.segments, bootstrapResult.body.avoidSegmentIds)
                     is BootstrapResult.NotModified -> Triple(bootstrapResult.cached.user, bootstrapResult.cached.segments, bootstrapResult.cached.avoidSegmentIds)
@@ -59,6 +61,7 @@ class SettingsViewModel(
                 val networkWalkSpeed = configRes?.takeIf { it.isSuccessful }?.body()?.walkSpeedKmh ?: 5.0
                 _uiState.value = SettingsUiState(
                     loading = false,
+                    offlineCached = offline,
                     user = user,
                     sessions = sessions,
                     networkWalkSpeedKmh = networkWalkSpeed,
@@ -66,7 +69,7 @@ class SettingsViewModel(
                     avoidSegmentIds = avoidIds,
                 )
             } catch (_: IOException) {
-                _uiState.value = _uiState.value.copy(loading = false, error = true)
+                _uiState.value = _uiState.value.copy(loading = false, error = true, offlineCached = offline)
             }
         }
     }
