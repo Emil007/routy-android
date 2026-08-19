@@ -3,9 +3,12 @@ package com.routy.app.recording
 import android.content.Context
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
+import com.routy.app.core.GpxUploadNotifier
 import com.routy.app.core.network.ApiClientProvider
 import com.routy.app.core.storage.GpxCommitQueueStore
 import com.routy.app.core.storage.SecureStorage
+import com.routy.app.logic.recording.GpxCommitOutcome
+import com.routy.app.logic.recording.gpxCommitOutcome
 import java.io.IOException
 
 class GpxCommitWorker(
@@ -28,13 +31,14 @@ class GpxCommitWorker(
             return Result.retry()
         }
 
-        return when {
-            response.isSuccessful -> {
+        return when (gpxCommitOutcome(response.isSuccessful, response.code())) {
+            GpxCommitOutcome.Success -> {
                 queueStore.remove(commitId)
+                GpxUploadNotifier.notifyUploadSucceeded()
                 Result.success()
             }
-            response.code() in RETRYABLE_HTTP -> Result.retry()
-            else -> {
+            GpxCommitOutcome.Retry -> Result.retry()
+            GpxCommitOutcome.PermanentFailure -> {
                 queueStore.remove(commitId)
                 Result.failure()
             }
@@ -43,8 +47,6 @@ class GpxCommitWorker(
 
     companion object {
         const val KEY_COMMIT_ID = "commit_id"
-
-        private val RETRYABLE_HTTP = 500..599
 
         fun workName(commitId: String) = "gpx_commit_$commitId"
     }

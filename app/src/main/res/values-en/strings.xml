@@ -72,6 +72,8 @@
 
     <string name="route_active_notice">You have an active route. Confirm it as walked, or discard it to get a new suggestion.</string>
     <string name="route_nickname_placeholder">Name for this walk (optional)</string>
+    <string name="route_save_nickname">Save name</string>
+    <string name="route_nickname_saved">Name saved.</string>
     <string name="route_favorites_title">Favorite routes</string>
     <string name="route_favorite_take">Take this route</string>
     <string name="route_favorite_unshare">Stop sharing</string>
@@ -133,6 +135,7 @@
     <string name="record_saving">Saving …</string>
     <string name="record_saved">Path saved.</string>
     <string name="record_queued_for_upload">Upload failed — will retry automatically when network is available.</string>
+    <string name="record_upload_completed_background">Track uploaded in background — stats updated.</string>
     <string name="record_start_node">Start point</string>
     <string name="record_end_node">End point</string>
     <string name="record_use_existing">Use existing node</string>

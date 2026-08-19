@@ -384,9 +384,17 @@ class RouteViewModel(
 
     fun saveNickname() {
         viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(nicknameSaving = true)
-            try { apiClientProvider.service.setRouteNickname(NicknameRequest(_uiState.value.nickname)) } catch (_: IOException) {}
-            _uiState.value = _uiState.value.copy(nicknameSaving = false)
+            _uiState.value = _uiState.value.copy(nicknameSaving = true, messageRes = null)
+            val response = try {
+                apiClientProvider.service.setRouteNickname(NicknameRequest(_uiState.value.nickname))
+            } catch (_: IOException) {
+                _uiState.value = _uiState.value.copy(nicknameSaving = false, messageRes = R.string.common_error)
+                return@launch
+            }
+            _uiState.value = _uiState.value.copy(
+                nicknameSaving = false,
+                messageRes = if (response.isSuccessful) R.string.route_nickname_saved else R.string.common_error,
+            )
         }
     }
 

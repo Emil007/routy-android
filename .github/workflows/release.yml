@@ -45,19 +45,19 @@ jobs:
           keyPassword=${{ secrets.ANDROID_KEY_PASSWORD }}
           PROPS
 
-      - name: Print release cert SHA256 (for assetlinks.json)
+      - name: Print release cert SHA256 (optional — HTTPS App Links only)
         run: |
           FINGERPRINT=$(keytool -list -v \
             -keystore "${{ github.workspace }}/release.jks" \
             -alias "${{ secrets.ANDROID_KEY_ALIAS }}" \
             -storepass "${{ secrets.ANDROID_KEYSTORE_PASSWORD }}" \
             2>/dev/null | grep "SHA256:" | head -1 | sed 's/.*SHA256: //' | tr -d ' ')
-          echo "Release signing certificate SHA256 (paste into public/.well-known/assetlinks.json):"
+          echo "Release signing certificate SHA256 (optional — only if you later enable HTTPS App Links):"
           echo "$FINGERPRINT"
           {
-            echo "## Release signing certificate"
+            echo "## Release signing certificate (optional)"
             echo ""
-            echo "Add this SHA256 to \`public/.well-known/assetlinks.json\` on the server for \`com.routy.app\`:"
+            echo "Beta uses \`routy://share/{token}\` only. If you add HTTPS App Links later, paste this SHA256 into \`public/.well-known/assetlinks.json\` on the server for \`com.routy.app\`:"
             echo ""
             echo "\`\`\`"
             echo "$FINGERPRINT"

@@ -603,7 +603,7 @@ These four repo secrets are set on `Emil007/routy-android` (Settings → Secrets
 - `ANDROID_KEYSTORE_BASE64` — release `.jks`, base64-encoded
 - `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`
 
-Pushing a `v*` tag runs `.github/workflows/release.yml`, which decodes the keystore, builds a signed APK, and prints the **SHA256 certificate fingerprint** in the workflow summary — paste that into `public/.well-known/assetlinks.json` on the server for production App Links.
+Pushing a `v*` tag runs `.github/workflows/release.yml`, which decodes the keystore, builds a signed APK, and prints the **SHA256 certificate fingerprint** in the workflow summary — optional reference only if you later enable HTTPS App Links (`public/.well-known/assetlinks.json` on the server). Beta distribution uses `routy://share/{token}` only.
 
 Optional repo **variable** `DEEP_LINK_HOST` (Settings → Secrets and variables → Actions → Variables) sets the manifest deep-link host at release build time (defaults to `localhost`).
 

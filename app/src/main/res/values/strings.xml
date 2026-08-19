@@ -72,6 +72,8 @@
 
     <string name="route_active_notice">Du hast eine aktive Route. Bestätige sie als gegangen, oder verwirf sie, um eine neue vorzuschlagen.</string>
     <string name="route_nickname_placeholder">Name für diesen Spaziergang (optional)</string>
+    <string name="route_save_nickname">Name speichern</string>
+    <string name="route_nickname_saved">Name gespeichert.</string>
     <string name="route_favorites_title">Lieblingsrouten</string>
     <string name="route_favorite_take">Diese Route nehmen</string>
     <string name="route_favorite_unshare">Teilen beenden</string>
@@ -133,6 +135,7 @@
     <string name="record_saving">Speichere …</string>
     <string name="record_saved">Weg gespeichert.</string>
     <string name="record_queued_for_upload">Upload fehlgeschlagen — wird automatisch wiederholt, sobald Netz verfügbar ist.</string>
+    <string name="record_upload_completed_background">Weg im Hintergrund hochgeladen — Statistik aktualisiert.</string>
     <string name="record_start_node">Startpunkt</string>
     <string name="record_end_node">Endpunkt</string>
     <string name="record_use_existing">Vorhandenen Knoten verwenden</string>

@@ -1,6 +1,6 @@
 name: Print signing fingerprint
 
-# Run manually to get the release cert SHA256 for assetlinks.json without cutting a release.
+# Optional: run manually to print the release cert SHA256 if you later enable HTTPS App Links.
 on:
   workflow_dispatch:
 
@@ -11,18 +11,18 @@ jobs:
       - name: Decode signing keystore
         run: echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 --decode > "${{ github.workspace }}/release.jks"
 
-      - name: Print release cert SHA256
+      - name: Print release cert SHA256 (optional — HTTPS App Links only)
         run: |
           FINGERPRINT=$(keytool -list -v \
             -keystore "${{ github.workspace }}/release.jks" \
             -alias "${{ secrets.ANDROID_KEY_ALIAS }}" \
             -storepass "${{ secrets.ANDROID_KEYSTORE_PASSWORD }}" \
             2>/dev/null | grep "SHA256:" | head -1 | sed 's/.*SHA256: //' | tr -d ' ')
-          echo "Release SHA256: $FINGERPRINT"
+          echo "Release SHA256 (optional): $FINGERPRINT"
           {
-            echo "## Release signing certificate"
+            echo "## Release signing certificate (optional)"
             echo ""
-            echo "Paste into \`public/.well-known/assetlinks.json\` for \`com.routy.app\`:"
+            echo "Beta uses \`routy://share/{token}\` only. If you add HTTPS App Links later, paste into \`public/.well-known/assetlinks.json\` for \`com.routy.app\`:"
             echo ""
             echo "\`\`\`json"
             echo "\"sha256_cert_fingerprints\": [\"$FINGERPRINT\"]"
