@@ -2,7 +2,7 @@ name: Release
 
 # Pushing a version tag (e.g. `v1.2.3`) builds a signed release APK and attaches it to a new
 # GitHub Release. Requires repo secrets ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD,
-# ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD. Optional repo variable DEEP_LINK_HOST for verified App Links.
+# ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD. Share links use routy:// (universal, no domain in APK).
 on:
   push:
     tags:
@@ -68,8 +68,7 @@ jobs:
         run: |
           ./gradlew :app:assembleRelease \
             -PappVersionName=${{ steps.version.outputs.name }} \
-            -PappVersionCode=${{ steps.version.outputs.code }} \
-            -PdeepLinkHost=${{ vars.DEEP_LINK_HOST || 'localhost' }}
+            -PappVersionCode=${{ steps.version.outputs.code }}
 
       - name: Remove keystore and credentials from the runner
         if: always()

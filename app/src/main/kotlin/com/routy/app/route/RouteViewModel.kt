@@ -83,7 +83,6 @@ data class RouteUiState(
 
 class RouteViewModel(
     private val apiClientProvider: ApiClientProvider,
-    private val baseUrl: String,
     private val routeProgressStore: RouteProgressStore,
     private val networkCache: NetworkCache,
     private val bootstrapLoader: BootstrapLoader,
@@ -526,7 +525,7 @@ class RouteViewModel(
             if (!response.isSuccessful) return@launch
             val shareToken = response.body()?.shareToken
             _uiState.value = _uiState.value.copy(
-                pendingShareUrl = shareToken?.let { "$baseUrl/share/$it" },
+                pendingShareUrl = shareToken?.let { "routy://share/$it" },
             )
             refreshFavorites()
         }
