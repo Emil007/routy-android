@@ -128,6 +128,7 @@
     <string name="record_save">Weg speichern</string>
     <string name="record_saving">Speichere …</string>
     <string name="record_saved">Weg gespeichert.</string>
+    <string name="record_queued_for_upload">Upload fehlgeschlagen — wird automatisch wiederholt, sobald Netz verfügbar ist.</string>
     <string name="record_start_node">Startpunkt</string>
     <string name="record_end_node">Endpunkt</string>
     <string name="record_use_existing">Vorhandenen Knoten verwenden</string>

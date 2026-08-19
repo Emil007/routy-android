@@ -47,6 +47,7 @@ class ApiClientProvider(private val secureStorage: SecureStorage) {
         }
         val client = OkHttpClient.Builder()
             .addInterceptor(AuthInterceptor(secureStorage))
+            .addInterceptor(RetryInterceptor())
             .addInterceptor(loggingInterceptor)
             .connectTimeout(15, TimeUnit.SECONDS)
             .readTimeout(30, TimeUnit.SECONDS)
