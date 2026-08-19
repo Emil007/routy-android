@@ -8,6 +8,8 @@ import com.routy.app.core.BootstrapLoader
 import com.routy.app.core.BootstrapResult
 import com.routy.app.core.StatsInvalidation
 import com.routy.app.core.network.ApiClientProvider
+import com.routy.app.logic.cache.CachedBootstrap
+import com.routy.app.logic.cache.CachedNetwork
 import com.routy.app.core.storage.NetworkCache
 import com.routy.app.core.storage.RouteProgressStore
 import com.routy.app.logic.api.AchievementsDto
@@ -143,8 +145,8 @@ class RouteViewModel(
     }
 
     private suspend fun fallbackLoad(
-        cachedBootstrap: NetworkCache.CachedBootstrap?,
-        cachedNetwork: NetworkCache.CachedNetwork?,
+        cachedBootstrap: CachedBootstrap?,
+        cachedNetwork: CachedNetwork?,
     ) {
         val service = apiClientProvider.service
         val etag = cachedBootstrap?.networkVersion ?: cachedNetwork?.etag

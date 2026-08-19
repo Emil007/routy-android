@@ -2,14 +2,15 @@ package com.routy.app.core
 
 import com.routy.app.core.network.ApiClientProvider
 import com.routy.app.core.storage.NetworkCache
+import com.routy.app.logic.cache.CachedBootstrap
 import com.routy.app.logic.api.AppBootstrapResponse
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
 sealed class BootstrapResult {
     data class Fresh(val body: AppBootstrapResponse, val etag: String) : BootstrapResult()
-    data class NotModified(val cached: NetworkCache.CachedBootstrap) : BootstrapResult()
-    data class CachedOnly(val cached: NetworkCache.CachedBootstrap) : BootstrapResult()
+    data class NotModified(val cached: CachedBootstrap) : BootstrapResult()
+    data class CachedOnly(val cached: CachedBootstrap) : BootstrapResult()
     data object Unauthorized : BootstrapResult()
     data object Failed : BootstrapResult()
 }
