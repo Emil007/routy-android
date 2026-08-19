@@ -437,6 +437,14 @@ private fun CompactEndpointBlock(
                     textStyle = MaterialTheme.typography.labelSmall,
                     modifier = Modifier.fillMaxWidth(),
                 )
+                OutlinedTextField(
+                    value = decision.part2,
+                    onValueChange = { onDecisionChange(decision.copy(part2 = it)) },
+                    placeholder = { Text(stringResource(R.string.record_name_part2), style = MaterialTheme.typography.labelSmall) },
+                    singleLine = true,
+                    textStyle = MaterialTheme.typography.labelSmall,
+                    modifier = Modifier.fillMaxWidth(),
+                )
             }
         }
     }

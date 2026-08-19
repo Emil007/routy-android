@@ -181,7 +181,8 @@
     <string name="common_close">Close</string>
 
     <string name="map_nodes_count">%1$d nodes</string>
-    <string name="map_offline_cached">Offline cache</string>
+    <string name="map_offline_cached">Cached network data</string>
+    <string name="map_load_error">Could not load path network.</string>
     <string name="map_record_track">Record track</string>
     <string name="map_tap_hint">Tap a node for details. Edit network on the web admin.</string>
     <string name="map_node_home">Home node</string>

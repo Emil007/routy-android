@@ -9,7 +9,7 @@ import com.routy.app.logic.map.tileUrl
 import com.routy.app.logic.map.tilesForBounds
 import okhttp3.Request
 
-/** Prefetches hiking raster tiles for a route bbox into the shared OkHttp disk cache. */
+/** Prefetches raster map tiles for a route bbox into the shared OkHttp disk cache. */
 class MapTilePrefetchWorker(
     appContext: Context,
     params: WorkerParameters,
@@ -50,7 +50,7 @@ class MapTilePrefetchWorker(
         const val KEY_MAX_LAT = "max_lat"
         const val KEY_MAX_LNG = "max_lng"
 
-        fun workName(bounds: GeoBounds) =
-            "map_tile_prefetch_${bounds.minLat}_${bounds.minLng}_${bounds.maxLat}_${bounds.maxLng}"
+        fun workName(bounds: GeoBounds, style: MapTileStyle) =
+            "map_tile_prefetch_${style.name}_${bounds.minLat}_${bounds.minLng}_${bounds.maxLat}_${bounds.maxLng}"
     }
 }

@@ -113,6 +113,9 @@ fun SettingsScreen(
                     color = MaterialTheme.colorScheme.error,
                     style = MaterialTheme.typography.bodySmall,
                 )
+                CompactOutlinedButton(onClick = viewModel::load, enabled = !uiState.saving, modifier = Modifier.fillMaxWidth()) {
+                    Text(stringResource(R.string.stats_retry), style = MaterialTheme.typography.labelMedium)
+                }
             }
         }
 

@@ -493,7 +493,7 @@ class RouteViewModel(
                     SaveFavoriteRequest(name, route.nodeChain, route.segmentIds, route.lengthM, route.durationMin),
                 )
             } catch (_: IOException) {
-                _uiState.value = _uiState.value.copy(savingFavorite = false)
+                _uiState.value = _uiState.value.copy(savingFavorite = false, messageRes = R.string.common_error)
                 return@launch
             }
             _uiState.value = _uiState.value.copy(savingFavorite = false)
@@ -536,7 +536,12 @@ class RouteViewModel(
 
     fun deleteFavorite(id: Int) {
         viewModelScope.launch {
-            try { apiClientProvider.service.deleteFavorite(id) } catch (_: IOException) { return@launch }
+            try {
+                apiClientProvider.service.deleteFavorite(id)
+            } catch (_: IOException) {
+                _uiState.value = _uiState.value.copy(messageRes = R.string.common_error)
+                return@launch
+            }
             refreshFavorites()
         }
     }
@@ -565,8 +570,14 @@ class RouteViewModel(
         viewModelScope.launch {
             val response = try {
                 apiClientProvider.service.shareFavorite(favorite.id, ShareFavoriteRequest(enable = favorite.shareToken == null))
-            } catch (_: IOException) { return@launch }
-            if (!response.isSuccessful) return@launch
+            } catch (_: IOException) {
+                _uiState.value = _uiState.value.copy(messageRes = R.string.common_error)
+                return@launch
+            }
+            if (!response.isSuccessful) {
+                _uiState.value = _uiState.value.copy(messageRes = R.string.common_error)
+                return@launch
+            }
             val shareToken = response.body()?.shareToken
             _uiState.value = _uiState.value.copy(
                 pendingShareUrl = shareToken?.let { "routy://share/$it" },
