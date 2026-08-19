@@ -25,7 +25,7 @@ import java.util.Locale
  * rather than pausing it outright, and releases focus itself once each utterance finishes so
  * ducked audio recovers immediately after each cue instead of staying quiet for the whole walk.
  */
-class VoiceGuidanceController(context: Context) {
+class VoiceGuidanceController(context: Context, private val ttsLocale: Locale) {
     private val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
     private val audioAttributes = AudioAttributes.Builder()
         .setUsage(AudioAttributes.USAGE_ASSISTANCE_NAVIGATION_GUIDANCE)
@@ -42,7 +42,9 @@ class VoiceGuidanceController(context: Context) {
         tts = TextToSpeech(context) { status ->
             ready = status == TextToSpeech.SUCCESS
             if (ready) {
-                tts?.language = Locale.getDefault()
+                // Voice cues should follow the account/server locale, not the device locale.
+                // (Full UI localization is intentionally bigger; TTS language is the low-risk first win.)
+                tts?.language = ttsLocale
                 tts?.setAudioAttributes(audioAttributes)
                 tts?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
                     override fun onStart(utteranceId: String?) {}
@@ -73,9 +75,10 @@ class VoiceGuidanceController(context: Context) {
 }
 
 @Composable
-fun rememberVoiceGuidanceController(): VoiceGuidanceController {
+fun rememberVoiceGuidanceController(accountLocaleTag: String): VoiceGuidanceController {
     val context = LocalContext.current
-    val controller = remember { VoiceGuidanceController(context) }
+    val targetLocale = if (accountLocaleTag.isBlank()) Locale.getDefault() else Locale.forLanguageTag(accountLocaleTag)
+    val controller = remember(accountLocaleTag) { VoiceGuidanceController(context, targetLocale) }
     DisposableEffect(Unit) {
         onDispose { controller.shutdown() }
     }
