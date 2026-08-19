@@ -37,3 +37,7 @@ data class GpxTrack(
 
 @Serializable
 data class GpxCommitRequest(val tracks: List<GpxTrack>)
+
+/** GET /api/gpx/config — mirrors the settings.merge_radius_m / effectiveWalkSpeedKmh props the web's /map RSC computes server-side. */
+@Serializable
+data class GpxConfigResponse(val mergeRadiusM: Double, val walkSpeedKmh: Double)

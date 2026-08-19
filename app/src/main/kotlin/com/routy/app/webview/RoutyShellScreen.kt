@@ -47,7 +47,7 @@ private val TABS = listOf(
  * rebuild.
  */
 @Composable
-fun RoutyShellScreen(onSignedOut: () -> Unit) {
+fun RoutyShellScreen(onSignedOut: () -> Unit, onStartRecording: () -> Unit) {
     val app = LocalContext.current.applicationContext as RoutyApplication
     val viewModel: ShellViewModel = viewModel(
         factory = viewModelFactory {
@@ -93,7 +93,7 @@ fun RoutyShellScreen(onSignedOut: () -> Unit) {
         },
     ) { padding ->
         if (currentTab.path == "route") {
-            RouteScreen(modifier = Modifier.padding(padding))
+            RouteScreen(onStartRecording = onStartRecording, modifier = Modifier.padding(padding))
         } else {
             RoutyWebView(
                 url = "$baseUrl/${currentTab.path}",

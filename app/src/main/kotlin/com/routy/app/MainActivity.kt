@@ -14,6 +14,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.routy.app.auth.LoginScreen
 import com.routy.app.onboarding.OnboardingScreen
+import com.routy.app.recording.RecordingScreen
 import com.routy.app.ui.theme.RoutyTheme
 import com.routy.app.webview.RoutyShellScreen
 
@@ -21,6 +22,7 @@ private object Routes {
     const val ONBOARDING = "onboarding"
     const val LOGIN = "login"
     const val SHELL = "shell"
+    const val RECORDING = "recording"
 }
 
 class MainActivity : ComponentActivity() {
@@ -69,7 +71,11 @@ private fun RoutyNavHost(startDestination: String) {
                 onSignedOut = {
                     navController.navigate(Routes.LOGIN) { popUpTo(Routes.SHELL) { inclusive = true } }
                 },
+                onStartRecording = { navController.navigate(Routes.RECORDING) },
             )
+        }
+        composable(Routes.RECORDING) {
+            RecordingScreen(onDone = { navController.popBackStack() })
         }
     }
 }

@@ -64,7 +64,7 @@ import com.routy.app.map.RoutyMapView
 import java.text.Collator
 
 @Composable
-fun RouteScreen(modifier: Modifier = Modifier) {
+fun RouteScreen(onStartRecording: () -> Unit, modifier: Modifier = Modifier) {
     val app = LocalContext.current.applicationContext as RoutyApplication
     val baseUrl = app.secureStorage.serverUrl.orEmpty()
     val viewModel: RouteViewModel = viewModel(
@@ -95,6 +95,11 @@ fun RouteScreen(modifier: Modifier = Modifier) {
 
         if (uiState.mode == RouteMode.SUGGESTING) {
             item { SuggestForm(uiState, viewModel) }
+            item {
+                OutlinedButton(onClick = onStartRecording, modifier = Modifier.fillMaxWidth()) {
+                    Text(stringResource(R.string.record_entry_point))
+                }
+            }
         }
 
         if (uiState.mode == RouteMode.ACTIVE) {

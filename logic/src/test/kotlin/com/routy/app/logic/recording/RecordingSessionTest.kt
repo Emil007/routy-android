@@ -92,4 +92,23 @@ class RecordingSessionTest {
         val stats = session.elevation()
         assertEquals(40, stats?.gainM)
     }
+
+    @Test
+    fun `shouldRecordPoint always accepts the first point`() {
+        assertTrue(shouldRecordPoint(null, RecordingPoint(52.0, 13.0, timestampMs = 0)))
+    }
+
+    @Test
+    fun `shouldRecordPoint rejects fixes closer than the minimum distance`() {
+        val last = RecordingPoint(52.0, 13.0, timestampMs = 0)
+        val almostSamePlace = RecordingPoint(52.00001, 13.0, timestampMs = 1000) // ~1.1m north
+        assertTrue(!shouldRecordPoint(last, almostSamePlace, minDistanceM = 3.0))
+    }
+
+    @Test
+    fun `shouldRecordPoint accepts fixes at least the minimum distance away`() {
+        val last = RecordingPoint(52.0, 13.0, timestampMs = 0)
+        val farEnough = RecordingPoint(52.0001, 13.0, timestampMs = 1000) // ~11m north
+        assertTrue(shouldRecordPoint(last, farEnough, minDistanceM = 3.0))
+    }
 }

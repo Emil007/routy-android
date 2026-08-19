@@ -1,10 +1,22 @@
 package com.routy.app.logic.api
 
+import com.routy.app.logic.recording.MatchableNode
 import kotlinx.serialization.Serializable
 
-/** Subset of NodeRow (src/lib/nodes.ts) the native map actually renders — GET /api/nodes already excludes trashed nodes. */
+/**
+ * Subset of NodeRow (src/lib/nodes.ts) the native map actually renders — GET /api/nodes already
+ * excludes trashed nodes. Implements MatchableNode directly (rather than an adapter at each call
+ * site) since its shape already is that contract — used as-is for the recording wizard's
+ * candidate-junction matching.
+ */
 @Serializable
-data class NodeDto(val id: Int, val name: String? = null, val lat: Double, val lng: Double, val isHome: Boolean = false)
+data class NodeDto(
+    override val id: Int,
+    override val name: String? = null,
+    override val lat: Double,
+    override val lng: Double,
+    val isHome: Boolean = false,
+) : MatchableNode
 
 @Serializable
 data class NodesResponse(val nodes: List<NodeDto>)

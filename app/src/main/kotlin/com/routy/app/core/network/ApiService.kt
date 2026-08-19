@@ -4,6 +4,7 @@ import com.routy.app.logic.api.AdjustRouteRequest
 import com.routy.app.logic.api.GenerateRouteRequest
 import com.routy.app.logic.api.GenerateRouteResponse
 import com.routy.app.logic.api.GpxCommitRequest
+import com.routy.app.logic.api.GpxConfigResponse
 import com.routy.app.logic.api.LoginRequest
 import com.routy.app.logic.api.LoginResponse
 import com.routy.app.logic.api.MeResponse
@@ -109,4 +110,7 @@ interface ApiService {
 
     @POST("api/gpx/commit")
     suspend fun commitGpx(@Body body: GpxCommitRequest): Response<Unit>
+
+    @GET("api/gpx/config")
+    suspend fun gpxConfig(): Response<GpxConfigResponse>
 }
