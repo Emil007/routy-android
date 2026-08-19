@@ -31,7 +31,7 @@ jobs:
       - name: Build signed release APK
         uses: ./.github/actions/build-signed-apk
         with:
-          version_name: 0.24a
+          version_name: 0.25a
           version_code: ${{ github.run_number }}
           sentry_dsn: ${{ secrets.SENTRY_DSN }}
         env:
