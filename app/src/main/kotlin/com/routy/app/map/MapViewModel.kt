@@ -295,6 +295,8 @@ class MapViewModel(
     }
 
     fun startSplitSegment() {
+        val segment = _uiState.value.selectedSegment ?: return
+        if (!canEditSegment(segment)) return denyNotAllowed()
         _uiState.value = _uiState.value.copy(
             mode = MapMode.SplitSegment,
             splitTarget = null,

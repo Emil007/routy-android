@@ -8,7 +8,12 @@ import com.routy.app.core.storage.SecureStorage
 import com.routy.app.core.BootstrapLoader
 import com.routy.app.core.storage.NetworkCache
 import com.routy.app.core.GpxQueueNotifier
-import com.routy.app.core.CrashReporting
+import com.routy.app.core.StatsInvalidation
+import com.routy.app.widget.WidgetUpdater
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.launch
 import com.routy.app.map.MapTileHttp
 import com.routy.app.map.MapTilePrefetchScheduler
 import org.maplibre.android.MapLibre
@@ -36,6 +41,8 @@ class RoutyApplication : Application() {
     lateinit var bootstrapLoader: BootstrapLoader
         private set
 
+    private val appScope = CoroutineScope(SupervisorJob())
+
     override fun onCreate() {
         super.onCreate()
         CrashReporting.install(this)
@@ -58,5 +65,10 @@ class RoutyApplication : Application() {
         // static init calls MapLibre.getApplicationContext() internally.
         MapLibre.getInstance(this)
         MapTileHttp.install(this)
+        appScope.launch {
+            StatsInvalidation.version.drop(1).collect {
+                WidgetUpdater.refreshFromApi(applicationContext, apiClientProvider.service)
+            }
+        }
     }
 }
