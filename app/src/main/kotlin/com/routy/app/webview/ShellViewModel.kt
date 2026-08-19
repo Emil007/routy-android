@@ -1,7 +1,6 @@
 package com.routy.app.webview
 
-import androidx.appcompat.app.AppCompatDelegate
-import androidx.core.os.LocaleListCompat
+import com.routy.app.core.AccountLocale
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.routy.app.core.BootstrapLoader
@@ -38,11 +37,7 @@ class ShellViewModel(
     }
 
     private fun applyUser(user: SessionUser) {
-        user.locale.let { locale ->
-            if (locale.isNotBlank()) {
-                AppCompatDelegate.setApplicationLocales(LocaleListCompat.forLanguageTags(locale))
-            }
-        }
+        AccountLocale.apply(user.locale)
         _uiState.value = _uiState.value.copy(user = user)
     }
 
@@ -66,6 +61,7 @@ class ShellViewModel(
                     secureStorage.clearToken()
                     apiClientProvider.invalidate()
                     bootstrapLoader.invalidate()
+                    AccountLocale.clear()
                     _uiState.value = _uiState.value.copy(checkedSession = true, signedOut = true)
                 }
                 BootstrapResult.Failed -> {
@@ -85,6 +81,7 @@ class ShellViewModel(
             bootstrapLoader.invalidate()
             secureStorage.clearToken()
             apiClientProvider.invalidate()
+            AccountLocale.clear()
             _uiState.value = _uiState.value.copy(signedOut = true)
         }
     }

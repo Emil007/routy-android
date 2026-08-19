@@ -3,5 +3,5 @@
          theme — this XML theme just needs to exist so the manifest/activity has something to
          point at before Compose content is set, and so the system splash/status-bar handling
          has a sane base to work from. -->
-    <style name="Theme.Routy" parent="android:Theme.Material.Light.NoActionBar" />
+    <style name="Theme.Routy" parent="Theme.AppCompat.Light.NoActionBar" />
 </resources>
