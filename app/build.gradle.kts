@@ -105,23 +105,9 @@ android {
     }
 
     sourceSets {
-        getByName("main") {
-            java.setSrcDirs(listOf("src/main/kotlin"))
-        }
-        // Debug always uses noSentry (self-hosted crash + no Sentry jar) — keeps Studio analysis happy.
-        getByName("debug") {
-            java.srcDir("src/noSentry/kotlin")
-        }
         if (sentryEnabled) {
             getByName("release") {
                 java.srcDir("src/sentry/kotlin")
-            }
-        } else {
-            getByName("main") {
-                java.srcDir("src/noSentry/kotlin")
-            }
-            getByName("release") {
-                java.srcDir("src/noSentry/kotlin")
             }
         }
     }

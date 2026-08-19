@@ -4,8 +4,10 @@ import android.app.Application
 import com.routy.app.BuildConfig
 import io.sentry.android.core.SentryAndroid
 
-/** Crash reporting — release builds only, when `-PsentryDsn` is set at compile time. */
-object CrashReporting {
+/** Invoked reflectively from CrashReporting on release builds compiled with `-PsentryDsn`. */
+@Suppress("unused")
+object SentryBootstrap {
+    @JvmStatic
     fun install(app: Application) {
         val dsn = BuildConfig.SENTRY_DSN.trim()
         if (dsn.isEmpty()) return
