@@ -18,9 +18,8 @@ pluginManagement {
     }
 }
 
-// Lets Gradle auto-provision a matching JDK for jvmToolchain(...) requests (:logic's, when
-// restored) instead of requiring one to already be installed — present here only because the
-// verified-working template has it; :app alone doesn't currently need it.
+// Lets Gradle auto-provision a matching JDK for jvmToolchain(...) requests — :logic's
+// jvmToolchain(21) — instead of requiring one to already be installed.
 plugins {
     id("org.gradle.toolchains.foojay-resolver-convention") version "1.0.0"
 }
@@ -40,14 +39,9 @@ rootProject.name = "routy-android"
 // built and unit-tested with a bare `gradle test`, independent of whether an Android SDK is
 // available in whatever environment runs the build.
 //
-// TEMPORARILY EXCLUDED — diagnostic only, see NOTES.md's "eighth attempt": seven straight
-// version/plugin/gradle.properties changes all hit the identical BaseVariant
-// NoClassDefFoundError, with :app's plugins/versions now matching a verified-working
-// single-module template exactly. The one remaining structural difference is that this is a
-// multi-module build. Pulling :logic out entirely isolates whether that's the actual trigger,
-// since the crash happens during Gradle's plugin-application phase — strictly before any Kotlin
-// source (including :app's now-broken :logic imports) ever gets compiled, so this only needs a
-// sync to attempt, not a full build. Restore this line (and app/build.gradle.kts's
-// implementation(project(":logic")) line) once the diagnosis is confirmed either way.
-// include(":logic")
+// Was temporarily excluded (attempts 8-9, see NOTES.md) to isolate whether multi-module-ness
+// itself was causing the BaseVariant sync crash. It wasn't — the real cause (attempt 10) was
+// com.android.application being declared inline in app/build.gradle.kts instead of at the root
+// with apply false, unrelated to :logic entirely. Restored now that sync is confirmed working.
+include(":logic")
 include(":app")
