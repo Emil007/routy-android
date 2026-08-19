@@ -15,5 +15,20 @@ class GpxCommitQueueStore(context: Context) {
 
     fun listAll(): List<PendingGpxCommit> = store.listAll()
 
+    fun listPending(): List<PendingGpxCommit> = store.listAll().filter { !it.permanentFailure }
+
+    fun listFailed(): List<PendingGpxCommit> = store.listAll().filter { it.permanentFailure }
+
+    fun markPermanentFailure(id: String, httpCode: Int) {
+        val pending = load(id) ?: return
+        store.enqueue(
+            pending.copy(
+                permanentFailure = true,
+                failureHttpCode = httpCode,
+                failedAtMs = System.currentTimeMillis(),
+            ),
+        )
+    }
+
     fun remove(id: String) = store.remove(id)
 }

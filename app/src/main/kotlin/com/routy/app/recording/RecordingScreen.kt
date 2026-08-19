@@ -391,7 +391,7 @@ private fun ConfirmSection(
         }
 
         FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            CompactPrimary(onClick = viewModel::save, enabled = !uiState.saving) {
+            CompactPrimary(onClick = viewModel::save, enabled = !uiState.saving && !uiState.saved) {
                 Text(stringResource(if (uiState.saving) R.string.record_saving else R.string.record_save), style = MaterialTheme.typography.labelMedium)
             }
             CompactOutlined(onDiscard, enabled = !uiState.saving) {

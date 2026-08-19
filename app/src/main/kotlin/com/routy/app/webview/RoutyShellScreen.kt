@@ -109,6 +109,12 @@ fun RoutyShellScreen(onSignedOut: () -> Unit, onStartRecording: () -> Unit) {
         }
     }
 
+    LaunchedEffect(app) {
+        GpxUploadNotifier.failures.collect { httpCode ->
+            snackbarHostState.showSnackbar(app.getString(R.string.shell_upload_failed_snackbar, httpCode))
+        }
+    }
+
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         bottomBar = {

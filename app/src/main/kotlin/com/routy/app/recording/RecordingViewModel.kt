@@ -187,6 +187,7 @@ class RecordingViewModel(
                     saving = false,
                     isError = false,
                     messageRes = R.string.record_queued_for_upload,
+                    saved = true,
                 )
                 return@launch
             }
@@ -201,6 +202,7 @@ class RecordingViewModel(
                     saving = false,
                     isError = false,
                     messageRes = R.string.record_queued_for_upload,
+                    saved = true,
                 )
             } else {
                 _uiState.value = _uiState.value.copy(saving = false, isError = true, messageRes = R.string.common_error)

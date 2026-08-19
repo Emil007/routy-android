@@ -167,6 +167,8 @@
     <string name="update_dismiss">Dismiss</string>
 
     <string name="shell_pending_uploads">%1$d tracks waiting to upload</string>
+    <string name="shell_failed_uploads">%1$d tracks failed to upload — check connection or contact admin</string>
+    <string name="shell_upload_failed_snackbar">Track upload failed (HTTP %1$d) — entry kept on device</string>
 
     <string name="battery_optimization_hint">For reliable background recording: turn off battery optimization for Routy.</string>
     <string name="battery_optimization_allow">Open settings</string>

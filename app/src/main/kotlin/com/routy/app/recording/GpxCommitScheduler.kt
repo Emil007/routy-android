@@ -19,20 +19,25 @@ class GpxCommitScheduler(
     private val queueStore: GpxCommitQueueStore,
 ) {
     fun enqueue(request: GpxCommitRequest): String {
+        queueStore.listPending().firstOrNull { it.request == request }?.let { existing ->
+            refreshCounts()
+            scheduleWork(existing.id)
+            return existing.id
+        }
         val id = UUID.randomUUID().toString()
         queueStore.enqueue(PendingGpxCommit(id = id, enqueuedAtMs = System.currentTimeMillis(), request = request))
-        refreshPendingCount()
+        refreshCounts()
         scheduleWork(id)
         return id
     }
 
     fun schedulePending() {
-        queueStore.listAll().forEach { scheduleWork(it.id) }
-        refreshPendingCount()
+        queueStore.listPending().forEach { scheduleWork(it.id) }
+        refreshCounts()
     }
 
-    private fun refreshPendingCount() {
-        GpxQueueNotifier.setPendingCount(queueStore.listAll().size)
+    private fun refreshCounts() {
+        GpxQueueNotifier.setCounts(queueStore.listPending().size, queueStore.listFailed().size)
     }
 
     private fun scheduleWork(commitId: String) {

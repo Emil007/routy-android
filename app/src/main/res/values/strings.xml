@@ -167,6 +167,8 @@
     <string name="update_dismiss">Schließen</string>
 
     <string name="shell_pending_uploads">%1$d Wege warten auf Upload</string>
+    <string name="shell_failed_uploads">%1$d Wege konnten nicht hochgeladen werden — prüfe die Verbindung oder kontaktiere den Admin</string>
+    <string name="shell_upload_failed_snackbar">Weg-Upload fehlgeschlagen (HTTP %1$d) — Eintrag bleibt gespeichert</string>
 
     <string name="battery_optimization_hint">Für zuverlässige Aufzeichnung im Hintergrund: Akku-Optimierung für Routy deaktivieren.</string>
     <string name="battery_optimization_allow">Einstellungen öffnen</string>
