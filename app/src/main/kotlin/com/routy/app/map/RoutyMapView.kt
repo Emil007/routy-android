@@ -21,6 +21,7 @@ import com.routy.app.logic.api.NodeDto
 import com.routy.app.logic.api.RouteStation
 import com.routy.app.logic.api.SegmentDto
 import com.routy.app.logic.api.isCanonical
+import com.routy.app.logic.api.isLocked
 import org.maplibre.android.camera.CameraUpdateFactory
 import org.maplibre.android.geometry.LatLng
 import org.maplibre.android.geometry.LatLngBounds
@@ -59,7 +60,10 @@ private const val OVERLAY_SOURCE = "routy-overlay"
 private const val OVERLAY_LAYER = "routy-overlay-layer"
 private const val HIGHLIGHT_SOURCE = "routy-segment-highlight"
 private const val HIGHLIGHT_LAYER = "routy-segment-highlight-layer"
-private const val ME_SOURCE = "routy-me"
+private const val LOCKED_SEGMENTS_SOURCE = "routy-segments-locked"
+private const val LOCKED_SEGMENTS_LAYER = "routy-segments-locked-layer"
+private const val EDIT_VERTICES_SOURCE = "routy-edit-vertices"
+private const val EDIT_VERTICES_LAYER = "routy-edit-vertices-layer"
 private const val ME_LAYER = "routy-me-layer"
 
 /**
@@ -84,6 +88,8 @@ fun RoutyMapView(
     selectedSegmentId: Int? = null,
     moveNodeId: Int? = null,
     overlayLine: List<GeoPoint> = emptyList(),
+    editVertices: List<GeoPoint>? = null,
+    selectedEditVertexIndex: Int? = null,
     onMapClick: ((lat: Double, lng: Double) -> Unit)? = null,
     modifier: Modifier = Modifier,
     /** When true (default), camera fits route geometry + stations (+ myLocation), not the whole network. */
@@ -134,11 +140,12 @@ fun RoutyMapView(
         }
     }
 
-    LaunchedEffect(loadedStyle, nodes, segments, routeGeometry, stations, myLocation, routeColor, completedWaypointIndex, selectedNodeId, moveNodeId, selectedSegmentId, overlayLine, emphasizeNetworkSegments) {
+    LaunchedEffect(loadedStyle, nodes, segments, routeGeometry, stations, myLocation, routeColor, completedWaypointIndex, selectedNodeId, moveNodeId, selectedSegmentId, overlayLine, editVertices, selectedEditVertexIndex, emphasizeNetworkSegments) {
         val currentStyle = loadedStyle ?: return@LaunchedEffect
         updateSegmentsLayer(currentStyle, segments, emphasizeNetworkSegments)
         updateSelectedSegmentLayer(currentStyle, segments, selectedSegmentId)
         updateOverlayLayer(currentStyle, overlayLine)
+        updateEditVerticesLayer(currentStyle, editVertices, selectedEditVertexIndex)
         updateRouteLayer(currentStyle, routeGeometry, routeColor)
         updateNodesLayer(currentStyle, nodes, selectedNodeId, moveNodeId)
         updateStationsLayer(currentStyle, stations, completedWaypointIndex)
@@ -167,16 +174,21 @@ fun RoutyMapView(
 }
 
 private fun updateSegmentsLayer(style: Style, segments: List<SegmentDto>, emphasize: Boolean) {
-    val features = segments.filter { it.isCanonical() }.map { seg ->
-        Feature.fromGeometry(LineString.fromLngLats(seg.geometry.map { Point.fromLngLat(it.lng, it.lat) }))
-    }
-    val collection = FeatureCollection.fromFeatures(features)
+    val canonical = segments.filter { it.isCanonical() }
+    val unlocked = canonical.filter { !it.isLocked() }
+    val locked = canonical.filter { it.isLocked() }
     val color = if (emphasize) "#2e6b49" else "#9a9a90"
     val width = if (emphasize) 4f else 2f
     val opacity = if (emphasize) 0.92f else 0.7f
+
+    val unlockedCollection = FeatureCollection.fromFeatures(
+        unlocked.map { seg ->
+            Feature.fromGeometry(LineString.fromLngLats(seg.geometry.map { Point.fromLngLat(it.lng, it.lat) }))
+        },
+    )
     val existing = style.getSourceAs<GeoJsonSource>(SEGMENTS_SOURCE)
     if (existing != null) {
-        existing.setGeoJson(collection)
+        existing.setGeoJson(unlockedCollection)
         (style.getLayer(SEGMENTS_LAYER) as? LineLayer)?.setProperties(
             PropertyFactory.lineColor(color),
             PropertyFactory.lineWidth(width),
@@ -184,18 +196,40 @@ private fun updateSegmentsLayer(style: Style, segments: List<SegmentDto>, emphas
             PropertyFactory.lineCap(Property.LINE_CAP_ROUND),
             PropertyFactory.lineJoin(Property.LINE_JOIN_ROUND),
         )
+    } else {
+        style.addSource(GeoJsonSource(SEGMENTS_SOURCE, unlockedCollection))
+        val layer = LineLayer(SEGMENTS_LAYER, SEGMENTS_SOURCE)
+        layer.setProperties(
+            PropertyFactory.lineColor(color),
+            PropertyFactory.lineWidth(width),
+            PropertyFactory.lineOpacity(opacity),
+            PropertyFactory.lineCap(Property.LINE_CAP_ROUND),
+            PropertyFactory.lineJoin(Property.LINE_JOIN_ROUND),
+        )
+        style.addLayer(layer)
+    }
+
+    val lockedCollection = FeatureCollection.fromFeatures(
+        locked.map { seg ->
+            Feature.fromGeometry(LineString.fromLngLats(seg.geometry.map { Point.fromLngLat(it.lng, it.lat) }))
+        },
+    )
+    val lockedExisting = style.getSourceAs<GeoJsonSource>(LOCKED_SEGMENTS_SOURCE)
+    if (lockedExisting != null) {
+        lockedExisting.setGeoJson(lockedCollection)
         return
     }
-    style.addSource(GeoJsonSource(SEGMENTS_SOURCE, collection))
-    val layer = LineLayer(SEGMENTS_LAYER, SEGMENTS_SOURCE)
-    layer.setProperties(
-        PropertyFactory.lineColor(color),
+    style.addSource(GeoJsonSource(LOCKED_SEGMENTS_SOURCE, lockedCollection))
+    val lockedLayer = LineLayer(LOCKED_SEGMENTS_LAYER, LOCKED_SEGMENTS_SOURCE)
+    lockedLayer.setProperties(
+        PropertyFactory.lineColor(if (emphasize) "#6b7280" else "#9a9a90"),
         PropertyFactory.lineWidth(width),
-        PropertyFactory.lineOpacity(opacity),
+        PropertyFactory.lineOpacity(opacity * 0.85f),
+        PropertyFactory.lineDasharray(arrayOf(2f, 2f)),
         PropertyFactory.lineCap(Property.LINE_CAP_ROUND),
         PropertyFactory.lineJoin(Property.LINE_JOIN_ROUND),
     )
-    style.addLayer(layer)
+    style.addLayer(lockedLayer)
 }
 
 private fun updateRouteLayer(style: Style, routeGeometry: List<GeoPoint>, routeColor: String) {
@@ -244,6 +278,45 @@ private fun updateSelectedSegmentLayer(style: Style, segments: List<SegmentDto>,
         PropertyFactory.lineOpacity(0.95f),
         PropertyFactory.lineCap(Property.LINE_CAP_ROUND),
         PropertyFactory.lineJoin(Property.LINE_JOIN_ROUND),
+    )
+    style.addLayer(layer)
+}
+
+private fun updateEditVerticesLayer(style: Style, vertices: List<GeoPoint>?, selectedIndex: Int?) {
+    val points = vertices.orEmpty()
+    val features = points.mapIndexed { index, v ->
+        val isEndpoint = index == 0 || index == points.lastIndex
+        val isSelected = index == selectedIndex
+        val color = when {
+            isSelected -> "#2563eb"
+            isEndpoint -> "#a5711c"
+            else -> "#9a3b29"
+        }
+        val radius = when {
+            isSelected -> 7f
+            isEndpoint -> 5f
+            else -> 4f
+        }
+        val properties = JsonObject().apply {
+            addProperty("color", color)
+            addProperty("radius", radius)
+        }
+        Feature.fromGeometry(Point.fromLngLat(v.lng, v.lat), properties)
+    }
+    val collection = FeatureCollection.fromFeatures(features)
+    val existing = style.getSourceAs<GeoJsonSource>(EDIT_VERTICES_SOURCE)
+    if (existing != null) {
+        existing.setGeoJson(collection)
+        return
+    }
+    if (features.isEmpty()) return
+    style.addSource(GeoJsonSource(EDIT_VERTICES_SOURCE, collection))
+    val layer = CircleLayer(EDIT_VERTICES_LAYER, EDIT_VERTICES_SOURCE)
+    layer.setProperties(
+        PropertyFactory.circleColor(org.maplibre.android.style.expressions.Expression.get("color")),
+        PropertyFactory.circleRadius(org.maplibre.android.style.expressions.Expression.get("radius")),
+        PropertyFactory.circleStrokeColor("#ffffff"),
+        PropertyFactory.circleStrokeWidth(1.5f),
     )
     style.addLayer(layer)
 }

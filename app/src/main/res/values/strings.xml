@@ -28,7 +28,7 @@
     <string name="nav_map">Karte</string>
     <string name="nav_stats">Statistik</string>
     <string name="nav_settings">Einstellungen</string>
-    <string name="nav_admin">Verwaltung</string>
+    <string name="nav_admin">Admin</string>
 
     <string name="stats_your_stats">Deine Statistik</string>
     <string name="stats_walks">Spaziergänge</string>
@@ -210,7 +210,11 @@
     <string name="map_hint_move_tap">Tippe auf die Karte für die neue Position</string>
     <string name="map_hint_draw">Tippe auf die Karte, um Wegpunkte zu setzen</string>
     <string name="map_hint_gpx">Start/End-Knoten bestätigen, dann speichern</string>
-    <string name="map_hint_edit_shape">Tippe auf den Weg, um einen Punkt einzufügen</string>
+    <string name="map_hint_edit_shape">Tippe auf den Weg für einen Punkt, oder auf einen Scheitelpunkt</string>
+    <string name="map_hint_move_vertex">Tippe auf die Karte, um den Punkt zu verschieben</string>
+    <string name="map_draw_snap">An Knoten einrasten</string>
+    <string name="map_edit_vertex_move">Punkt verschieben</string>
+    <string name="map_edit_vertex_delete">Punkt löschen</string>
     <string name="map_hint_split">Tippe auf den Weg für den neuen Knoten</string>
     <string name="map_draw_points">%1$d Punkte</string>
     <string name="map_undo">Rückgängig</string>

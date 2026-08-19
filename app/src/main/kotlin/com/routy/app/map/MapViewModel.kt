@@ -76,7 +76,10 @@ data class MapUiState(
     val drawStartDecision: EndpointDecision? = null,
     val drawEndDecision: EndpointDecision? = null,
     val drawMarkStartAsHome: Boolean = false,
+    val drawSnapEnabled: Boolean = true,
     val editSegmentPoints: List<GeoPoint>? = null,
+    val selectedEditVertexIndex: Int? = null,
+    val moveEditVertexIndex: Int? = null,
     val splitTarget: LatLng? = null,
     val splitDecision: EndpointDecision? = null,
     val gpxTracks: List<GpxParseTrackPreview>? = null,
@@ -119,6 +122,8 @@ class MapViewModel(
             drawPoints = if (mode == MapMode.Draw) _uiState.value.drawPoints else emptyList(),
             drawPhase = if (mode == MapMode.Draw) _uiState.value.drawPhase else DrawPhase.Drawing,
             editSegmentPoints = if (mode == MapMode.EditSegment) _uiState.value.editSegmentPoints else null,
+            selectedEditVertexIndex = null,
+            moveEditVertexIndex = null,
             splitTarget = null,
             splitDecision = null,
             gpxTracks = if (mode == MapMode.Gpx) _uiState.value.gpxTracks else null,
@@ -130,7 +135,7 @@ class MapViewModel(
         val point = LatLng(lat, lng)
         when (state.mode) {
             MapMode.Draw -> if (state.drawPhase == DrawPhase.Drawing) addDrawPoint(point)
-            MapMode.EditSegment -> state.editSegmentPoints?.let { addEditPoint(point, it) }
+            MapMode.EditSegment -> state.editSegmentPoints?.let { handleEditSegmentTap(point, it) }
             MapMode.SplitSegment -> state.selectedSegment?.let { pickSplitPoint(it, point) }
             MapMode.View -> handleViewTap(point)
             MapMode.Gpx -> {}
@@ -275,6 +280,8 @@ class MapViewModel(
             mode = MapMode.EditSegment,
             editSegmentPoints = segment.geometry,
             selectedNode = null,
+            selectedEditVertexIndex = null,
+            moveEditVertexIndex = null,
         )
     }
 
@@ -300,6 +307,60 @@ class MapViewModel(
 
     fun cancelEditSegmentShape() {
         setMode(MapMode.View)
+    }
+
+    private fun handleEditSegmentTap(tap: LatLng, current: List<GeoPoint>) {
+        val state = _uiState.value
+        state.moveEditVertexIndex?.let { idx ->
+            if (idx in current.indices) {
+                val updated = current.toMutableList()
+                updated[idx] = GeoPoint(tap.lat, tap.lng)
+                _uiState.value = state.copy(
+                    editSegmentPoints = updated,
+                    moveEditVertexIndex = null,
+                    selectedEditVertexIndex = idx,
+                )
+            }
+            return
+        }
+        findNearestVertexIndex(tap, current)?.let { idx ->
+            if (idx > 0 && idx < current.lastIndex) {
+                _uiState.value = state.copy(selectedEditVertexIndex = idx)
+                return
+            }
+        }
+        addEditPoint(tap, current)
+    }
+
+    private fun findNearestVertexIndex(point: LatLng, vertices: List<GeoPoint>, radiusM: Double = 28.0): Int? {
+        var best: Pair<Int, Double>? = null
+        vertices.forEachIndexed { index, v ->
+            val d = haversineMeters(point, LatLng(v.lat, v.lng))
+            if (d <= radiusM && (best == null || d < best!!.second)) best = index to d
+        }
+        return best?.first
+    }
+
+    fun toggleMoveEditVertex() {
+        val idx = _uiState.value.selectedEditVertexIndex ?: return
+        if (idx <= 0 || idx >= (_uiState.value.editSegmentPoints?.lastIndex ?: 0)) return
+        _uiState.value = _uiState.value.copy(
+            moveEditVertexIndex = if (_uiState.value.moveEditVertexIndex == idx) null else idx,
+        )
+    }
+
+    fun deleteSelectedEditVertex() {
+        val state = _uiState.value
+        val idx = state.selectedEditVertexIndex ?: return
+        val points = state.editSegmentPoints ?: return
+        if (idx <= 0 || idx >= points.lastIndex || points.size <= 2) return
+        val updated = points.toMutableList()
+        updated.removeAt(idx)
+        _uiState.value = state.copy(editSegmentPoints = updated, selectedEditVertexIndex = null, moveEditVertexIndex = null)
+    }
+
+    fun setDrawSnapEnabled(enabled: Boolean) {
+        _uiState.value = _uiState.value.copy(drawSnapEnabled = enabled)
     }
 
     private fun addEditPoint(tap: LatLng, current: List<GeoPoint>) {
@@ -344,7 +405,14 @@ class MapViewModel(
     }
 
     private fun addDrawPoint(point: LatLng) {
-        _uiState.value = _uiState.value.copy(drawPoints = _uiState.value.drawPoints + point)
+        val state = _uiState.value
+        val placed = if (state.drawSnapEnabled) {
+            findNodeCandidates(state.nodes, point, state.mergeRadiusM).firstOrNull()
+                ?.let { LatLng(it.lat, it.lng) } ?: point
+        } else {
+            point
+        }
+        _uiState.value = state.copy(drawPoints = state.drawPoints + placed)
     }
 
     fun undoDrawPoint() {

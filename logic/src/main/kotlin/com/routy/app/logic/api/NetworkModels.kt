@@ -52,3 +52,9 @@ data class SegmentsResponse(val segments: List<SegmentDto>)
 
 /** Segments come in forward/reverse pairs (src/lib/segments.ts's isCanonicalSegment) — draw each physical path once. */
 fun SegmentDto.isCanonical(): Boolean = reverseOf == null || id < reverseOf
+
+/** Mirrors web isLocked check — segment.lockedUntil in the future. */
+fun SegmentDto.isLocked(): Boolean {
+    val until = lockedUntil ?: return false
+    return until > java.time.Instant.now().toString()
+}

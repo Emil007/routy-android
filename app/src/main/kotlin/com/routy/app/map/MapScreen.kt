@@ -120,6 +120,8 @@ fun MapScreen(onStartRecording: () -> Unit, modifier: Modifier = Modifier) {
             selectedSegmentId = uiState.selectedSegment?.id,
             moveNodeId = uiState.moveNodeId,
             overlayLine = overlayLine,
+            editVertices = if (uiState.mode == MapMode.EditSegment) uiState.editSegmentPoints else null,
+            selectedEditVertexIndex = uiState.selectedEditVertexIndex,
             onMapClick = viewModel::onMapClick,
             modifier = Modifier.fillMaxSize(),
         )
@@ -157,7 +159,7 @@ fun MapScreen(onStartRecording: () -> Unit, modifier: Modifier = Modifier) {
                 }
                 MapMode.Draw -> MapDrawPanel(uiState, viewModel)
                 MapMode.Gpx -> MapGpxPanel(uiState, viewModel)
-                MapMode.EditSegment -> MapEditShapePanel(viewModel)
+                MapMode.EditSegment -> MapEditShapePanel(uiState, viewModel)
                 MapMode.SplitSegment -> MapSplitPanel(uiState, viewModel)
             }
 
@@ -171,7 +173,10 @@ private fun mapHint(state: MapUiState): String = when (state.mode) {
     MapMode.View -> if (state.moveNodeId != null) stringResource(R.string.map_hint_move_tap) else stringResource(R.string.map_tap_hint)
     MapMode.Draw -> stringResource(R.string.map_hint_draw)
     MapMode.Gpx -> stringResource(R.string.map_hint_gpx)
-    MapMode.EditSegment -> stringResource(R.string.map_hint_edit_shape)
+    MapMode.EditSegment -> when {
+        state.moveEditVertexIndex != null -> stringResource(R.string.map_hint_move_vertex)
+        else -> stringResource(R.string.map_hint_edit_shape)
+    }
     MapMode.SplitSegment -> stringResource(R.string.map_hint_split)
 }
 
@@ -249,6 +254,10 @@ private fun MapDrawPanel(state: MapUiState, viewModel: MapViewModel) {
         Column(Modifier.fillMaxWidth().padding(10.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             if (state.drawPhase == DrawPhase.Drawing) {
                 Text(stringResource(R.string.map_draw_points, state.drawPoints.size), style = MaterialTheme.typography.labelSmall)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(checked = state.drawSnapEnabled, onCheckedChange = viewModel::setDrawSnapEnabled)
+                    Text(stringResource(R.string.map_draw_snap), style = MaterialTheme.typography.labelSmall)
+                }
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     CompactOutlinedButton(viewModel::undoDrawPoint) { Text(stringResource(R.string.map_undo)) }
                     CompactOutlinedButton(viewModel::clearDrawPoints) { Text(stringResource(R.string.map_clear)) }
@@ -290,12 +299,30 @@ private fun MapGpxPanel(state: MapUiState, viewModel: MapViewModel) {
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun MapEditShapePanel(viewModel: MapViewModel) {
+private fun MapEditShapePanel(state: MapUiState, viewModel: MapViewModel) {
     Surface(color = MaterialTheme.colorScheme.surface.copy(alpha = 0.94f), shape = MaterialTheme.shapes.medium) {
-        Row(Modifier.fillMaxWidth().padding(10.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            CompactButton(viewModel::finishEditSegmentShape) { Text(stringResource(R.string.map_save)) }
-            CompactOutlinedButton(viewModel::cancelEditSegmentShape) { Text(stringResource(R.string.common_close)) }
+        Column(Modifier.fillMaxWidth().padding(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            state.selectedEditVertexIndex?.let { idx ->
+                if (idx > 0 && idx < (state.editSegmentPoints?.lastIndex ?: 0)) {
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        CompactOutlinedButton(viewModel::toggleMoveEditVertex) {
+                            Text(
+                                if (state.moveEditVertexIndex == idx) stringResource(R.string.map_move_active)
+                                else stringResource(R.string.map_edit_vertex_move),
+                            )
+                        }
+                        CompactOutlinedButton(viewModel::deleteSelectedEditVertex) {
+                            Text(stringResource(R.string.map_edit_vertex_delete))
+                        }
+                    }
+                }
+            }
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                CompactButton(viewModel::finishEditSegmentShape) { Text(stringResource(R.string.map_save)) }
+                CompactOutlinedButton(viewModel::cancelEditSegmentShape) { Text(stringResource(R.string.common_close)) }
+            }
         }
     }
 }
