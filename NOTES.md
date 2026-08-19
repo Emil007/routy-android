@@ -7,62 +7,64 @@ Services artifact. So: some of this is real, tested code, and some of it is care
 traced-against-the-server-source Kotlin that has never been compiled. This file says which
 is which, so the first Android Studio sync isn't a surprise.
 
-## First real sync error, and the fix (post-M0-M7)
+## First real sync error, and how it actually got fixed (post-M0-M7)
 
 First actual Android Studio sync failed with `Unable to load class
 'com.android.build.gradle.api.BaseVariant'`. Root cause: enough time passed between this
 project being scaffolded and actually being opened that Android Gradle Plugin crossed a major
 version (8.x → 9.x) in the meantime — AGP 9.0 removed the old Variant API wholesale
-(`BaseVariant` and everything built on it), which is exactly what that error means. Fixed by
-bringing the whole toolchain up to the current AGP-9-compatible set:
+(`BaseVariant` and everything built on it), which is exactly what that error means.
 
-- AGP `8.7.2` → `9.2.1` (current stable patch; 9.2.0 had a known `ClassNotFoundException` bug
-  on `com.android.tools.r8.RecordTag` that 9.2.1 fixes).
-- Gradle wrapper `8.14.3` → `9.7.0` (AGP 9.2.x's documented minimum is 9.4.1).
-- All four Kotlin Gradle plugins `2.0.21` → `2.2.10` (AGP 9.0's documented default/minimum).
-- `gradle.properties` gained `android.builtInKotlin=false` — AGP 9.0 turns on a new "built-in
-  Kotlin support" mechanism by default that's incompatible with the explicit
-  `org.jetbrains.kotlin.android` plugin declaration this project already has; opting out keeps
-  the existing, simpler setup rather than migrating to the new mechanism blind.
-- `app/build.gradle.kts`'s `android { kotlinOptions { jvmTarget = "17" } }` → a **separate
-  top-level** `kotlin { compilerOptions { jvmTarget.set(JvmTarget.JVM_17) } }` block —
-  `kotlinOptions` was deprecated in Kotlin 2.0 and fully **removed** in 2.2, so bumping the
-  Kotlin plugin version (above) would have traded one sync error for another without this.
-- `compileSdk`/`targetSdk` `35` → `36`, matching AGP 9.x's own current baseline (its docs list
-  36.1 as the max supported API level; 35 wasn't necessarily broken, just worth moving off
-  rather than leaving it as the one stale number in an otherwise-current toolchain).
+**Two attempts to fix this by bumping to AGP 9.x both failed** (kept below, struck through in
+spirit rather than deleted, because the reasoning in them is real and the eventual fix builds
+directly on what they ruled out):
 
-Verified for real, not just reasoned about: `./gradlew :logic:test` actually ran against the
-new Gradle 9.7.0 + Kotlin 2.2.10 combination in the same blocked-`dl.google.com` sandbox
-everything else was written in (Gradle itself comes from `services.gradle.org`, unaffected by
-that block) — downloaded clean, compiled clean, all tests still green. That's real
-confirmation the Gradle/Kotlin half of this fix works. The AGP/`:app` half still couldn't be
-verified here the same way `:app` never could — Android Studio's sync (yours) was the actual
-test, and it caught a second, more specific problem (below).
+1. First attempt bumped AGP `8.7.2` → `9.2.1`, Gradle `8.14.3` → `9.7.0`, all four Kotlin
+   plugins `2.0.21` → `2.2.10`, added `android.builtInKotlin=false` (opting out of AGP 9's new
+   default Kotlin integration to keep the existing `org.jetbrains.kotlin.android` plugin
+   declaration), and migrated the now-fully-removed `kotlinOptions {}` DSL to the top-level
+   `kotlin { compilerOptions { ... } }` block Kotlin's own docs specify. `./gradlew :logic:test`
+   passed clean against the new Gradle/Kotlin combination in this sandbox — real confirmation
+   that half worked — but a real Android Studio sync (which this sandbox can never do, no SDK)
+   hit the exact same `BaseVariant` error from a more specific angle.
+2. Second attempt added `android.enableLegacyVariantApi=true`, reasoning from Google's own
+   AGP-9-migration material that this flag exists specifically to restore old Variant API
+   classes for plugins like `org.jetbrains.kotlin.android` that still depend on them.
+   **This didn't work** — Android Studio reported the identical stack trace afterward,
+   unchanged down to the line numbers. The flag evidently doesn't put the actual
+   `BaseVariant.class` file back on the classpath (which is what Gradle's own class-decorating
+   reflection needs to instantiate `KotlinAndroidTarget`) — whatever it does restore isn't
+   enough for this specific failure.
 
-### Round 2: `org.jetbrains.kotlin.android` itself needed a flag
+**What actually fixed it**: stop fighting AGP 9 and use
+[Google's own Kotlin/AGP compatibility table](https://developer.android.com/build/kotlin-support)
+— the authoritative source for exactly this question, which should have been the first thing
+checked rather than the third. It maps each Kotlin version to the AGP range it actually
+supports: Kotlin 2.1.x tops out at AGP 8.7.2 (this project's original pin), Kotlin 2.2.x tops
+out at AGP 8.10, and **Kotlin 2.3.x is the one that pairs with AGP 8.13** (the latest 8.x
+release — specifically 8.13.2, the latest patch, which ships the exact R8 version 2.3.x
+expects). AGP 8.13 still has `BaseVariant` for real, no compatibility flag needed, because it's
+the last release before AGP 9 removed it. Landed on:
 
-The above fixed the IDE's generic "corrupt cache?" version of the error, but a real sync
-against `:app` then hit the same `BaseVariant` class by a different path — this time with a
-full Gradle stack trace pinning it exactly: applying the `org.jetbrains.kotlin.android`
-plugin (`KotlinAndroidTargetKt.KotlinAndroidTarget`) failed with
-`NoClassDefFoundError: com/android/build/gradle/api/BaseVariant`. Turns out the traditional,
-standalone Kotlin Android plugin — which is what this project uses, since it opted out of
-AGP 9's new built-in Kotlin support (`android.builtInKotlin=false`, above) — still hooks into
-AGP through the old Variant API internally. AGP 9 removed that API's classes from the
-classpath by default; `android.builtInKotlin=false` alone doesn't bring them back. The actual
-fix is one more `gradle.properties` flag: `android.enableLegacyVariantApi=true`, which restores
-the old Variant API classes (`BaseVariant` included) specifically for plugins like this one
-that still depend on them. Confirmed correct against the exact reported stack trace, not
-guessed — Google's own AGP-9-migration material documents this flag for precisely this
-"traditional Kotlin Android plugin + AGP 9" combination.
+- AGP → `8.13.2`, Gradle wrapper → `8.14.3` (this project's original Gradle pin — AGP 8.13's
+  own documented minimum is Gradle 8.13, and jumping to Gradle 9.x alongside an 8.x-era AGP was
+  exactly the kind of unverified far-apart pairing that already caused two failures, so it
+  wasn't worth risking a third time for no real benefit).
+- All four Kotlin Gradle plugins → `2.3.20` (latest patch of the version the compatibility
+  table actually specifies for AGP 8.13.x).
+- `gradle.properties`'s `android.builtInKotlin=false` and `android.enableLegacyVariantApi=true`
+  both **removed** — meaningless on AGP 8.x, which predates both concepts entirely.
+- `compileSdk`/`targetSdk` **kept** at `36` (AGP 8.13's own max supported API level is also
+  listed as 36.1, so this didn't need reverting) and the `kotlinOptions` → `compilerOptions`
+  migration **kept** too (still deprecated-and-removed at Kotlin 2.3.20, same as at 2.2.10 —
+  that part of the reasoning was never AGP-version-dependent).
 
-Same caveat as everything AGP-9-related here: this is a **documented short-term compatibility
-flag**, not a permanent fix — Google's own framing is "to make your project work with AGP 9.0
-in the short term." The durable fix is migrating off `org.jetbrains.kotlin.android` entirely
-onto AGP 9's built-in Kotlin support, which is the same bigger, separately-verifiable change
-already deferred above. Worth doing before whatever AGP version eventually removes this flag
-the way `android.newDsl`'s opt-out is already scheduled to disappear in AGP 10.0.
+Verified for real again after this third attempt: `./gradlew :logic:test` passed clean against
+Gradle 8.14.3 + Kotlin 2.3.20 in this sandbox. Whether AGP 8.13.2 itself actually syncs clean in
+Android Studio is still the one thing only a real sync (yours) can confirm — this sandbox has
+never been able to compile `:app` at all, AGP-9-drama notwithstanding. If sync succeeds this
+time, worth treating `android.builtInKotlin`/AGP 9 as a "not yet, needs a dedicated pass with
+real compiler feedback" item rather than retrying blind a fourth time.
 
 ## `:logic` — fully verified
 
