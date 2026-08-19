@@ -1,8 +1,7 @@
 name: Release
 
 # Pushing a version tag (e.g. `v0.13a`) builds a signed release APK and attaches it to a new
-# GitHub Release. Requires repo secrets ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD,
-# ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD. Share links use routy:// (universal, no domain in APK).
+# GitHub Release. Requires repo secrets ANDROID_KEYSTORE_* and optional SENTRY_DSN.
 on:
   push:
     tags:
@@ -31,26 +30,32 @@ jobs:
           echo "name=${TAG#v}" >> "$GITHUB_OUTPUT"
           echo "code=${GITHUB_RUN_NUMBER}" >> "$GITHUB_OUTPUT"
 
-      - name: Decode signing keystore
-        run: echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 --decode > "${{ github.workspace }}/release.jks"
-
-      - name: Write keystore.properties
-        # Read by app/build.gradle.kts's conditional signingConfig — never committed (gitignored),
-        # written fresh on every run, removed again in the cleanup step below regardless of outcome.
-        run: |
-          cat > "${{ github.workspace }}/keystore.properties" <<PROPS
-          storeFile=${{ github.workspace }}/release.jks
-          storePassword=${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          keyAlias=${{ secrets.ANDROID_KEY_ALIAS }}
-          keyPassword=${{ secrets.ANDROID_KEY_PASSWORD }}
-          PROPS
+      - name: Build signed release APK
+        uses: ./.github/actions/build-signed-apk
+        with:
+          version_name: ${{ steps.version.outputs.name }}
+          version_code: ${{ steps.version.outputs.code }}
+          sentry_dsn: ${{ secrets.SENTRY_DSN }}
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
 
       - name: Print release cert SHA256 (optional — HTTPS App Links only)
+        if: env.ANDROID_KEYSTORE_BASE64 != ''
         run: |
+          echo "${ANDROID_KEYSTORE_BASE64}" | base64 --decode > "${GITHUB_WORKSPACE}/release.jks"
+          cat > "${GITHUB_WORKSPACE}/keystore.properties" <<PROPS
+          storeFile=${GITHUB_WORKSPACE}/release.jks
+          storePassword=${ANDROID_KEYSTORE_PASSWORD}
+          keyAlias=${ANDROID_KEY_ALIAS}
+          keyPassword=${ANDROID_KEY_PASSWORD}
+          PROPS
           FINGERPRINT=$(keytool -list -v \
-            -keystore "${{ github.workspace }}/release.jks" \
-            -alias "${{ secrets.ANDROID_KEY_ALIAS }}" \
-            -storepass "${{ secrets.ANDROID_KEYSTORE_PASSWORD }}" \
+            -keystore "${GITHUB_WORKSPACE}/release.jks" \
+            -alias "${ANDROID_KEY_ALIAS}" \
+            -storepass "${ANDROID_KEYSTORE_PASSWORD}" \
             2>/dev/null | grep "SHA256:" | head -1 | sed 's/.*SHA256: //' | tr -d ' ')
           echo "Release signing certificate SHA256 (optional — only if you later enable HTTPS App Links):"
           echo "$FINGERPRINT"
@@ -63,19 +68,18 @@ jobs:
             echo "$FINGERPRINT"
             echo "\`\`\`"
           } >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Build signed release APK
-        run: |
-          ./gradlew :app:assembleRelease \
-            -PappVersionName=${{ steps.version.outputs.name }} \
-            -PappVersionCode=${{ steps.version.outputs.code }}
-
-      - name: Remove keystore and credentials from the runner
-        if: always()
-        run: rm -f "${{ github.workspace }}/release.jks" "${{ github.workspace }}/keystore.properties"
+          rm -f "${GITHUB_WORKSPACE}/release.jks" "${GITHUB_WORKSPACE}/keystore.properties"
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v3
         with:
+          tag_name: ${{ github.ref_name }}
+          name: ${{ github.ref_name }}
           files: app/build/outputs/apk/release/app-release.apk
           generate_release_notes: true
+          fail_on_unmatched_files: true
