@@ -10,20 +10,23 @@ import android.os.Build
 import android.os.IBinder
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuAnchorType
@@ -37,7 +40,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -66,6 +71,8 @@ import com.routy.app.map.BaseMapStyle
 import com.routy.app.map.MapStyleSwitcher
 import com.routy.app.map.RoutyMapView
 
+private val CompactPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RecordingScreen(onDone: () -> Unit, modifier: Modifier = Modifier) {
@@ -92,9 +99,6 @@ fun RecordingScreen(onDone: () -> Unit, modifier: Modifier = Modifier) {
     }
 
     DisposableEffect(Unit) {
-        // Bind only, so the service exists (and reports its real phase — RECORDING/PAUSED if the
-        // user already started one and navigated away) without forcing it to start recording just
-        // because this screen was opened. startForegroundService() only happens from the Start button.
         context.bindService(Intent(context, RecordingForegroundService::class.java), serviceConnection, Context.BIND_AUTO_CREATE)
         onDispose { context.unbindService(serviceConnection) }
     }
@@ -119,11 +123,6 @@ fun RecordingScreen(onDone: () -> Unit, modifier: Modifier = Modifier) {
         }
     }
 
-    // Chained one-at-a-time rather than firing both launchers from one click: Activity Result
-    // launchers aren't safe to invoke back-to-back in the same call — each step only proceeds to
-    // the next once its own callback fires. Location is required (gates starting at all);
-    // notifications are best-effort (recording still works without it, just no visible ongoing
-    // notification), so its callback starts the service unconditionally either way.
     fun needsNotificationPermission() =
         Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
             ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
@@ -150,47 +149,49 @@ fun RecordingScreen(onDone: () -> Unit, modifier: Modifier = Modifier) {
         }
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text(stringResource(R.string.record_title)) },
-                navigationIcon = {
-                    IconButton(onClick = onDone) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null) }
-                },
-            )
-        },
-    ) { padding ->
-        when {
-            serviceState.phase == RecordingPhase.RECORDING || serviceState.phase == RecordingPhase.PAUSED -> {
-                ActiveRecordingFullscreen(
-                    uiState = uiState,
-                    serviceState = serviceState,
-                    onPause = { service?.pause() },
-                    onResume = { service?.resume() },
-                    onStop = {
-                        val points = service?.finish().orEmpty()
-                        if (points.size >= 2) {
-                            viewModel.setRecordedPoints(points)
-                        } else {
-                            service?.stopAfterCommitOrDiscard()
-                        }
-                    },
-                    onDiscard = { service?.stopAfterCommitOrDiscard() },
-                    modifier = modifier.padding(padding).fillMaxSize(),
-                )
-            }
-            serviceState.phase == RecordingPhase.CONFIRM -> {
-                ConfirmFullscreen(
-                    uiState = uiState,
-                    viewModel = viewModel,
-                    onDiscard = {
+    when {
+        serviceState.phase == RecordingPhase.RECORDING || serviceState.phase == RecordingPhase.PAUSED -> {
+            ActiveRecordingFullscreen(
+                uiState = uiState,
+                serviceState = serviceState,
+                onBack = onDone,
+                onPause = { service?.pause() },
+                onResume = { service?.resume() },
+                onStop = {
+                    val points = service?.finish().orEmpty()
+                    if (points.size >= 2) {
+                        viewModel.setRecordedPoints(points)
+                    } else {
                         service?.stopAfterCommitOrDiscard()
-                        viewModel.reset()
+                    }
+                },
+                onDiscard = { service?.stopAfterCommitOrDiscard() },
+                modifier = modifier.fillMaxSize(),
+            )
+        }
+        serviceState.phase == RecordingPhase.CONFIRM -> {
+            ConfirmFullscreen(
+                uiState = uiState,
+                viewModel = viewModel,
+                onBack = onDone,
+                onDiscard = {
+                    service?.stopAfterCommitOrDiscard()
+                    viewModel.reset()
+                },
+                modifier = modifier.fillMaxSize(),
+            )
+        }
+        else -> Scaffold(
+            topBar = {
+                TopAppBar(
+                    title = { Text(stringResource(R.string.record_title)) },
+                    navigationIcon = {
+                        IconButton(onClick = onDone) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null) }
                     },
-                    modifier = modifier.padding(padding).fillMaxSize(),
                 )
-            }
-            else -> Column(
+            },
+        ) { padding ->
+            Column(
                 modifier = modifier.fillMaxWidth().padding(padding).padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
@@ -214,6 +215,7 @@ fun RecordingScreen(onDone: () -> Unit, modifier: Modifier = Modifier) {
 private fun ConfirmFullscreen(
     uiState: RecordingUiState,
     viewModel: RecordingViewModel,
+    onBack: () -> Unit,
     onDiscard: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -235,24 +237,19 @@ private fun ConfirmFullscreen(
             modifier = Modifier.fillMaxSize(),
         )
 
-        Column(
-            modifier = Modifier.align(Alignment.TopStart).padding(8.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp),
-        ) {
-            MapStyleSwitcher(selected = mapStyle, onSelect = { mapStyle = it })
-        }
+        FloatingMapChrome(onBack = onBack, mapStyle = mapStyle, onMapStyle = { mapStyle = it })
 
-        Card(
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .fillMaxWidth()
-                .padding(8.dp),
+        Surface(
+            modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(8.dp),
+            tonalElevation = 3.dp,
+            shadowElevation = 4.dp,
+            shape = MaterialTheme.shapes.medium,
         ) {
             ConfirmSection(
                 uiState = uiState,
                 viewModel = viewModel,
                 onDiscard = onDiscard,
-                modifier = Modifier.padding(10.dp).heightIn(max = 280.dp),
+                modifier = Modifier.padding(8.dp),
             )
         }
     }
@@ -263,6 +260,7 @@ private fun ConfirmFullscreen(
 private fun ActiveRecordingFullscreen(
     uiState: RecordingUiState,
     serviceState: RecordingServiceState,
+    onBack: () -> Unit,
     onPause: () -> Unit,
     onResume: () -> Unit,
     onStop: () -> Unit,
@@ -284,49 +282,63 @@ private fun ActiveRecordingFullscreen(
             modifier = Modifier.fillMaxSize(),
         )
 
-        Column(
-            modifier = Modifier.align(Alignment.TopStart).padding(8.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp),
-        ) {
-            MapStyleSwitcher(selected = mapStyle, onSelect = { mapStyle = it })
-        }
+        FloatingMapChrome(onBack = onBack, mapStyle = mapStyle, onMapStyle = { mapStyle = it })
 
-        Card(
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .fillMaxWidth()
-                .padding(8.dp),
+        Surface(
+            modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(8.dp),
+            tonalElevation = 3.dp,
+            shadowElevation = 4.dp,
+            shape = MaterialTheme.shapes.medium,
         ) {
-            Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Column(modifier = Modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 if (serviceState.locationError) {
                     Text(
                         stringResource(R.string.record_location_error),
                         color = MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.bodySmall,
+                        style = MaterialTheme.typography.labelSmall,
                     )
                 }
 
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("${stringResource(R.string.record_points_so_far, serviceState.pointCount)}", style = MaterialTheme.typography.bodySmall)
-                    Text(
-                        "${stringResource(R.string.record_distance_so_far)}: ${"%.2f".format(serviceState.lengthM / 1000.0)} ${stringResource(R.string.common_km)}",
-                        style = MaterialTheme.typography.bodySmall,
-                    )
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    AssistChip(onClick = {}, label = { Text(stringResource(R.string.record_points_so_far, serviceState.pointCount), style = MaterialTheme.typography.labelSmall) })
+                    AssistChip(onClick = {}, label = {
+                        Text(
+                            "${stringResource(R.string.record_distance_so_far)}: ${"%.2f".format(serviceState.lengthM / 1000.0)} ${stringResource(R.string.common_km)}",
+                            style = MaterialTheme.typography.labelSmall,
+                        )
+                    })
                 }
 
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     if (serviceState.phase == RecordingPhase.RECORDING) {
-                        OutlinedButton(onClick = onPause) { Text(stringResource(R.string.record_pause)) }
+                        CompactOutlined(onPause) { Text(stringResource(R.string.record_pause), style = MaterialTheme.typography.labelMedium) }
                     } else {
-                        OutlinedButton(onClick = onResume) { Text(stringResource(R.string.record_resume)) }
+                        CompactOutlined(onResume) { Text(stringResource(R.string.record_resume), style = MaterialTheme.typography.labelMedium) }
                     }
-                    Button(onClick = onStop) { Text(stringResource(R.string.record_stop)) }
+                    CompactPrimary(onStop) { Text(stringResource(R.string.record_stop), style = MaterialTheme.typography.labelMedium) }
                     if (serviceState.phase == RecordingPhase.PAUSED) {
-                        OutlinedButton(onClick = onDiscard) { Text(stringResource(R.string.record_discard)) }
+                        CompactOutlined(onDiscard) { Text(stringResource(R.string.record_discard), style = MaterialTheme.typography.labelMedium) }
                     }
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun FloatingMapChrome(onBack: () -> Unit, mapStyle: BaseMapStyle, onMapStyle: (BaseMapStyle) -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(8.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.Top,
+    ) {
+        IconButton(
+            onClick = onBack,
+            modifier = Modifier.background(MaterialTheme.colorScheme.surface.copy(alpha = 0.92f), MaterialTheme.shapes.small),
+        ) {
+            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null)
+        }
+        MapStyleSwitcher(selected = mapStyle, onSelect = onMapStyle)
     }
 }
 
@@ -343,94 +355,88 @@ private fun ConfirmSection(
     val startDecision = uiState.startDecision
     val endDecision = uiState.endDecision
 
-    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(stringResource(R.string.record_confirm_title), style = MaterialTheme.typography.titleSmall)
-
-        if (start != null && startDecision != null) {
-            EndpointDecisionSection(
-                label = stringResource(R.string.record_start_node),
-                candidates = viewModel.startCandidates(),
-                decision = startDecision,
-                onDecisionChange = viewModel::setStartDecision,
-            )
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+            if (start != null && startDecision != null) {
+                CompactEndpointBlock(
+                    label = stringResource(R.string.record_start_node),
+                    candidates = viewModel.startCandidates(),
+                    decision = startDecision,
+                    onDecisionChange = viewModel::setStartDecision,
+                    modifier = Modifier.weight(1f),
+                )
+            }
+            if (end != null && endDecision != null) {
+                CompactEndpointBlock(
+                    label = stringResource(R.string.record_end_node),
+                    candidates = viewModel.endCandidates(),
+                    decision = endDecision,
+                    onDecisionChange = viewModel::setEndDecision,
+                    modifier = Modifier.weight(1f),
+                )
+            }
         }
 
         Row(verticalAlignment = Alignment.CenterVertically) {
             Checkbox(checked = uiState.markStartAsHome, onCheckedChange = viewModel::setMarkStartAsHome)
-            Text(stringResource(R.string.record_mark_as_home), style = MaterialTheme.typography.bodySmall)
-        }
-
-        if (end != null && endDecision != null) {
-            EndpointDecisionSection(
-                label = stringResource(R.string.record_end_node),
-                candidates = viewModel.endCandidates(),
-                decision = endDecision,
-                onDecisionChange = viewModel::setEndDecision,
-            )
+            Text(stringResource(R.string.record_mark_as_home), style = MaterialTheme.typography.labelSmall)
         }
 
         uiState.messageRes?.let { res ->
             Text(
                 stringResource(res),
                 color = if (uiState.isError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
-                style = MaterialTheme.typography.bodySmall,
+                style = MaterialTheme.typography.labelSmall,
             )
         }
 
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Button(onClick = viewModel::save, enabled = !uiState.saving) {
-                Text(stringResource(if (uiState.saving) R.string.record_saving else R.string.record_save))
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            CompactPrimary(onClick = viewModel::save, enabled = !uiState.saving) {
+                Text(stringResource(if (uiState.saving) R.string.record_saving else R.string.record_save), style = MaterialTheme.typography.labelMedium)
             }
-            OutlinedButton(onClick = onDiscard, enabled = !uiState.saving) {
-                Text(stringResource(R.string.record_discard))
+            CompactOutlined(onDiscard, enabled = !uiState.saving) {
+                Text(stringResource(R.string.record_discard), style = MaterialTheme.typography.labelMedium)
             }
         }
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class)
+@OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
 @Composable
-private fun EndpointDecisionSection(
+private fun CompactEndpointBlock(
     label: String,
     candidates: List<NodeCandidate>,
     decision: EndpointDecision,
     onDecisionChange: (EndpointDecision) -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val isExisting = decision is EndpointDecision.Existing
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Text(label, style = MaterialTheme.typography.labelLarge)
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text(label, style = MaterialTheme.typography.labelSmall)
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             FilterChip(
                 selected = isExisting,
                 enabled = candidates.isNotEmpty(),
                 onClick = { onDecisionChange(EndpointDecision.Existing(candidates.first().id)) },
-                label = { Text(stringResource(R.string.record_use_existing)) },
+                label = { Text(stringResource(R.string.record_use_existing), style = MaterialTheme.typography.labelSmall) },
             )
             FilterChip(
                 selected = !isExisting,
                 onClick = { onDecisionChange(EndpointDecision.NewJunction()) },
-                label = { Text(stringResource(R.string.record_create_new)) },
+                label = { Text(stringResource(R.string.record_create_new), style = MaterialTheme.typography.labelSmall) },
             )
         }
         when (decision) {
             is EndpointDecision.Existing -> CandidateDropdown(candidates, decision.nodeId) { onDecisionChange(EndpointDecision.Existing(it)) }
             is EndpointDecision.NewJunction -> {
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    OutlinedTextField(
-                        value = decision.part1,
-                        onValueChange = { onDecisionChange(decision.copy(part1 = it)) },
-                        placeholder = { Text(stringResource(R.string.record_name_part1)) },
-                        singleLine = true,
-                        modifier = Modifier.weight(1f),
-                    )
-                    OutlinedTextField(
-                        value = decision.part2,
-                        onValueChange = { onDecisionChange(decision.copy(part2 = it)) },
-                        placeholder = { Text(stringResource(R.string.record_name_part2)) },
-                        singleLine = true,
-                        modifier = Modifier.weight(1f),
-                    )
-                }
+                OutlinedTextField(
+                    value = decision.part1,
+                    onValueChange = { onDecisionChange(decision.copy(part1 = it)) },
+                    placeholder = { Text(stringResource(R.string.record_name_part1), style = MaterialTheme.typography.labelSmall) },
+                    singleLine = true,
+                    textStyle = MaterialTheme.typography.labelSmall,
+                    modifier = Modifier.fillMaxWidth(),
+                )
             }
         }
     }
@@ -449,16 +455,27 @@ private fun CandidateDropdown(candidates: List<NodeCandidate>, selectedId: Int?,
             onValueChange = {},
             readOnly = true,
             enabled = candidates.isNotEmpty(),
+            textStyle = MaterialTheme.typography.labelSmall,
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
             modifier = Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
         )
         ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
             candidates.forEach { candidate ->
                 DropdownMenuItem(
-                    text = { Text("${candidate.name ?: "#${candidate.id}"} (${candidate.distanceM.toInt()} m)") },
+                    text = { Text("${candidate.name ?: "#${candidate.id}"} (${candidate.distanceM.toInt()} m)", style = MaterialTheme.typography.labelSmall) },
                     onClick = { onSelect(candidate.id); expanded = false },
                 )
             }
         }
     }
+}
+
+@Composable
+private fun CompactPrimary(onClick: () -> Unit, enabled: Boolean = true, content: @Composable RowScope.() -> Unit) {
+    Button(onClick = onClick, enabled = enabled, contentPadding = CompactPadding, modifier = Modifier.heightIn(max = 32.dp), content = content)
+}
+
+@Composable
+private fun CompactOutlined(onClick: () -> Unit, enabled: Boolean = true, content: @Composable RowScope.() -> Unit) {
+    OutlinedButton(onClick = onClick, enabled = enabled, contentPadding = CompactPadding, modifier = Modifier.heightIn(max = 32.dp), content = content)
 }

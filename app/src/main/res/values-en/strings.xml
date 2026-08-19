@@ -55,7 +55,10 @@
     <string name="route_track">Track</string>
     <string name="route_tracking_on">Tracking on</string>
     <string name="route_keep_screen_on">Keep screen on</string>
+    <string name="route_more_options">Favorites &amp; more ▾</string>
+    <string name="route_less_options">Less ▴</string>
     <string name="route_track_progress">Progress %1$d / %2$d</string>
+    <string name="route_track_progress_chip">%1$d/%2$d → %3$s</string>
     <string name="route_next_waypoint">Next station: %1$s</string>
     <string name="route_share_preview">Shared route</string>
     <string name="route_share_dismiss">Dismiss</string>
