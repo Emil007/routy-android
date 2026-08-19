@@ -33,6 +33,7 @@ import com.routy.app.logic.api.SegmentGeometryRequest
 import com.routy.app.logic.api.SegmentIdRequest
 import com.routy.app.logic.api.SegmentLockRequest
 import com.routy.app.logic.api.SegmentRenameRequest
+import com.routy.app.logic.api.SegmentSplitRequest
 import com.routy.app.logic.api.RevokeOthersResponse
 import okhttp3.MultipartBody
 import okhttp3.MediaType.Companion.toMediaType
