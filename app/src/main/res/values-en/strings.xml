@@ -124,6 +124,14 @@
     <string name="update_view">View</string>
     <string name="update_dismiss">Dismiss</string>
 
+    <string name="battery_optimization_hint">For reliable background recording: turn off battery optimization for Routy.</string>
+    <string name="battery_optimization_allow">Open settings</string>
+    <string name="battery_optimization_dismiss">Not now</string>
+
+    <string name="map_style_streets">Streets</string>
+    <string name="map_style_hiking">Hiking</string>
+    <string name="map_style_satellite">Satellite</string>
+
     <string name="notification_recording_channel_name">Path recording</string>
     <string name="notification_recording_title">Recording in progress</string>
     <string name="notification_recording_text">%1$d points, %2$s km</string>

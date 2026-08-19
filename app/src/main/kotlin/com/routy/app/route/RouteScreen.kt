@@ -63,6 +63,7 @@ import com.routy.app.logic.geo.LatLng
 import com.routy.app.logic.route.VoiceCue
 import com.routy.app.logic.route.VoiceCueTracker
 import com.routy.app.map.BaseMapStyle
+import com.routy.app.map.MapStyleSwitcher
 import com.routy.app.map.RoutyMapView
 import java.text.Collator
 
@@ -305,10 +306,13 @@ private fun RouteResultCard(uiState: RouteUiState, route: com.routy.app.logic.ap
         }
     }
 
+    var mapStyle by remember { mutableStateOf(BaseMapStyle.STREETS) }
+
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            MapStyleSwitcher(selected = mapStyle, onSelect = { mapStyle = it })
             RoutyMapView(
-                style = BaseMapStyle.STREETS,
+                style = mapStyle,
                 nodes = nodes,
                 segments = uiState.segments,
                 routeGeometry = route.geometry,
