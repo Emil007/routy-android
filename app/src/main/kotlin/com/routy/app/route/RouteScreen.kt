@@ -2,6 +2,7 @@ package com.routy.app.route
 
 import android.Manifest
 import android.annotation.SuppressLint
+import android.content.ClipData
 import android.content.pm.PackageManager
 import android.os.Looper
 import androidx.compose.foundation.layout.Arrangement
@@ -20,11 +21,11 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuAnchorType
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -38,10 +39,10 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.ClipEntry
+import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -77,11 +78,13 @@ fun RouteScreen(onStartRecording: () -> Unit, modifier: Modifier = Modifier) {
         },
     )
     val uiState by viewModel.uiState.collectAsState()
-    val clipboard = LocalClipboardManager.current
+    val clipboard = LocalClipboard.current
 
     LaunchedEffect(uiState.pendingShareUrl) {
         val url = uiState.pendingShareUrl ?: return@LaunchedEffect
-        clipboard.setText(AnnotatedString(url))
+        // setClipEntry is suspend (LocalClipboard's replacement for the deprecated
+        // LocalClipboardManager.setText) — fine to call directly, already inside LaunchedEffect.
+        clipboard.setClipEntry(ClipEntry(ClipData.newPlainText("Route link", url)))
         viewModel.clearPendingShareUrl()
     }
 
@@ -458,7 +461,7 @@ private fun NodeDropdown(
             readOnly = true,
             label = { Text(label) },
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
-            modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
+            modifier = Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
         )
         // No import needed (and none exists — deliberately removed above): in the current stable
         // Material3 (1.4.0), ExposedDropdownMenu is a *member* of ExposedDropdownMenuBoxScope,
