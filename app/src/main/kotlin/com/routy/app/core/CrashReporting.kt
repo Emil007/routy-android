@@ -4,7 +4,7 @@ import android.app.Application
 import com.routy.app.BuildConfig
 import io.sentry.android.core.SentryAndroid
 
-/** Optional crash reporting — enabled when SENTRY_DSN is set at build time (CI release/APK workflows). */
+/** Optional crash reporting — SDK packaged only when built with `-PsentryDsn`. */
 object CrashReporting {
     fun install(app: Application) {
         val dsn = BuildConfig.SENTRY_DSN.trim()

@@ -103,15 +103,6 @@ android {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
         }
     }
-
-    sourceSets {
-        named("main") {
-            java.srcDirs(
-                "src/main/kotlin",
-                if (sentryEnabled) "src/sentry/kotlin" else "src/noSentry/kotlin",
-            )
-        }
-    }
 }
 
 // AGP's built-in Kotlin support (no org.jetbrains.kotlin.android applied — see the plugins
@@ -199,9 +190,11 @@ dependencies {
     // org.maplibre.gl:android-sdk-geojson.
     implementation("org.maplibre.gl:android-sdk:12.3.1")
 
-    // --- Crash reporting (optional — only when -PsentryDsn is set at build time) ---
+    // --- Crash reporting (optional — only packaged when -PsentryDsn is set at build time) ---
     if (sentryEnabled) {
         implementation("io.sentry:sentry-android:8.12.0")
+    } else {
+        compileOnly("io.sentry:sentry-android:8.12.0")
     }
 
     // --- Tests ---
