@@ -47,11 +47,11 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-            <intent-filter>
+            <intent-filter android:autoVerify="true">
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-                <!-- Build with -PdeepLinkHost=your.domain for verified App Links; routy:// always works. -->
+                <!-- Release builds use DEEP_LINK_HOST repo variable (routy.emil.uno). routy:// always works as fallback. -->
                 <data
                     android:scheme="https"
                     android:host="${deepLinkHost}"
