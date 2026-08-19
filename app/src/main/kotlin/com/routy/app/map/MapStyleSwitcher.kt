@@ -1,5 +1,6 @@
 package com.routy.app.map
 
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -14,6 +15,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -27,12 +29,16 @@ fun MapStyleSwitcher(selected: BaseMapStyle, onSelect: (BaseMapStyle) -> Unit, m
 
     Surface(modifier = modifier, color = MaterialTheme.colorScheme.surface.copy(alpha = 0.92f), shape = MaterialTheme.shapes.small) {
         ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = it }) {
-            Text(
-                text = stringResource(selected.labelRes()),
-                modifier = Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable).padding(start = 10.dp, end = 4.dp, top = 6.dp, bottom = 6.dp),
-                style = MaterialTheme.typography.labelMedium,
-            )
-            ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded, modifier = Modifier.padding(end = 4.dp))
+            Row(
+                modifier = Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable).padding(horizontal = 10.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = stringResource(selected.labelRes()),
+                    style = MaterialTheme.typography.labelMedium,
+                )
+                ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded)
+            }
             ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
                 BaseMapStyle.entries.forEach { style ->
                     DropdownMenuItem(

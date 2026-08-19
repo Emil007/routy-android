@@ -68,6 +68,7 @@ fun RoutyWebView(
             }
         },
         update = { webView ->
+            webView.visibility = if (interactive) View.VISIBLE else View.GONE
             webView.isEnabled = interactive
             webView.setOnTouchListener(
                 if (interactive) null else View.OnTouchListener { _, _ -> true },

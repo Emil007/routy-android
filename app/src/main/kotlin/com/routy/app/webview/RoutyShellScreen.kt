@@ -14,9 +14,11 @@ import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -130,12 +132,22 @@ fun RoutyShellScreen(onSignedOut: () -> Unit, onStartRecording: () -> Unit) {
                     )
                 }
                 when (currentTab.path) {
-                    "route" -> RouteScreen(
-                        onStartRecording = onStartRecording,
-                        accountLocaleTag = uiState.user?.locale.orEmpty(),
+                    "route" -> Surface(
                         modifier = Modifier.fillMaxSize().zIndex(2f),
-                    )
-                    "stats" -> StatsScreen(modifier = Modifier.fillMaxSize().zIndex(2f))
+                        color = MaterialTheme.colorScheme.background,
+                    ) {
+                        RouteScreen(
+                            onStartRecording = onStartRecording,
+                            accountLocaleTag = uiState.user?.locale.orEmpty(),
+                            modifier = Modifier.fillMaxSize(),
+                        )
+                    }
+                    "stats" -> Surface(
+                        modifier = Modifier.fillMaxSize().zIndex(2f),
+                        color = MaterialTheme.colorScheme.background,
+                    ) {
+                        StatsScreen(modifier = Modifier.fillMaxSize())
+                    }
                 }
             }
         }
