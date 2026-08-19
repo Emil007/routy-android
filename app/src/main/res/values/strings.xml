@@ -30,7 +30,7 @@
     <string name="nav_settings">Einstellungen</string>
     <string name="nav_admin">Verwaltung</string>
 
-    <string name="route_station_fallback">Station</string>
+    <string name="route_station_fallback">die nächste Station</string>
 
     <string name="common_save">Speichern</string>
     <string name="common_optional">optional</string>
@@ -105,6 +105,20 @@
     <string name="record_name_part1">Namensteil 1 (z.B. Straße/Weg)</string>
     <string name="record_name_part2">Namensteil 2 (optional, z.B. Kreuzung/Landmarke)</string>
     <string name="record_location_error">Standort konnte nicht ermittelt werden — Standortzugriff erforderlich.</string>
+
+    <string name="route_voice_on">Ansagen an</string>
+    <string name="route_voice_off">Ansagen aus</string>
+    <string name="route_voice_hint">Sagt bei Ankunft an einer Station die nächste Station und Richtung an (braucht „Meinen Standort anzeigen").</string>
+    <string name="route_voice_arrived_next">Angekommen bei %1$s. Nächste Station: %2$s, Richtung %3$s.</string>
+    <string name="route_voice_arrived_final">Angekommen bei %1$s. Das war die letzte Station.</string>
+    <string name="route_compass_n">Norden</string>
+    <string name="route_compass_ne">Nordosten</string>
+    <string name="route_compass_e">Osten</string>
+    <string name="route_compass_se">Südosten</string>
+    <string name="route_compass_s">Süden</string>
+    <string name="route_compass_sw">Südwesten</string>
+    <string name="route_compass_w">Westen</string>
+    <string name="route_compass_nw">Nordwesten</string>
 
     <string name="notification_recording_channel_name">Wegaufzeichnung</string>
     <string name="notification_recording_title">Aufzeichnung läuft</string>

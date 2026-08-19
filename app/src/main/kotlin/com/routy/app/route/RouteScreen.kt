@@ -59,6 +59,9 @@ import com.routy.app.RoutyApplication
 import com.routy.app.logic.api.FavoriteEntry
 import com.routy.app.logic.api.GeoPoint
 import com.routy.app.logic.api.NodeDto
+import com.routy.app.logic.geo.LatLng
+import com.routy.app.logic.route.VoiceCue
+import com.routy.app.logic.route.VoiceCueTracker
 import com.routy.app.map.BaseMapStyle
 import com.routy.app.map.RoutyMapView
 import java.text.Collator
@@ -271,6 +274,37 @@ private fun RouteResultCard(uiState: RouteUiState, route: com.routy.app.logic.ap
     var showDiscardConfirm by remember { mutableStateOf(false) }
     val loading = uiState.status == RouteStatus.LOADING
 
+    if (uiState.mode == RouteMode.ACTIVE) {
+        val voiceController = rememberVoiceGuidanceController()
+        // Keyed on the route's own node chain, not on mode/voiceEnabled — a fresh tracker per
+        // accepted route, same as RouteGenerator.tsx resetting announcedStationIndexRef on
+        // accept/takeFavorite, so switching voice on/off mid-walk never skips or repeats a cue.
+        val tracker = remember(route.nodeChain) { VoiceCueTracker(route.stations) }
+        var pendingCue by remember(route.nodeChain) { mutableStateOf<VoiceCue?>(null) }
+        val location = uiState.myLocation
+        val voiceActive = uiState.voiceEnabled && uiState.watchingLocation
+
+        // tracker.onLocationUpdate() mutates the tracker's internal index — it must run exactly
+        // once per genuinely new location fix, never as a side effect of an unrelated
+        // recomposition, so it's isolated inside LaunchedEffect rather than called from the
+        // composable body directly.
+        LaunchedEffect(location, voiceActive) {
+            if (!voiceActive || location == null) return@LaunchedEffect
+            tracker.onLocationUpdate(LatLng(location.lat, location.lng))?.let { pendingCue = it }
+        }
+
+        // toSpokenText() needs stringResource(), so it has to run here in the composable body —
+        // the actual speak() call (a suspend/side-effecting call, not composable) happens in its
+        // own LaunchedEffect once the text is resolved.
+        pendingCue?.let { cue ->
+            val spokenText = cue.toSpokenText()
+            LaunchedEffect(cue) {
+                voiceController.speak(spokenText)
+                pendingCue = null
+            }
+        }
+    }
+
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             RoutyMapView(
@@ -345,9 +379,17 @@ private fun RouteResultCard(uiState: RouteUiState, route: com.routy.app.logic.ap
                     }) {
                         Text(stringResource(if (uiState.watchingLocation) R.string.route_hide_location else R.string.route_show_location))
                     }
+                    OutlinedButton(onClick = { viewModel.setVoiceEnabled(!uiState.voiceEnabled) }) {
+                        Text(stringResource(if (uiState.voiceEnabled) R.string.route_voice_off else R.string.route_voice_on))
+                    }
                     Button(onClick = viewModel::complete, enabled = !loading) { Text(stringResource(R.string.route_complete_button)) }
                     OutlinedButton(onClick = { showDiscardConfirm = true }, enabled = !loading) { Text(stringResource(R.string.route_discard_button)) }
                 }
+                Text(
+                    stringResource(R.string.route_voice_hint),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
         }
     }
