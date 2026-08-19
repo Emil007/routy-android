@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
@@ -34,6 +35,7 @@ import com.routy.app.R
 import com.routy.app.RoutyApplication
 import com.routy.app.logic.api.GeoPoint
 import com.routy.app.logic.api.WalkLogEntryDto
+import com.routy.app.logic.geo.walkPathPoints
 import com.routy.app.logic.time.formatDurationHours
 import com.routy.app.logic.time.parseServerInstant
 import java.time.ZoneId
@@ -181,7 +183,7 @@ fun StatsScreen(modifier: Modifier = Modifier) {
         }
 
         items(uiState.recentWalks) { walk ->
-            WalkRow(walk, uiState.nodeCoords)
+            WalkRow(walk, uiState.nodeCoords, uiState.segmentGeometry)
         }
     }
 }
@@ -202,10 +204,20 @@ private fun StatChip(label: String) {
 }
 
 @Composable
-private fun WalkRow(walk: WalkLogEntryDto, nodeCoords: Map<Int, GeoPoint>) {
+private fun WalkRow(
+    walk: WalkLogEntryDto,
+    nodeCoords: Map<Int, GeoPoint>,
+    segmentGeometry: Map<Int, List<GeoPoint>>,
+) {
+    val pathPoints = walkPathPoints(
+        segmentIds = walk.segmentIds,
+        geometryBySegmentId = segmentGeometry,
+        fallbackNodeChain = walk.nodeChain,
+        fallbackCoords = nodeCoords,
+    )
     Card(modifier = Modifier.fillMaxWidth()) {
         Row(modifier = Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
-            WalkPathThumbnail(nodeChain = walk.nodeChain, coords = nodeCoords)
+            WalkPathThumbnail(points = pathPoints)
             Spacer(modifier = Modifier.width(8.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(formatWalkDate(walk.acceptedAt), style = MaterialTheme.typography.labelMedium)

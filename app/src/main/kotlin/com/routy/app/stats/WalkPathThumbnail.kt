@@ -14,11 +14,9 @@ import kotlin.math.max
 
 @Composable
 fun WalkPathThumbnail(
-    nodeChain: List<Int>,
-    coords: Map<Int, GeoPoint>,
+    points: List<GeoPoint>,
     modifier: Modifier = Modifier,
 ) {
-    val points = nodeChain.mapNotNull { coords[it] }
     if (points.size < 2) return
 
     val lats = points.map { it.lat }

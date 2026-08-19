@@ -32,6 +32,7 @@ data class StatsUiState(
     val points: UserPointsDto? = null,
     val currentUserId: Int? = null,
     val nodeCoords: Map<Int, GeoPoint> = emptyMap(),
+    val segmentGeometry: Map<Int, List<GeoPoint>> = emptyMap(),
 )
 
 class StatsViewModel(
@@ -59,7 +60,9 @@ class StatsViewModel(
                 val pointsBoard = runCatching { service.pointsLeaderboard() }.getOrNull()
                 if (meResponse.isSuccessful) {
                     val body = meResponse.body()
-                    val coords = networkCache.load()?.nodes?.associate { it.id to GeoPoint(it.lat, it.lng) }.orEmpty()
+                    val cached = networkCache.load()
+                    val coords = cached?.nodes?.associate { it.id to GeoPoint(it.lat, it.lng) }.orEmpty()
+                    val geometry = cached?.segments?.associate { it.id to it.geometry }.orEmpty()
                     _uiState.value = StatsUiState(
                         loading = false,
                         stats = body?.stats,
@@ -71,6 +74,7 @@ class StatsViewModel(
                         points = body?.points,
                         pointsLeaderboard = pointsBoard?.takeIf { it.isSuccessful }?.body()?.leaderboard.orEmpty(),
                         nodeCoords = coords,
+                        segmentGeometry = geometry,
                     )
                     val streak = body?.streak?.currentStreak ?: 0
                     val km = (body?.stats?.totalLengthM ?: 0) / 1000.0
