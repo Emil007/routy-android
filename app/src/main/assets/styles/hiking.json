@@ -1,0 +1,25 @@
+{
+  "version": 8,
+  "name": "Routy Wanderkarte",
+  "sources": {
+    "raster-tiles": {
+      "type": "raster",
+      "tiles": [
+        "https://a.tile.opentopomap.org/{z}/{x}/{y}.png",
+        "https://b.tile.opentopomap.org/{z}/{x}/{y}.png",
+        "https://c.tile.opentopomap.org/{z}/{x}/{y}.png"
+      ],
+      "tileSize": 256,
+      "attribution": "Kartendaten: © OpenStreetMap contributors, SRTM | Darstellung: © OpenTopoMap (CC-BY-SA)"
+    }
+  },
+  "layers": [
+    {
+      "id": "raster-tiles",
+      "type": "raster",
+      "source": "raster-tiles",
+      "minzoom": 0,
+      "maxzoom": 17
+    }
+  ]
+}

@@ -28,6 +28,7 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.routy.app.R
 import com.routy.app.RoutyApplication
+import com.routy.app.route.RouteScreen
 
 private data class ShellTab(val labelRes: Int, val path: String, val icon: ImageVector, val adminOnly: Boolean = false)
 
@@ -40,9 +41,10 @@ private val TABS = listOf(
 )
 
 /**
- * The WebView-hosted half of the app (see the architecture note in NOTES.md at the repo root):
- * every website section except the native map/route/recording screens M3-M5 add, reused as-is
- * through an authenticated WebView rather than rebuilt natively.
+ * Bottom nav shared across the whole post-login app. Route is native (RouteScreen, M3) — every
+ * other section (see the architecture note in NOTES.md at the repo root) stays a WebView tab
+ * reusing the website as-is, since editing-heavy/occasional screens gain nothing from a native
+ * rebuild.
  */
 @Composable
 fun RoutyShellScreen(onSignedOut: () -> Unit) {
@@ -90,10 +92,14 @@ fun RoutyShellScreen(onSignedOut: () -> Unit) {
             }
         },
     ) { padding ->
-        RoutyWebView(
-            url = "$baseUrl/${currentTab.path}",
-            onNavigateToLogin = { viewModel.signOut() },
-            modifier = Modifier.padding(padding),
-        )
+        if (currentTab.path == "route") {
+            RouteScreen(modifier = Modifier.padding(padding))
+        } else {
+            RoutyWebView(
+                url = "$baseUrl/${currentTab.path}",
+                onNavigateToLogin = { viewModel.signOut() },
+                modifier = Modifier.padding(padding),
+            )
+        }
     }
 }

@@ -31,4 +31,54 @@
     <string name="nav_admin">Admin</string>
 
     <string name="route_station_fallback">Station</string>
+
+    <string name="common_save">Save</string>
+    <string name="common_optional">optional</string>
+    <string name="common_km">km</string>
+    <string name="common_min">min</string>
+    <string name="common_error">Something went wrong.</string>
+
+    <string name="route_active_notice">You have an active route. Confirm it as walked, or discard it to get a new suggestion.</string>
+    <string name="route_nickname_placeholder">Name for this walk (optional)</string>
+    <string name="route_favorites_title">Favorite routes</string>
+    <string name="route_favorite_take">Take this route</string>
+    <string name="route_favorite_unshare">Stop sharing</string>
+    <string name="route_favorite_share">Share</string>
+    <string name="route_favorite_delete">Delete</string>
+    <string name="route_favorite_delete_confirm">Delete this favorite route?</string>
+    <string name="route_favorite_saved">Favorite saved.</string>
+    <string name="route_favorite_stale">Route includes segments that have since been deleted — can\'t be taken anymore.</string>
+    <string name="route_favorite_name_placeholder">Route name</string>
+    <string name="route_save_favorite">Save as favorite</string>
+    <string name="route_cancel">Cancel</string>
+    <string name="route_start">Start</string>
+    <string name="route_loop">Loop (back to start)</string>
+    <string name="route_destination">Destination</string>
+    <string name="route_waypoint">Waypoint</string>
+    <string name="route_waypoint_none">No waypoint</string>
+    <string name="route_explorer_mode">Explorer mode</string>
+    <string name="route_explorer_mode_hint">Prefers path segments that have never been walked.</string>
+    <string name="route_generating">Searching for a matching route …</string>
+    <string name="route_suggest">Suggest a route</string>
+    <string name="route_preset_short">Short loop</string>
+    <string name="route_preset_long">Long loop</string>
+    <string name="route_distance_label">Distance</string>
+    <string name="route_duration_label">Duration</string>
+    <string name="route_elevation_gain">%1$d m uphill</string>
+    <string name="route_elevation_loss">%1$d m downhill</string>
+    <string name="route_station_list">Waypoints</string>
+    <string name="route_via">via %1$s</string>
+    <string name="route_shorter">Shorter</string>
+    <string name="route_longer">Longer</string>
+    <string name="route_new_route">Another route</string>
+    <string name="route_accept">Take this one</string>
+    <string name="route_hide_location">Hide location</string>
+    <string name="route_show_location">Show my location</string>
+    <string name="route_complete_button">Confirm as walked</string>
+    <string name="route_discard_button">Discard</string>
+    <string name="route_discard_confirm">Discard this route? Won\'t count as walked.</string>
+    <string name="route_completed_message">Nice! Counts toward your stats now.</string>
+    <string name="route_no_route_found">No route found within the configured length range.</string>
+    <string name="route_no_alternative">No alternative found.</string>
+    <string name="route_session_expired">Session expired — please suggest again.</string>
 </resources>

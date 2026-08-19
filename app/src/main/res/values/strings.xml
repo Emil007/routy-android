@@ -31,4 +31,54 @@
     <string name="nav_admin">Verwaltung</string>
 
     <string name="route_station_fallback">Station</string>
+
+    <string name="common_save">Speichern</string>
+    <string name="common_optional">optional</string>
+    <string name="common_km">km</string>
+    <string name="common_min">Min.</string>
+    <string name="common_error">Etwas ist schiefgelaufen.</string>
+
+    <string name="route_active_notice">Du hast eine aktive Route. Bestätige sie als gegangen, oder verwirf sie, um eine neue vorzuschlagen.</string>
+    <string name="route_nickname_placeholder">Name für diesen Spaziergang (optional)</string>
+    <string name="route_favorites_title">Lieblingsrouten</string>
+    <string name="route_favorite_take">Diese Route nehmen</string>
+    <string name="route_favorite_unshare">Teilen beenden</string>
+    <string name="route_favorite_share">Teilen</string>
+    <string name="route_favorite_delete">Löschen</string>
+    <string name="route_favorite_delete_confirm">Lieblingsroute löschen?</string>
+    <string name="route_favorite_saved">Favorit gespeichert.</string>
+    <string name="route_favorite_stale">Route enthält inzwischen gelöschte Wegabschnitte — kann nicht mehr übernommen werden.</string>
+    <string name="route_favorite_name_placeholder">Name der Route</string>
+    <string name="route_save_favorite">Als Favorit speichern</string>
+    <string name="route_cancel">Abbrechen</string>
+    <string name="route_start">Start</string>
+    <string name="route_loop">Rundweg (zurück zum Start)</string>
+    <string name="route_destination">Ziel</string>
+    <string name="route_waypoint">Zwischenziel</string>
+    <string name="route_waypoint_none">Kein Zwischenziel</string>
+    <string name="route_explorer_mode">Explorer-Modus</string>
+    <string name="route_explorer_mode_hint">Bevorzugt Wegabschnitte, die noch nie gegangen wurden.</string>
+    <string name="route_generating">Suche passende Route …</string>
+    <string name="route_suggest">Route vorschlagen</string>
+    <string name="route_preset_short">Kurze Runde</string>
+    <string name="route_preset_long">Lange Runde</string>
+    <string name="route_distance_label">Strecke</string>
+    <string name="route_duration_label">Dauer</string>
+    <string name="route_elevation_gain">%1$d m bergauf</string>
+    <string name="route_elevation_loss">%1$d m bergab</string>
+    <string name="route_station_list">Stationen</string>
+    <string name="route_via">via %1$s</string>
+    <string name="route_shorter">Kürzer</string>
+    <string name="route_longer">Länger</string>
+    <string name="route_new_route">Andere Route</string>
+    <string name="route_accept">Diese nehmen</string>
+    <string name="route_hide_location">Standort ausblenden</string>
+    <string name="route_show_location">Meinen Standort anzeigen</string>
+    <string name="route_complete_button">Als gegangen bestätigen</string>
+    <string name="route_discard_button">Verwerfen</string>
+    <string name="route_discard_confirm">Route verwerfen? Zählt dann nicht als gegangen.</string>
+    <string name="route_completed_message">Nice! Zählt jetzt zu deiner Statistik.</string>
+    <string name="route_no_route_found">Im eingestellten Längenbereich wurde keine Route gefunden.</string>
+    <string name="route_no_alternative">Keine Alternative gefunden.</string>
+    <string name="route_session_expired">Sitzung abgelaufen — bitte neu vorschlagen lassen.</string>
 </resources>

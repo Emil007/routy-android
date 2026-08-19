@@ -1,0 +1,21 @@
+{
+  "version": 8,
+  "name": "Routy Streets",
+  "sources": {
+    "raster-tiles": {
+      "type": "raster",
+      "tiles": ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
+      "tileSize": 256,
+      "attribution": "© OpenStreetMap contributors"
+    }
+  },
+  "layers": [
+    {
+      "id": "raster-tiles",
+      "type": "raster",
+      "source": "raster-tiles",
+      "minzoom": 0,
+      "maxzoom": 19
+    }
+  ]
+}

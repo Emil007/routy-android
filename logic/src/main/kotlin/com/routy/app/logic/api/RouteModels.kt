@@ -43,8 +43,9 @@ data class RouteTokenRequest(val token: String)
 @Serializable
 data class AdjustRouteRequest(val token: String, val direction: String) // "longer" | "shorter"
 
+/** Server's Zod schema is `z.string().trim().max(120)`, not nullable — an empty string clears the nickname. */
 @Serializable
-data class NicknameRequest(val nickname: String? = null)
+data class NicknameRequest(val nickname: String)
 
 @Serializable
 data class FavoriteEntry(
@@ -64,4 +65,18 @@ data class SaveFavoriteRequest(
     val segmentIds: List<Int>,
     val lengthM: Int,
     val durationMin: Int,
+)
+
+@Serializable
+data class ShareFavoriteRequest(val enable: Boolean)
+
+@Serializable
+data class ShareFavoriteResponse(val ok: Boolean, val shareToken: String? = null)
+
+/** GET /api/route/state — mirrors the props the web's /route RSC computes server-side (src/app/(app)/route/page.tsx). */
+@Serializable
+data class RouteStateResponse(
+    val activeRoute: RouteDisplayPayload? = null,
+    val nickname: String? = null,
+    val favorites: List<FavoriteEntry> = emptyList(),
 )
