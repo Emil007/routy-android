@@ -60,7 +60,7 @@ android {
         // Overridden by CI from the pushed release tag (-PappVersionName=0.13a -PappVersionCode=N)
         // — see .github/workflows/release.yml. Tags use the `a` suffix (e.g. v0.13a).
         versionCode = (project.findProperty("appVersionCode") as String?)?.toIntOrNull() ?: 25
-        versionName = (project.findProperty("appVersionName") as String?) ?: "0.35a"
+        versionName = (project.findProperty("appVersionName") as String?) ?: "0.36a"
         buildConfigField("String", "SENTRY_DSN", "\"${sentryDsn.replace("\"", "\\\"")}\"")
     }
 

@@ -255,6 +255,7 @@ fun StatsScreen(modifier: Modifier = Modifier) {
         items(uiState.recentWalks) { walk ->
             WalkRow(
                 walk = walk,
+                nodeNames = uiState.nodeNames,
                 nodeCoords = uiState.nodeCoords,
                 segmentGeometry = uiState.segmentGeometry,
                 deleting = uiState.deletingWalkId == walk.id,
@@ -362,11 +363,14 @@ private fun StatChip(label: String) {
 @Composable
 private fun WalkRow(
     walk: WalkLogEntryDto,
+    nodeNames: Map<Int, String>,
     nodeCoords: Map<Int, GeoPoint>,
     segmentGeometry: Map<Int, List<GeoPoint>>,
     deleting: Boolean,
     onDelete: () -> Unit,
 ) {
+    fun nodeLabel(id: Int?) = id?.let { nodeNames[it] ?: "#$it" } ?: "?"
+    val startEnd = "${nodeLabel(walk.nodeChain.firstOrNull())} → ${nodeLabel(walk.nodeChain.lastOrNull())}"
     val pathPoints = walkPathPoints(
         segmentIds = walk.segmentIds,
         geometryBySegmentId = segmentGeometry,
@@ -379,10 +383,16 @@ private fun WalkRow(
             Spacer(modifier = Modifier.width(8.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(formatWalkDate(walk.acceptedAt), style = MaterialTheme.typography.labelMedium)
-                Text(
-                    text = walk.nickname ?: "${walk.nodeChain.firstOrNull()} → ${walk.nodeChain.lastOrNull()}",
-                    style = MaterialTheme.typography.bodyMedium,
-                )
+                if (walk.nickname.isNullOrBlank()) {
+                    Text(startEnd, style = MaterialTheme.typography.bodyMedium)
+                } else {
+                    Text(walk.nickname!!, style = MaterialTheme.typography.bodyMedium)
+                    Text(
+                        startEnd,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
                 Text(
                     text = "${formatKm(walk.lengthM)} ${stringResource(R.string.common_km)} · ${walk.durationMin} ${stringResource(R.string.common_min)}",
                     style = MaterialTheme.typography.bodySmall,
