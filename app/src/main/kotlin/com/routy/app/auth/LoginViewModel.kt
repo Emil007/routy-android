@@ -42,8 +42,10 @@ class LoginViewModel(
 
     fun loadHealth() {
         viewModelScope.launch {
-            val response = runCatching { apiClientProvider.service.health() }.getOrNull()
-            val captcha = response?.takeIf { it.isSuccessful }?.body()?.captcha ?: CaptchaConfig()
+            // Health for connectivity; captcha comes from public-config (not health).
+            runCatching { apiClientProvider.service.health() }
+            val config = runCatching { apiClientProvider.service.getPublicConfig() }.getOrNull()
+            val captcha = config?.takeIf { it.isSuccessful }?.body()?.captcha ?: CaptchaConfig()
             _uiState.value = _uiState.value.copy(
                 captcha = captcha,
                 captchaRequired = captcha.isRequired(),

@@ -139,6 +139,7 @@ class RouteViewModel(
                     cachedBootstrap.game,
                     cachedBootstrap.todayGoldenSegmentIds,
                     offlineCached = false,
+                    homeNodeId = cachedBootstrap.user.homeNodeId,
                 )
             } else if (cachedNetwork != null) {
                 applyNetworkState(cachedNetwork.nodes, cachedNetwork.segments, null, offlineCached = false)
@@ -146,17 +147,41 @@ class RouteViewModel(
 
             when (val result = bootstrapLoader.load()) {
                 is BootstrapResult.Fresh -> {
-                    applyNetworkState(result.body.nodes, result.body.segments, result.body.routeState, result.body.game, result.body.todayGoldenSegmentIds, offlineCached = false)
+                    applyNetworkState(
+                        result.body.nodes,
+                        result.body.segments,
+                        result.body.routeState,
+                        result.body.game,
+                        result.body.todayGoldenSegmentIds,
+                        offlineCached = false,
+                        homeNodeId = result.body.user.homeNodeId,
+                    )
                     restoreProgress(result.body.routeState.activeRoute)
                     consumeDeepLink()
                 }
                 is BootstrapResult.NotModified -> {
-                    applyNetworkState(result.cached.nodes, result.cached.segments, result.cached.routeState, result.cached.game, result.cached.todayGoldenSegmentIds, offlineCached = false)
+                    applyNetworkState(
+                        result.cached.nodes,
+                        result.cached.segments,
+                        result.cached.routeState,
+                        result.cached.game,
+                        result.cached.todayGoldenSegmentIds,
+                        offlineCached = false,
+                        homeNodeId = result.cached.user.homeNodeId,
+                    )
                     restoreProgress(result.cached.routeState.activeRoute)
                     consumeDeepLink()
                 }
                 is BootstrapResult.CachedOnly -> {
-                    applyNetworkState(result.cached.nodes, result.cached.segments, result.cached.routeState, result.cached.game, result.cached.todayGoldenSegmentIds, offlineCached = true)
+                    applyNetworkState(
+                        result.cached.nodes,
+                        result.cached.segments,
+                        result.cached.routeState,
+                        result.cached.game,
+                        result.cached.todayGoldenSegmentIds,
+                        offlineCached = true,
+                        homeNodeId = result.cached.user.homeNodeId,
+                    )
                     restoreProgress(result.cached.routeState.activeRoute)
                     consumeDeepLink()
                 }
@@ -194,6 +219,7 @@ class RouteViewModel(
             GameSummaryDto(_uiState.value.totalPoints, _uiState.value.weeklyPoints, _uiState.value.streakMultiplier),
             _uiState.value.todayGoldenSegmentIds.toList(),
             offlineCached = nodesResponse?.isSuccessful != true,
+            homeNodeId = cachedBootstrap?.user?.homeNodeId,
         )
         restoreProgress(state?.activeRoute)
         consumeDeepLink()
@@ -219,16 +245,17 @@ class RouteViewModel(
         game: GameSummaryDto = GameSummaryDto(),
         todayGoldenSegmentIds: List<Int> = emptyList(),
         offlineCached: Boolean,
+        homeNodeId: Int? = null,
     ) {
-        val homeNodeId = nodes.firstOrNull { it.isHome }?.id
+        val resolvedHome = homeNodeId ?: nodes.firstOrNull { it.isHome }?.id
         _uiState.value = _uiState.value.copy(
             loadingInitial = false,
             offlineCached = offlineCached,
             nodes = nodes,
             segments = segments,
             favorites = state?.favorites.orEmpty(),
-            startNodeId = homeNodeId,
-            destinationNodeId = homeNodeId,
+            startNodeId = resolvedHome,
+            destinationNodeId = resolvedHome,
             mode = if (state?.activeRoute != null) RouteMode.ACTIVE else RouteMode.SUGGESTING,
             route = state?.activeRoute,
             nickname = state?.nickname ?: "",
@@ -352,6 +379,7 @@ class RouteViewModel(
                     GameSummaryDto(_uiState.value.totalPoints, _uiState.value.weeklyPoints, _uiState.value.streakMultiplier),
                     _uiState.value.todayGoldenSegmentIds.toList(),
                     offlineCached = _uiState.value.offlineCached,
+                    homeNodeId = _uiState.value.startNodeId,
                 )
                 _uiState.value = _uiState.value.copy(
                     mode = RouteMode.ACTIVE,
