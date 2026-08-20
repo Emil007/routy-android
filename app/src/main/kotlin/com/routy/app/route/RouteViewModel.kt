@@ -28,6 +28,7 @@ import com.routy.app.logic.api.RouteTokenRequest
 import com.routy.app.logic.api.RouteStateResponse
 import com.routy.app.logic.api.SaveFavoriteRequest
 import com.routy.app.logic.api.SegmentDto
+import com.routy.app.logic.api.goldenHitsOnRoute
 import com.routy.app.logic.api.ShareFavoriteRequest
 import java.io.IOException
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -94,6 +95,7 @@ data class RouteUiState(
     val streakMultiplier: Double = 1.0,
     val todayGoldenSegmentIds: Set<Int> = emptySet(),
     val pointPreview: PointPreviewBreakdown? = null,
+    val goldenHitIds: Set<Int> = emptySet(),
 )
 
 class RouteViewModel(
@@ -234,6 +236,9 @@ class RouteViewModel(
             weeklyPoints = game.weeklyPoints,
             streakMultiplier = game.streakMultiplier,
             todayGoldenSegmentIds = todayGoldenSegmentIds.toSet(),
+            goldenHitIds = state?.activeRoute?.let {
+                goldenHitsOnRoute(it.segmentIds, todayGoldenSegmentIds.toSet(), segments)
+            } ?: emptySet(),
         )
         if (state?.activeRoute != null) prefetchMapTiles(state.activeRoute)
     }
@@ -303,13 +308,20 @@ class RouteViewModel(
                 _uiState.value = _uiState.value.copy(status = RouteStatus.IDLE, messageRes = R.string.route_favorite_stale)
                 return@launch
             }
+            val display = checkNotNull(body.display)
             _uiState.value = _uiState.value.copy(
                 status = RouteStatus.IDLE,
                 sharedRouteName = body.name,
                 pendingShareToken = token,
-                route = body.display,
+                route = display,
                 mode = RouteMode.SUGGESTING,
                 messageRes = R.string.route_share_preview,
+                goldenHitIds = goldenHitsOnRoute(
+                    display.segmentIds,
+                    _uiState.value.todayGoldenSegmentIds,
+                    _uiState.value.segments,
+                ),
+                pointPreview = null,
             )
         }
     }
@@ -401,18 +413,25 @@ class RouteViewModel(
             }
             if (response.isSuccessful) {
                 val body = response.body()
+                val hitIds = body?.goldenHitIds?.toSet()
+                    ?: body?.route?.let {
+                        goldenHitsOnRoute(it.segmentIds, _uiState.value.todayGoldenSegmentIds, _uiState.value.segments)
+                    }
+                    ?: emptySet()
                 _uiState.value = _uiState.value.copy(
                     status = RouteStatus.IDLE,
                     token = body?.token ?: "",
                     route = body?.route,
                     pointPreview = body?.pointPreview,
+                    goldenHitIds = hitIds,
                 )
             } else {
+                val code = parseErrorCode(response.errorBody()?.string())
                 _uiState.value = _uiState.value.copy(
                     status = RouteStatus.ERROR,
                     route = state.route,
                     token = state.token,
-                    messageRes = R.string.route_no_route_found,
+                    messageRes = if (code == "no_golden_route") R.string.route_no_golden_route else R.string.route_no_route_found,
                 )
             }
         }
@@ -436,11 +455,17 @@ class RouteViewModel(
             }
             if (response.isSuccessful) {
                 val body = response.body()
+                val hitIds = body?.goldenHitIds?.toSet()
+                    ?: body?.route?.let {
+                        goldenHitsOnRoute(it.segmentIds, _uiState.value.todayGoldenSegmentIds, _uiState.value.segments)
+                    }
+                    ?: emptySet()
                 _uiState.value = _uiState.value.copy(
                     status = RouteStatus.IDLE,
                     token = body?.token ?: token,
                     route = body?.route,
                     pointPreview = body?.pointPreview,
+                    goldenHitIds = hitIds,
                     messageRes = null,
                 )
             } else {
@@ -488,7 +513,7 @@ class RouteViewModel(
         if (_uiState.value.route == null) return
         viewModelScope.launch {
             try { apiClientProvider.service.cancelRoute(RouteTokenRequest(token)) } catch (_: IOException) {}
-            _uiState.value = _uiState.value.copy(route = null, token = "", status = RouteStatus.IDLE, messageRes = null, pointPreview = null)
+            _uiState.value = _uiState.value.copy(route = null, token = "", status = RouteStatus.IDLE, messageRes = null, pointPreview = null, goldenHitIds = emptySet())
         }
     }
 
@@ -526,6 +551,7 @@ class RouteViewModel(
                     completedWaypointIndex = -1,
                     voiceAnnouncedIndex = 0,
                     pointPreview = null,
+                    goldenHitIds = emptySet(),
                     totalPoints = afterStats?.points?.totalPoints ?: (_uiState.value.totalPoints + (body?.pointsEarned ?: 0)),
                     weeklyPoints = afterStats?.points?.weeklyPoints ?: _uiState.value.weeklyPoints,
                     streakMultiplier = body?.streakMultiplier ?: _uiState.value.streakMultiplier,
@@ -560,6 +586,8 @@ class RouteViewModel(
                 myLocation = null,
                 completedWaypointIndex = -1,
                 voiceAnnouncedIndex = 0,
+                pointPreview = null,
+                goldenHitIds = emptySet(),
             )
         }
     }
@@ -635,6 +663,12 @@ class RouteViewModel(
                     nickname = "",
                     completedWaypointIndex = -1,
                     voiceAnnouncedIndex = 0,
+                    goldenHitIds = goldenHitsOnRoute(
+                        favorite.display.segmentIds,
+                        _uiState.value.todayGoldenSegmentIds,
+                        _uiState.value.segments,
+                    ),
+                    pointPreview = null,
                 )
             } else {
                 val errorCode = parseErrorCode(response.errorBody()?.string())
@@ -667,6 +701,8 @@ class RouteViewModel(
             mode = RouteMode.SUGGESTING,
             status = RouteStatus.IDLE,
             messageRes = null,
+            pointPreview = null,
+            goldenHitIds = emptySet(),
         )
     }
 
