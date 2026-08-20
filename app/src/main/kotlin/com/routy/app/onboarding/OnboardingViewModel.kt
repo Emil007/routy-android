@@ -63,9 +63,21 @@ class OnboardingViewModel(
                 return@launch
             }
 
-            val body = healthResponse.body()
-            if (body?.needsSetup == true) {
-                _uiState.value = OnboardingUiState.NeedsSetup(body.captcha)
+            val configResponse = try {
+                apiClientProvider.service.getPublicConfig()
+            } catch (_: IOException) {
+                null
+            }
+            val config = configResponse?.takeIf { it.isSuccessful }?.body()
+            if (config == null) {
+                secureStorage.serverUrl = null
+                apiClientProvider.invalidate()
+                _uiState.value = OnboardingUiState.Error(R.string.onboarding_error_unreachable)
+                return@launch
+            }
+
+            if (config.needsSetup) {
+                _uiState.value = OnboardingUiState.NeedsSetup(config.captcha)
             } else {
                 _uiState.value = OnboardingUiState.Success
             }

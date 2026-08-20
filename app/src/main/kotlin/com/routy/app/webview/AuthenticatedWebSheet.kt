@@ -21,15 +21,18 @@ fun AuthenticatedWebSheet(
     onNavigateToLogin: () -> Unit,
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    val url = "${baseUrl.trimEnd('/')}$path"
+    val trimmedBase = baseUrl.trimEnd('/')
+    val url = "$trimmedBase$path"
+    val allowedHost = hostFromBaseUrl(trimmedBase) ?: return
 
     LaunchedEffect(baseUrl, token) {
-        CookieBridge.installSessionCookie(baseUrl.trimEnd('/'), token)
+        CookieBridge.installSessionCookie(trimmedBase, token)
     }
 
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
         RoutyWebView(
             url = url,
+            allowedHost = allowedHost,
             onNavigateToLogin = {
                 onDismiss()
                 onNavigateToLogin()

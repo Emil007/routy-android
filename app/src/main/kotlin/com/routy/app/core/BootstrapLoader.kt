@@ -24,7 +24,11 @@ class BootstrapLoader(
     private var lastResult: BootstrapResult? = null
 
     suspend fun load(): BootstrapResult = mutex.withLock {
-        lastResult?.let { return it }
+        // Only Fresh / NotModified are memoized — always revalidate after CachedOnly / Failed / Unauthorized.
+        when (val memoized = lastResult) {
+            is BootstrapResult.Fresh, is BootstrapResult.NotModified -> return memoized
+            else -> Unit
+        }
 
         val cached = networkCache.loadBootstrap()
         val response = runCatching { apiClientProvider.service.bootstrap(cached?.etag) }.getOrNull()
@@ -46,7 +50,10 @@ class BootstrapLoader(
             else -> BootstrapResult.Failed
         }
 
-        lastResult = result
+        lastResult = when (result) {
+            is BootstrapResult.Fresh, is BootstrapResult.NotModified -> result
+            else -> null
+        }
         result
     }
 

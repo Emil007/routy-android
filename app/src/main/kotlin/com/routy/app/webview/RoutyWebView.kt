@@ -4,6 +4,7 @@ import android.annotation.SuppressLint
 import android.net.Uri
 import android.os.Bundle
 import android.view.View
+import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.compose.foundation.layout.fillMaxSize
@@ -25,11 +26,15 @@ import androidx.compose.ui.viewinterop.AndroidView
  * cookie and bearer alike). Intercepting that navigation instead of rendering the web login page
  * keeps sign-in in one place — the native LoginScreen, with its TOTP handling — rather than
  * silently leaving the app pointed at a dead token.
+ *
+ * Navigation is locked to [allowedHost] (from the configured server base URL). Other http(s)
+ * hosts and unexpected schemes are blocked; about:blank / data: are allowed for blank/captcha pages.
  */
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
 fun RoutyWebView(
     url: String,
+    allowedHost: String,
     onNavigateToLogin: () -> Unit,
     modifier: Modifier = Modifier,
     interactive: Boolean = true,
@@ -56,6 +61,17 @@ fun RoutyWebView(
                 settings.javaScriptEnabled = true
                 settings.domStorageEnabled = true
                 webViewClient = object : WebViewClient() {
+                    override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
+                        val target = request?.url?.toString() ?: return true
+                        return !isAllowedWebNavigation(target, allowedHost)
+                    }
+
+                    @Deprecated("Deprecated in Java")
+                    override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean {
+                        if (url == null) return true
+                        return !isAllowedWebNavigation(url, allowedHost)
+                    }
+
                     override fun onPageStarted(view: WebView, url: String?, favicon: android.graphics.Bitmap?) {
                         if (url != null && Uri.parse(url).path?.trimEnd('/')?.endsWith("/login") == true) {
                             onNavigateToLogin()
@@ -79,3 +95,16 @@ fun RoutyWebView(
         },
     )
 }
+
+/** True when the WebView may navigate to [url] under the configured server host lock. */
+fun isAllowedWebNavigation(url: String, allowedHost: String): Boolean {
+    val uri = Uri.parse(url)
+    val scheme = uri.scheme?.lowercase() ?: return false
+    if (scheme == "about" || scheme == "data") return true
+    if (scheme != "https" && scheme != "http") return false
+    val host = uri.host ?: return false
+    return host.equals(allowedHost, ignoreCase = true)
+}
+
+fun hostFromBaseUrl(baseUrl: String): String? =
+    Uri.parse(baseUrl.trim().trimEnd('/')).host

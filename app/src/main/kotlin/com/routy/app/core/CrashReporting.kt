@@ -4,25 +4,42 @@ import android.app.Application
 import com.routy.app.BuildConfig
 import com.routy.app.core.storage.CrashReportStore
 import com.routy.app.core.storage.PendingCrashReport
+import com.routy.app.core.storage.SecureStorage
 
-/** Self-hosted crash capture always; optional Sentry via release-only SentryBootstrap (reflection). */
+/** Self-hosted crash capture (consent-gated); optional Sentry via release-only SentryBootstrap (reflection). */
 object CrashReporting {
-    fun install(app: Application) {
-        installSelfHostedCrashHandler(app)
+    fun install(app: Application, secureStorage: SecureStorage) {
+        installSelfHostedCrashHandler(app, secureStorage)
+        if (secureStorage.crashReportConsent) {
+            tryInitSentry(app)
+        }
+    }
+
+    fun enableSentry(app: Application) {
         tryInitSentry(app)
     }
 
-    private fun installSelfHostedCrashHandler(app: Application) {
+    fun disableSentry() {
+        runCatching {
+            Class.forName("com.routy.app.core.SentryBootstrap")
+                .getMethod("close")
+                .invoke(null)
+        }
+    }
+
+    private fun installSelfHostedCrashHandler(app: Application, secureStorage: SecureStorage) {
         val store = CrashReportStore(app)
         val defaultHandler = Thread.getDefaultUncaughtExceptionHandler()
         Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
-            store.save(
-                PendingCrashReport(
-                    message = throwable.message ?: throwable.javaClass.simpleName,
-                    stack = throwable.stackTraceToString(),
-                    appVersion = BuildConfig.VERSION_NAME,
-                ),
-            )
+            if (secureStorage.crashReportConsent) {
+                store.save(
+                    PendingCrashReport(
+                        message = throwable.message ?: throwable.javaClass.simpleName,
+                        stack = throwable.stackTraceToString(),
+                        appVersion = BuildConfig.VERSION_NAME,
+                    ),
+                )
+            }
             defaultHandler?.uncaughtException(thread, throwable)
         }
     }

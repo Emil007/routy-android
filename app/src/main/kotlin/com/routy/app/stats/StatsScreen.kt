@@ -377,6 +377,7 @@ private fun WalkRow(
         fallbackNodeChain = walk.nodeChain,
         fallbackCoords = nodeCoords,
     )
+    val pointsBreakdown = walkPointsBreakdown(walk)
     Card(modifier = Modifier.fillMaxWidth()) {
         Row(modifier = Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
             WalkPathThumbnail(points = pathPoints)
@@ -398,16 +399,45 @@ private fun WalkRow(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+                if (pointsBreakdown != null) {
+                    Text(
+                        text = pointsBreakdown,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
-            if (deleting) {
-                CircularProgressIndicator(modifier = Modifier.padding(4.dp))
-            } else {
-                TextButton(onClick = onDelete) {
-                    Text(stringResource(R.string.map_delete), style = MaterialTheme.typography.labelSmall)
+            Column(horizontalAlignment = Alignment.End) {
+                Text(stringResource(R.string.stats_walk_points), style = MaterialTheme.typography.labelSmall)
+                Text(
+                    text = walk.pointsEarned?.let { "+$it" } ?: "—",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = if (walk.pointsEarned != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                if (deleting) {
+                    CircularProgressIndicator(modifier = Modifier.padding(4.dp))
+                } else {
+                    TextButton(onClick = onDelete) {
+                        Text(stringResource(R.string.map_delete), style = MaterialTheme.typography.labelSmall)
+                    }
                 }
             }
         }
     }
+}
+
+@Composable
+private fun walkPointsBreakdown(walk: WalkLogEntryDto): String? {
+    if (walk.pointsEarned == null) return null
+    val parts = buildList {
+        walk.pointsBase?.let { add(stringResource(R.string.route_point_preview_base, it)) }
+        walk.pointsGolden?.takeIf { it > 0 }?.let { add(stringResource(R.string.route_point_preview_golden, it)) }
+        walk.pointsExploration?.takeIf { it > 0 }?.let { add(stringResource(R.string.route_point_preview_exploration, it)) }
+        walk.pointsDiversity?.takeIf { it > 0 }?.let { add(stringResource(R.string.route_point_preview_diversity, it)) }
+        walk.streakMultiplier?.let { add(stringResource(R.string.stats_game_streak_multiplier, it)) }
+    }
+    return parts.takeIf { it.isNotEmpty() }?.joinToString(" · ")
 }
 
 private fun formatKm(lengthM: Int): String = "%.1f".format(Locale.US, lengthM / 1000.0)

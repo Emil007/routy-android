@@ -2,6 +2,7 @@ package com.routy.app.auth
 
 import android.annotation.SuppressLint
 import android.webkit.JavascriptInterface
+import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -12,6 +13,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.routy.app.logic.api.CaptchaConfig
+import com.routy.app.webview.hostFromBaseUrl
+import com.routy.app.webview.isAllowedWebNavigation
 
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
@@ -26,6 +29,7 @@ fun CaptchaWebView(
 
     val html = rememberCaptchaHtml(config)
     val origin = baseUrl.trim().trimEnd('/') + "/"
+    val allowedHost = hostFromBaseUrl(origin) ?: return
 
     key(reloadKey) {
         AndroidView(
@@ -43,7 +47,18 @@ fun CaptchaWebView(
                         },
                         "RoutyCaptcha",
                     )
-                    webViewClient = WebViewClient()
+                    webViewClient = object : WebViewClient() {
+                        override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
+                            val target = request?.url?.toString() ?: return true
+                            return !isAllowedWebNavigation(target, allowedHost)
+                        }
+
+                        @Deprecated("Deprecated in Java")
+                        override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean {
+                            if (url == null) return true
+                            return !isAllowedWebNavigation(url, allowedHost)
+                        }
+                    }
                     loadDataWithBaseURL(origin, html, "text/html", "UTF-8", null)
                 }
             },
