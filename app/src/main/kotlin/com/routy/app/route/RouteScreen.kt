@@ -63,6 +63,8 @@ import androidx.compose.ui.platform.ClipEntry
 import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -158,21 +160,21 @@ fun RouteScreen(onStartRecording: () -> Unit, accountLocaleTag: String, modifier
 private fun RoutePresetButtons(uiState: RouteUiState, viewModel: RouteViewModel) {
     val loading = uiState.status == RouteStatus.LOADING
     val hasStart = uiState.startNodeId != null
+    val canGenerate = !loading && hasStart && !uiState.offlineCached
     FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        CompactButton(onClick = { viewModel.suggest("short") }, enabled = !loading && hasStart) {
+        CompactButton(onClick = { viewModel.suggest("short") }, enabled = canGenerate) {
             Text(stringResource(if (loading) R.string.route_generating else R.string.route_preset_short))
         }
-        CompactOutlinedButton(onClick = { viewModel.suggest("long") }, enabled = !loading && hasStart) {
+        CompactOutlinedButton(onClick = { viewModel.suggest("long") }, enabled = canGenerate) {
             Text(stringResource(R.string.route_preset_long))
         }
-        CompactOutlinedButton(onClick = { viewModel.discover() }, enabled = !loading && hasStart) {
-            Text(stringResource(R.string.route_preset_discover))
-        }
-        CompactOutlinedButton(onClick = { viewModel.surprise() }, enabled = !loading && hasStart) {
+        CompactOutlinedButton(onClick = { viewModel.surprise() }, enabled = canGenerate) {
             Text(stringResource(R.string.route_preset_surprise))
         }
     }
 }
+
+private enum class DockLevel { COLLAPSED, DEFAULT, EXPANDED }
 
 @Composable
 private fun RouteMapChrome(
@@ -184,6 +186,7 @@ private fun RouteMapChrome(
     routeGeometry: List<GeoPoint>,
     stations: List<com.routy.app.logic.api.RouteStation>,
     goldenSegmentIds: Set<Int>,
+    goldenHitIds: Set<Int> = emptySet(),
     fitKey: Any?,
     fitToRouteOnly: Boolean,
     emphasizeNetwork: Boolean,
@@ -204,6 +207,7 @@ private fun RouteMapChrome(
             emphasizeNetworkSegments = emphasizeNetwork,
             completedWaypointIndex = completedWaypointIndex,
             goldenSegmentIds = goldenSegmentIds,
+            goldenHitIds = goldenHitIds,
             modifier = Modifier.fillMaxSize(),
         )
         Column(
@@ -223,8 +227,9 @@ private fun RouteMapChrome(
 
 @Composable
 private fun RouteBottomDock(
-    expanded: Boolean,
-    onToggle: () -> Unit,
+    level: DockLevel,
+    onCycleCollapse: () -> Unit,
+    onToggleExpanded: () -> Unit,
     summary: @Composable RowScope.() -> Unit,
     primary: @Composable () -> Unit,
     expandedContent: @Composable () -> Unit,
@@ -241,30 +246,46 @@ private fun RouteBottomDock(
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable(onClick = onToggle),
+                modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
             ) {
                 Row(
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier
+                        .weight(1f)
+                        .clickable(onClick = onCycleCollapse),
                     horizontalArrangement = Arrangement.spacedBy(4.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     content = summary,
                 )
-                IconButton(onClick = onToggle, modifier = Modifier.size(32.dp)) {
+                if (level != DockLevel.COLLAPSED) {
+                    Text(
+                        stringResource(
+                            if (level == DockLevel.EXPANDED) R.string.route_less_options else R.string.route_more_options,
+                        ),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier
+                            .clickable(onClick = onToggleExpanded)
+                            .padding(horizontal = 4.dp, vertical = 6.dp),
+                    )
+                }
+                IconButton(onClick = onCycleCollapse, modifier = Modifier.size(32.dp)) {
                     Icon(
-                        imageVector = if (expanded) Icons.Filled.ExpandMore else Icons.Filled.ExpandLess,
+                        imageVector = if (level == DockLevel.COLLAPSED) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
                         contentDescription = stringResource(
-                            if (expanded) R.string.route_panel_collapse else R.string.route_panel_expand,
+                            if (level == DockLevel.COLLAPSED) R.string.route_panel_expand else R.string.route_panel_collapse,
                         ),
                         modifier = Modifier.size(20.dp),
                     )
                 }
             }
-            primary()
-            AnimatedVisibility(visible = expanded) {
+            AnimatedVisibility(visible = level != DockLevel.COLLAPSED) {
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    primary()
+                }
+            }
+            AnimatedVisibility(visible = level == DockLevel.EXPANDED) {
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     HorizontalDivider()
                     expandedContent()
@@ -283,7 +304,7 @@ private fun SuggestingMapLayout(
 ) {
     var mapStyle by remember { mutableStateOf(BaseMapStyle.STREETS) }
     var waymarkedOverlay by remember { mutableStateOf(false) }
-    var expanded by remember { mutableStateOf(false) }
+    var dockLevel by remember { mutableStateOf(DockLevel.DEFAULT) }
 
     Column(modifier = modifier.fillMaxSize()) {
         RouteMapChrome(
@@ -302,8 +323,13 @@ private fun SuggestingMapLayout(
         )
 
         RouteBottomDock(
-            expanded = expanded,
-            onToggle = { expanded = !expanded },
+            level = dockLevel,
+            onCycleCollapse = {
+                dockLevel = if (dockLevel == DockLevel.COLLAPSED) DockLevel.DEFAULT else DockLevel.COLLAPSED
+            },
+            onToggleExpanded = {
+                dockLevel = if (dockLevel == DockLevel.EXPANDED) DockLevel.DEFAULT else DockLevel.EXPANDED
+            },
             summary = {
                 Text(
                     stringResource(R.string.route_point_balance, uiState.totalPoints, uiState.streakMultiplier),
@@ -311,11 +337,6 @@ private fun SuggestingMapLayout(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f, fill = false),
-                )
-                Text(
-                    stringResource(if (expanded) R.string.route_less_options else R.string.route_more_options),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.primary,
                 )
             },
             primary = {
@@ -330,8 +351,14 @@ private fun SuggestingMapLayout(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalArrangement = Arrangement.Center,
                 ) {
-                    CompactCheck(uiState.isLoop, viewModel::setIsLoop, stringResource(R.string.route_loop))
+                    CompactCheck(
+                        uiState.isLoop,
+                        viewModel::setIsLoop,
+                        stringResource(R.string.route_loop),
+                        a11yDescription = stringResource(R.string.route_loop_hint),
+                    )
                     CompactCheck(uiState.explorerMode, viewModel::setExplorerMode, stringResource(R.string.route_explorer_mode))
+                    CompactCheck(uiState.forceGolden, viewModel::setForceGolden, stringResource(R.string.route_force_golden))
                 }
                 RoutePresetButtons(uiState, viewModel)
                 uiState.messageRes?.let {
@@ -359,7 +386,6 @@ private fun SuggestingMapLayout(
                     stringResource(R.string.route_waypoint_none),
                     dense = true,
                 )
-                CompactCheck(uiState.forceGolden, viewModel::setForceGolden, stringResource(R.string.route_force_golden))
             },
         )
     }
@@ -377,7 +403,7 @@ private fun RouteWithMapLayout(
     val context = LocalContext.current
     var mapStyle by remember { mutableStateOf(BaseMapStyle.STREETS) }
     var waymarkedOverlay by remember { mutableStateOf(false) }
-    var expanded by remember { mutableStateOf(false) }
+    var dockLevel by remember { mutableStateOf(DockLevel.DEFAULT) }
     var hasLocationPermission by remember {
         mutableStateOf(ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED)
     }
@@ -429,7 +455,8 @@ private fun RouteWithMapLayout(
             onWaymarkedOverlay = { waymarkedOverlay = it },
             routeGeometry = route.geometry,
             stations = route.stations,
-            goldenSegmentIds = uiState.goldenHitIds,
+            goldenSegmentIds = uiState.todayGoldenSegmentIds,
+            goldenHitIds = uiState.goldenHitIds,
             fitKey = uiState.token.ifEmpty { route.nodeChain.joinToString("-") },
             fitToRouteOnly = true,
             emphasizeNetwork = false,
@@ -438,8 +465,13 @@ private fun RouteWithMapLayout(
         )
 
         RouteBottomDock(
-            expanded = expanded,
-            onToggle = { expanded = !expanded },
+            level = dockLevel,
+            onCycleCollapse = {
+                dockLevel = if (dockLevel == DockLevel.COLLAPSED) DockLevel.DEFAULT else DockLevel.COLLAPSED
+            },
+            onToggleExpanded = {
+                dockLevel = if (dockLevel == DockLevel.EXPANDED) DockLevel.DEFAULT else DockLevel.EXPANDED
+            },
             summary = {
                 CompactMeta("${"%.1f".format(route.lengthM / 1000.0)} km")
                 CompactMeta("${route.durationMin} min")
@@ -448,19 +480,12 @@ private fun RouteWithMapLayout(
                     val done = if (uiState.completedWaypointIndex < 0) 0 else uiState.completedWaypointIndex + 1
                     CompactMeta("$done/${route.stations.size}")
                 }
-                Text(
-                    stringResource(if (expanded) R.string.route_less_options else R.string.route_more_options),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.primary,
-                )
             },
             primary = {
                 if (stationPath.isNotBlank()) {
                     Text(
                         stationPath,
                         style = MaterialTheme.typography.labelSmall,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
                     )
                 }
                 uiState.pointPreview?.let { preview ->
@@ -517,14 +542,27 @@ private fun RouteWithMapLayout(
                         }
                     }
                     uiState.mode == RouteMode.ACTIVE -> {
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.Center) {
+                            CompactCheck(
+                                checked = uiState.watchingLocation,
+                                onCheckedChange = { checked ->
+                                    if (checked) {
+                                        if (hasLocationPermission) viewModel.setWatchingLocation(true)
+                                        else permissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+                                    } else {
+                                        viewModel.setWatchingLocation(false)
+                                    }
+                                },
+                                label = stringResource(R.string.route_location_check),
+                            )
+                            CompactCheck(
+                                checked = uiState.voiceEnabled,
+                                onCheckedChange = viewModel::setVoiceEnabled,
+                                label = stringResource(R.string.route_voice_check),
+                                enabled = uiState.watchingLocation,
+                            )
+                        }
                         FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            CompactOutlinedButton(onClick = {
-                                if (uiState.watchingLocation) viewModel.setWatchingLocation(false)
-                                else if (hasLocationPermission) viewModel.setWatchingLocation(true)
-                                else permissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
-                            }) {
-                                Text(stringResource(if (uiState.watchingLocation) R.string.route_hide_location else R.string.route_show_location))
-                            }
                             if (uiState.watchingLocation) {
                                 CompactOutlinedButton(onClick = { viewModel.setTracking(!uiState.tracking) }) {
                                     Text(stringResource(if (uiState.tracking) R.string.route_tracking_on else R.string.route_track))
@@ -584,10 +622,7 @@ private fun RouteWithMapLayout(
                                 Text(stringResource(R.string.route_save_favorite))
                             }
                         }
-                        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            CompactCheck(uiState.voiceEnabled, viewModel::setVoiceEnabled, stringResource(R.string.route_voice_on))
-                            CompactCheck(uiState.keepScreenOn, viewModel::setKeepScreenOn, stringResource(R.string.route_keep_screen_on))
-                        }
+                        CompactCheck(uiState.keepScreenOn, viewModel::setKeepScreenOn, stringResource(R.string.route_keep_screen_on))
                     }
                 }
             },
@@ -606,7 +641,13 @@ private fun CompactMeta(text: String) {
 }
 
 @Composable
-private fun CompactCheck(checked: Boolean, onCheckedChange: (Boolean) -> Unit, label: String) {
+private fun CompactCheck(
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+    label: String,
+    enabled: Boolean = true,
+    a11yDescription: String? = null,
+) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier.heightIn(max = 28.dp),
@@ -614,9 +655,19 @@ private fun CompactCheck(checked: Boolean, onCheckedChange: (Boolean) -> Unit, l
         Checkbox(
             checked = checked,
             onCheckedChange = onCheckedChange,
+            enabled = enabled,
             modifier = Modifier.scale(0.8f),
         )
-        Text(label, style = MaterialTheme.typography.labelSmall)
+        Text(
+            label,
+            style = MaterialTheme.typography.labelSmall,
+            color = if (enabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f),
+            modifier = if (a11yDescription != null) {
+                Modifier.semantics { contentDescription = a11yDescription }
+            } else {
+                Modifier
+            },
+        )
     }
 }
 

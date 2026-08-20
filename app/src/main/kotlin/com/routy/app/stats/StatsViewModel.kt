@@ -81,10 +81,25 @@ class StatsViewModel(
                     val body = meResponse.body()
                     val cached = networkCache.load()
                     val coords = cached?.nodes?.associate { it.id to GeoPoint(it.lat, it.lng) }.orEmpty()
-                    val names = cached?.nodes?.associate { it.id to (it.name ?: "#${it.id}") }.orEmpty()
+                    val apiNames = body?.nodes?.associate { it.id to (it.name?.takeIf { n -> n.isNotBlank() } ?: "#${it.id}") }.orEmpty()
+                    val cacheNames = cached?.nodes?.associate { it.id to (it.name ?: "#${it.id}") }.orEmpty()
+                    val names = if (apiNames.isNotEmpty()) apiNames + cacheNames.filterKeys { it !in apiNames } else cacheNames
                     val geometry = cached?.segments?.associate { it.id to it.geometry }.orEmpty()
                     val points = body?.points ?: gameDaily?.let {
                         UserPointsDto(it.pointBalance, body?.points?.weeklyPoints ?: 0, it.streakMultiplier)
+                    }
+                    val goldenSegments = gameDaily?.goldenSegments.orEmpty().map { golden ->
+                        if (!golden.name.isNullOrBlank()) golden
+                        else {
+                            val seg = cached?.segments?.find { it.id == golden.segmentId }
+                            val start = seg?.let { names[it.startNodeId] }
+                            val end = seg?.let { names[it.endNodeId] }
+                            val label = when {
+                                start != null && end != null -> "$start — $end"
+                                else -> null
+                            }
+                            if (label != null) golden.copy(name = label) else golden
+                        }
                     }
                     _uiState.value = StatsUiState(
                         loading = false,
@@ -97,7 +112,7 @@ class StatsViewModel(
                         currentUserId = boardResponse?.body()?.userId,
                         points = points,
                         gameDaily = gameDaily,
-                        goldenSegments = gameDaily?.goldenSegments.orEmpty(),
+                        goldenSegments = goldenSegments,
                         networkUsage = body?.networkUsage.orEmpty(),
                         pointsLeaderboard = pointsBoard?.takeIf { it.isSuccessful }?.body()?.leaderboard.orEmpty(),
                         nodeCoords = coords,

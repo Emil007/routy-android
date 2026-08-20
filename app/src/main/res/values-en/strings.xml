@@ -114,7 +114,8 @@
     <string name="route_save_favorite">Save as favorite</string>
     <string name="route_cancel">Cancel</string>
     <string name="route_start">Start</string>
-    <string name="route_loop">Loop (back to start)</string>
+    <string name="route_loop">Loop</string>
+    <string name="route_loop_hint">Loop back to start</string>
     <string name="route_destination">Destination</string>
     <string name="route_waypoint">Waypoint</string>
     <string name="route_waypoint_none">No waypoint</string>
@@ -126,7 +127,6 @@
     <string name="route_suggest">Suggest a route</string>
     <string name="route_preset_short">Short loop</string>
     <string name="route_preset_long">Long loop</string>
-    <string name="route_preset_discover">Discover</string>
     <string name="route_preset_surprise">Surprise me</string>
     <string name="route_distance_label">Distance</string>
     <string name="route_duration_label">Duration</string>
@@ -140,11 +140,14 @@
     <string name="route_accept">Take this one</string>
     <string name="route_hide_location">Hide location</string>
     <string name="route_show_location">Show my location</string>
+    <string name="route_location_check">Location</string>
+    <string name="route_voice_check">Voice</string>
     <string name="route_complete_button">Confirm as walked</string>
     <string name="route_discard_button">Discard</string>
     <string name="route_discard_confirm">Discard this route? Won\'t count as walked.</string>
     <string name="route_completed_message">Nice! Counts toward your stats now.</string>
     <string name="route_no_route_found">No route found within the configured length range.</string>
+    <string name="route_connection_failed">Server unreachable — check your connection.</string>
     <string name="route_no_golden_route">No route that uses today\'s golden path was found in the length range.</string>
     <string name="route_no_alternative">No alternative found.</string>
     <string name="route_session_expired">Session expired — please suggest again.</string>
