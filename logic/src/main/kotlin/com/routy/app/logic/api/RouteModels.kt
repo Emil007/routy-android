@@ -54,7 +54,11 @@ data class RouteDisplayPayload(
 )
 
 @Serializable
-data class GenerateRouteResponse(val token: String, val route: RouteDisplayPayload)
+data class GenerateRouteResponse(
+    val token: String,
+    val route: RouteDisplayPayload,
+    val pointPreview: PointPreviewBreakdown? = null,
+)
 
 @Serializable
 data class GenerateRouteRequest(
@@ -110,6 +114,10 @@ data class CompleteRouteResponse(
     val pointsEarned: Int = 0,
     val streakMultiplier: Double = 1.0,
     val currentStreak: Int = 0,
+    val pointBreakdown: PointPreviewBreakdown? = null,
+    val goldenHits: Int = 0,
+    /** "normal" | "golden" | "streak" | "achievement" */
+    val celebrationTier: String = "normal",
 )
 
 /** GET /api/route/state — mirrors the props the web's /route RSC computes server-side (src/app/(app)/route/page.tsx). */

@@ -6,11 +6,14 @@ import com.routy.app.logic.api.AvoidListResponse
 import com.routy.app.logic.api.AvoidSegmentRequest
 import com.routy.app.logic.api.AppBootstrapResponse
 import com.routy.app.logic.api.CrashReportRequest
+import com.routy.app.logic.api.GameDailyResponse
 import com.routy.app.logic.api.GenerateRouteRequest
 import com.routy.app.logic.api.GenerateRouteResponse
 import com.routy.app.logic.api.GpxCommitRequest
 import com.routy.app.logic.api.GpxConfigResponse
 import com.routy.app.logic.api.HealthResponse
+import com.routy.app.logic.api.LockProposalActionRequest
+import com.routy.app.logic.api.LockProposalsResponse
 import com.routy.app.logic.api.LoginRequest
 import com.routy.app.logic.api.LoginResponse
 import com.routy.app.logic.api.MapTrashResponse
@@ -24,6 +27,8 @@ import com.routy.app.logic.api.ProposalActionRequest
 import com.routy.app.logic.api.ProposalsResponse
 import com.routy.app.logic.api.ReportConditionRequest
 import com.routy.app.logic.api.ReportConditionResponse
+import com.routy.app.logic.api.RestrictSegmentRequest
+import com.routy.app.logic.api.RestrictSegmentResponse
 import com.routy.app.logic.api.RouteStateResponse
 import com.routy.app.logic.api.RouteTokenRequest
 import com.routy.app.logic.api.SaveFavoriteRequest
@@ -241,6 +246,21 @@ interface ApiService {
 
     @POST("api/app/proposals/dismiss")
     suspend fun dismissProposal(@Body body: ProposalActionRequest): Response<Unit>
+
+    @POST("api/segments/restrict")
+    suspend fun restrictSegment(@Body body: RestrictSegmentRequest): Response<RestrictSegmentResponse>
+
+    @GET("api/app/lock-proposals")
+    suspend fun lockProposals(): Response<LockProposalsResponse>
+
+    @POST("api/app/lock-proposals/approve")
+    suspend fun approveLockProposal(@Body body: LockProposalActionRequest): Response<Unit>
+
+    @POST("api/app/lock-proposals/dismiss")
+    suspend fun dismissLockProposal(@Body body: LockProposalActionRequest): Response<Unit>
+
+    @GET("api/app/game/daily")
+    suspend fun gameDaily(): Response<GameDailyResponse>
 
     @POST("api/app/crash")
     suspend fun reportCrash(@Body body: CrashReportRequest): Response<Unit>
