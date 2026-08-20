@@ -28,11 +28,22 @@ jobs:
           distribution: temurin
           java-version: "17"
 
+      - name: Derive version from app/build.gradle.kts
+        id: version
+        run: |
+          NAME=$(grep 'appVersionName' app/build.gradle.kts | sed -nE 's/.*\?: "([^"]+)".*/\1/p' | head -1)
+          if [ -z "$NAME" ]; then
+            echo "Could not parse default versionName from app/build.gradle.kts" >&2
+            exit 1
+          fi
+          echo "name=${NAME}" >> "$GITHUB_OUTPUT"
+          echo "code=${GITHUB_RUN_NUMBER}" >> "$GITHUB_OUTPUT"
+
       - name: Build signed release APK
         uses: ./.github/actions/build-signed-apk
         with:
-          version_name: 0.34a
-          version_code: 25
+          version_name: ${{ steps.version.outputs.name }}
+          version_code: ${{ steps.version.outputs.code }}
           sentry_dsn: ${{ secrets.SENTRY_DSN }}
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
