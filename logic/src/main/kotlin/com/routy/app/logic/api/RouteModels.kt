@@ -69,6 +69,7 @@ data class GenerateRouteRequest(
     val surpriseMode: Boolean = false,
     /** "short" | "long" | "surprise" — biases the search toward the lower/upper half of the configured length range. */
     val preset: String? = null,
+    val forceGolden: Boolean = false,
 )
 
 @Serializable

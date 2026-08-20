@@ -252,7 +252,7 @@ fun SettingsScreen(
             AuthenticatedWebSheet(
                 baseUrl = base,
                 token = token,
-                path = "/settings#account",
+                path = "/settings/account",
                 onDismiss = { showAccountSheet = false },
                 onNavigateToLogin = {
                     showAccountSheet = false

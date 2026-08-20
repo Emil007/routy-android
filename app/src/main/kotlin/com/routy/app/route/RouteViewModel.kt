@@ -52,6 +52,7 @@ data class RouteUiState(
     val isLoop: Boolean = true,
     val destinationNodeId: Int? = null,
     val waypointNodeId: Int? = null,
+    val forceGolden: Boolean = false,
     val explorerMode: Boolean = false,
 
     val mode: RouteMode = RouteMode.SUGGESTING,
@@ -241,6 +242,7 @@ class RouteViewModel(
     fun setIsLoop(loop: Boolean) { _uiState.value = _uiState.value.copy(isLoop = loop) }
     fun setDestinationNodeId(id: Int) { _uiState.value = _uiState.value.copy(destinationNodeId = id) }
     fun setWaypointNodeId(id: Int?) { _uiState.value = _uiState.value.copy(waypointNodeId = id) }
+    fun setForceGolden(value: Boolean) { _uiState.value = _uiState.value.copy(forceGolden = value) }
     fun setExplorerMode(enabled: Boolean) { _uiState.value = _uiState.value.copy(explorerMode = enabled) }
     fun setNickname(value: String) { _uiState.value = _uiState.value.copy(nickname = value) }
     fun setSuggestFavoriteName(value: String) { _uiState.value = _uiState.value.copy(suggestFavoriteName = value) }
@@ -385,6 +387,7 @@ class RouteViewModel(
                         explorerMode = explorerMode,
                         surpriseMode = surprise,
                         preset = preset,
+                        forceGolden = state.forceGolden,
                     ),
                 )
             } catch (_: IOException) {
