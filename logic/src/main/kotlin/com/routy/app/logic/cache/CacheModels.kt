@@ -1,5 +1,7 @@
 package com.routy.app.logic.cache
 
+import com.routy.app.logic.api.GameSummaryDto
+import com.routy.app.logic.api.LockProposalDto
 import com.routy.app.logic.api.NodeDto
 import com.routy.app.logic.api.RouteStateResponse
 import com.routy.app.logic.api.SegmentDto
@@ -24,6 +26,9 @@ data class CachedBootstrap(
     val routeState: RouteStateResponse,
     val avoidSegmentIds: List<Int> = emptyList(),
     val segmentConditions: List<com.routy.app.logic.api.SegmentConditionDto> = emptyList(),
+    val lockProposals: List<LockProposalDto> = emptyList(),
+    val todayGoldenSegmentIds: List<Int> = emptyList(),
+    val game: GameSummaryDto = GameSummaryDto(),
     val cachedAtMs: Long,
 )
 

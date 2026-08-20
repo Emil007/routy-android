@@ -39,6 +39,7 @@ import com.routy.app.R
 import com.routy.app.RoutyApplication
 import com.routy.app.ui.OfflineBanner
 import com.routy.app.logic.api.GeoPoint
+import com.routy.app.logic.api.GoldenSegmentDto
 import com.routy.app.logic.api.SegmentUsageStat
 import com.routy.app.logic.api.WalkLogEntryDto
 import com.routy.app.logic.geo.walkPathPoints
@@ -145,6 +146,15 @@ fun StatsScreen(modifier: Modifier = Modifier) {
             }
         }
         item {
+            GameHubSection(
+                pointBalance = uiState.gameDaily?.pointBalance ?: uiState.points?.totalPoints ?: 0,
+                streakMultiplier = uiState.gameDaily?.streakMultiplier ?: uiState.points?.streakMultiplier ?: 1.0,
+                weeklyPoints = uiState.points?.weeklyPoints ?: 0,
+                dailyChallenge = uiState.gameDaily?.dailyChallenge,
+                goldenSegments = uiState.goldenSegments,
+            )
+        }
+        item {
             StatsSection(title = stringResource(R.string.stats_your_stats)) {
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     StatChip("${formatKm(stats.totalLengthM)} ${stringResource(R.string.common_km)}")
@@ -154,10 +164,6 @@ fun StatsScreen(modifier: Modifier = Modifier) {
                     if (streak != null) {
                         StatChip("${stringResource(R.string.stats_streak_current)}: ${streak.currentStreak}")
                         StatChip("${stringResource(R.string.stats_streak_longest)}: ${streak.longestStreak}")
-                    }
-                    uiState.points?.let { points ->
-                        StatChip("${stringResource(R.string.stats_points)}: ${points.totalPoints}")
-                        StatChip("${stringResource(R.string.stats_weekly_points)}: ${points.weeklyPoints}")
                     }
                 }
             }
@@ -254,6 +260,44 @@ fun StatsScreen(modifier: Modifier = Modifier) {
                 deleting = uiState.deletingWalkId == walk.id,
                 onDelete = { pendingDeleteWalkId = walk.id },
             )
+        }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun GameHubSection(
+    pointBalance: Int,
+    streakMultiplier: Double,
+    weeklyPoints: Int,
+    dailyChallenge: String?,
+    goldenSegments: List<GoldenSegmentDto>,
+) {
+    StatsSection(title = stringResource(R.string.stats_game_hub_title)) {
+        Text(
+            text = stringResource(R.string.stats_game_point_balance, pointBalance),
+            style = MaterialTheme.typography.headlineMedium,
+            fontWeight = FontWeight.Bold,
+        )
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            StatChip(stringResource(R.string.stats_game_streak_multiplier, streakMultiplier))
+            StatChip(stringResource(R.string.stats_weekly_points) + ": $weeklyPoints")
+        }
+        dailyChallenge?.takeIf { it.isNotBlank() }?.let { challenge ->
+            Text(challenge, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        if (goldenSegments.isNotEmpty()) {
+            Text(stringResource(R.string.stats_golden_today_title), style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(top = 4.dp))
+            goldenSegments.forEach { golden ->
+                Text(
+                    text = golden.name?.let { "$it (×${golden.multiplier})" }
+                        ?: stringResource(R.string.map_proposal_segment, golden.segmentId) + " (×${golden.multiplier})",
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.padding(vertical = 2.dp),
+                )
+            }
+        } else {
+            Text(stringResource(R.string.stats_golden_today_empty), style = MaterialTheme.typography.bodySmall)
         }
     }
 }

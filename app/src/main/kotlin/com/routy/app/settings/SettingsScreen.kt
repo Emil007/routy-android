@@ -46,11 +46,9 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.routy.app.R
 import com.routy.app.RoutyApplication
-import android.net.Uri
-import androidx.browser.customtabs.CustomTabsIntent
+import com.routy.app.webview.AuthenticatedWebSheet
 import com.routy.app.ui.OfflineBanner
-import com.routy.app.logic.api.isCanonical
-import com.routy.app.logic.api.SegmentDto
+import com.routy.app.logic.api.SessionListEntry
 import com.routy.app.logic.time.parseServerInstant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -75,6 +73,7 @@ fun SettingsScreen(
         },
     )
     val uiState by viewModel.uiState.collectAsState()
+    var showAccountSheet by remember { mutableStateOf(false) }
 
     LaunchedEffect(uiState.needsRecreate) {
         if (uiState.needsRecreate) {
@@ -145,42 +144,11 @@ fun SettingsScreen(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 CompactOutlinedButton(
-                    onClick = {
-                        val base = app.secureStorage.serverUrl?.trimEnd('/') ?: return@CompactOutlinedButton
-                        CustomTabsIntent.Builder().build().launchUrl(activity ?: return@CompactOutlinedButton, Uri.parse("$base/settings"))
-                    },
-                    enabled = !uiState.saving,
+                    onClick = { showAccountSheet = true },
+                    enabled = !uiState.saving && app.secureStorage.serverUrl != null && app.secureStorage.token != null,
                     modifier = Modifier.fillMaxWidth(),
                 ) {
                     Text(stringResource(R.string.settings_account_security_open), style = MaterialTheme.typography.labelMedium)
-                }
-            }
-        }
-
-        item {
-            SettingsSection(title = stringResource(R.string.settings_avoid_title)) {
-                Text(stringResource(R.string.settings_avoid_subtitle), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                val avoidSet = uiState.avoidSegmentIds.toSet()
-                val avoided = uiState.segments.filter { avoidSet.contains(it.id) }
-                if (avoided.isEmpty()) {
-                    Text(stringResource(R.string.settings_avoid_empty), style = MaterialTheme.typography.bodySmall)
-                } else {
-                    avoided.forEach { seg ->
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                            Text(seg.name ?: "#${seg.id}", style = MaterialTheme.typography.bodyMedium)
-                            TextButton(onClick = { viewModel.removeAvoidSegment(seg.id) }, enabled = !uiState.saving) {
-                                Text(stringResource(R.string.common_remove))
-                            }
-                        }
-                    }
-                }
-                val addable = uiState.segments.filter { it.isCanonical() && !avoidSet.contains(it.id) }
-                if (addable.isNotEmpty()) {
-                    AvoidSegmentDropdown(
-                        segments = addable,
-                        enabled = !uiState.saving,
-                        onAdd = viewModel::addAvoidSegment,
-                    )
                 }
             }
         }
@@ -276,6 +244,25 @@ fun SettingsScreen(
             }
         }
     }
+
+    if (showAccountSheet) {
+        val base = app.secureStorage.serverUrl?.trimEnd('/')
+        val token = app.secureStorage.token
+        if (base != null && token != null) {
+            AuthenticatedWebSheet(
+                baseUrl = base,
+                token = token,
+                path = "/settings#account",
+                onDismiss = { showAccountSheet = false },
+                onNavigateToLogin = {
+                    showAccountSheet = false
+                    onSignOut()
+                },
+            )
+        } else {
+            showAccountSheet = false
+        }
+    }
 }
 
 @Composable
@@ -287,7 +274,6 @@ private fun SettingsSection(title: String, content: @Composable () -> Unit) {
         }
     }
 }
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun LocaleDropdown(current: String, enabled: Boolean, onSelect: (String) -> Unit) {
@@ -440,41 +426,6 @@ private fun SessionRow(
 private fun formatSessionDate(iso: String): String {
     val formatter = DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm").withZone(ZoneId.systemDefault())
     return formatter.format(parseServerInstant(iso))
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun AvoidSegmentDropdown(
-    segments: List<SegmentDto>,
-    enabled: Boolean,
-    onAdd: (Int) -> Unit,
-) {
-    var expanded by remember { mutableStateOf(false) }
-    var selected by remember { mutableStateOf<SegmentDto?>(null) }
-    ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { if (enabled) expanded = it }) {
-        OutlinedTextField(
-            value = selected?.name ?: selected?.let { "#${it.id}" } ?: "",
-            onValueChange = {},
-            readOnly = true,
-            enabled = enabled,
-            label = { Text(stringResource(R.string.settings_avoid_add)) },
-            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) },
-            modifier = Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
-        )
-        ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-            segments.forEach { seg ->
-                DropdownMenuItem(
-                    text = { Text(seg.name ?: "#${seg.id}") },
-                    onClick = {
-                        selected = seg
-                        expanded = false
-                        onAdd(seg.id)
-                        selected = null
-                    },
-                )
-            }
-        }
-    }
 }
 
 private val CompactPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)

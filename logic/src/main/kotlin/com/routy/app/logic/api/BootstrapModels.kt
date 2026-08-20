@@ -11,4 +11,7 @@ data class AppBootstrapResponse(
     val routeState: RouteStateResponse,
     val avoidSegmentIds: List<Int> = emptyList(),
     val segmentConditions: List<SegmentConditionDto> = emptyList(),
+    val lockProposals: List<LockProposalDto> = emptyList(),
+    val todayGoldenSegmentIds: List<Int> = emptyList(),
+    val game: GameSummaryDto = GameSummaryDto(),
 )

@@ -9,6 +9,8 @@ import com.routy.app.core.BootstrapLoader
 import com.routy.app.core.network.ApiClientProvider
 import com.routy.app.core.BootstrapResult
 import com.routy.app.logic.api.AchievementsDto
+import com.routy.app.logic.api.GameDailyResponse
+import com.routy.app.logic.api.GoldenSegmentDto
 import com.routy.app.logic.api.LeaderboardEntryDto
 import com.routy.app.logic.api.PointsLeaderboardEntryDto
 import com.routy.app.logic.api.StreakStatsDto
@@ -38,6 +40,8 @@ data class StatsUiState(
     val leaderboard: List<LeaderboardEntryDto> = emptyList(),
     val pointsLeaderboard: List<PointsLeaderboardEntryDto> = emptyList(),
     val points: UserPointsDto? = null,
+    val gameDaily: GameDailyResponse? = null,
+    val goldenSegments: List<GoldenSegmentDto> = emptyList(),
     val networkUsage: List<SegmentUsageStat> = emptyList(),
     val currentUserId: Int? = null,
     val nodeCoords: Map<Int, GeoPoint> = emptyMap(),
@@ -72,12 +76,16 @@ class StatsViewModel(
                 val meResponse = service.appStatsMe()
                 val boardResponse = runCatching { service.weeklyLeaderboard() }.getOrNull()
                 val pointsBoard = runCatching { service.pointsLeaderboard() }.getOrNull()
+                val gameDaily = runCatching { service.gameDaily() }.getOrNull()?.takeIf { it.isSuccessful }?.body()
                 if (meResponse.isSuccessful) {
                     val body = meResponse.body()
                     val cached = networkCache.load()
                     val coords = cached?.nodes?.associate { it.id to GeoPoint(it.lat, it.lng) }.orEmpty()
                     val names = cached?.nodes?.associate { it.id to (it.name ?: "#${it.id}") }.orEmpty()
                     val geometry = cached?.segments?.associate { it.id to it.geometry }.orEmpty()
+                    val points = body?.points ?: gameDaily?.let {
+                        UserPointsDto(it.pointBalance, body?.points?.weeklyPoints ?: 0, it.streakMultiplier)
+                    }
                     _uiState.value = StatsUiState(
                         loading = false,
                         offlineCached = offline,
@@ -87,7 +95,9 @@ class StatsViewModel(
                         recentWalks = body?.recentWalks.orEmpty(),
                         leaderboard = boardResponse?.takeIf { it.isSuccessful }?.body()?.leaderboard.orEmpty(),
                         currentUserId = boardResponse?.body()?.userId,
-                        points = body?.points,
+                        points = points,
+                        gameDaily = gameDaily,
+                        goldenSegments = gameDaily?.goldenSegments.orEmpty(),
                         networkUsage = body?.networkUsage.orEmpty(),
                         pointsLeaderboard = pointsBoard?.takeIf { it.isSuccessful }?.body()?.leaderboard.orEmpty(),
                         nodeCoords = coords,

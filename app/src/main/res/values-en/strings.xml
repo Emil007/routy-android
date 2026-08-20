@@ -199,6 +199,7 @@
     <string name="map_style_streets">Streets</string>
     <string name="map_style_hiking">Hiking</string>
     <string name="map_style_waymarked">Waymarked Trails</string>
+    <string name="map_style_waymarked_suffix"> + trails</string>
     <string name="map_style_satellite">Satellite</string>
 
     <string name="common_close">Close</string>
@@ -314,16 +315,46 @@
     <string name="settings_walk_speed_label">Walking speed (km/h)</string>
     <string name="settings_walk_speed_hint">Leave empty to use network default (currently %1$.1f km/h).</string>
     <string name="settings_walk_speed_save">Save</string>
-    <string name="settings_avoid_title">Paths to avoid</string>
-    <string name="settings_avoid_subtitle">Routes prefer other paths when possible — not a hard ban.</string>
-    <string name="settings_avoid_empty">You are not avoiding any paths.</string>
-    <string name="settings_avoid_add">Add path to avoid</string>
     <string name="settings_account_security_title">Account security</string>
     <string name="settings_account_security_subtitle">Change password, enable two-factor auth, or deactivate your account in the browser settings page.</string>
     <string name="settings_account_security_open">Open account security</string>
     <string name="settings_crash_consent_title">Crash reports</string>
     <string name="settings_crash_consent_subtitle">Send anonymous crash reports to the server (only with consent).</string>
     <string name="common_remove">Remove</string>
+
+    <string name="map_restrict_button">Restrict</string>
+    <string name="map_restrict_scope">Scope</string>
+    <string name="map_restrict_scope_personal">Avoid personally</string>
+    <string name="map_restrict_scope_global">Lock for everyone</string>
+    <string name="map_restrict_scope_recommend">Recommend lock</string>
+    <string name="map_restrict_submit">Apply</string>
+    <string name="map_restrict_clear">Clear</string>
+    <string name="map_restrict_proposal_sent">Lock proposal sent.</string>
+    <string name="map_restrict_cleared">Restriction cleared.</string>
+    <string name="map_personal_avoid_chip">Personally avoided</string>
+    <string name="map_locked_chip">Locked</string>
+    <string name="map_lock_proposals_title">Lock proposals (%1$d)</string>
+    <string name="map_lock_proposal_days">%1$d days</string>
+    <string name="map_lock_proposal_approve">Lock</string>
+    <string name="map_lock_proposal_approved">Path locked.</string>
+
+    <string name="route_point_balance">%1$d pts · ×%2$.1f</string>
+    <string name="route_point_preview_total">~%1$d points expected</string>
+    <string name="route_point_preview_base">Base: %1$d</string>
+    <string name="route_point_preview_golden">Golden: +%1$d</string>
+    <string name="route_point_preview_exploration">Exploration: +%1$d</string>
+    <string name="route_point_preview_diversity">Diversity: +%1$d</string>
+    <string name="route_golden_hint">%1$d golden paths on this route</string>
+    <string name="route_completion_golden_hits">%1$d golden paths hit!</string>
+    <string name="route_celebration_golden">Golden route!</string>
+    <string name="route_celebration_streak">Streak bonus!</string>
+    <string name="route_celebration_achievement">Great walk!</string>
+
+    <string name="stats_game_hub_title">Game</string>
+    <string name="stats_game_point_balance">%1$d points</string>
+    <string name="stats_game_streak_multiplier">Streak multiplier ×%1$.1f</string>
+    <string name="stats_golden_today_title">Golden today</string>
+    <string name="stats_golden_today_empty">No golden paths today.</string>
 
     <string name="notification_recording_channel_name">Path recording</string>
     <string name="notification_recording_title">Recording in progress</string>
