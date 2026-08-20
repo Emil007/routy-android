@@ -60,6 +60,7 @@ import com.routy.app.ui.OfflineBanner
 import com.routy.app.logic.api.GeoPoint
 import com.routy.app.logic.api.NodeDto
 import com.routy.app.logic.api.SegmentDto
+import com.routy.app.logic.api.isLocked
 import com.routy.app.logic.geo.LatLng
 import com.routy.app.logic.geo.pathLengthMeters
 import com.routy.app.logic.recording.EndpointDecision
@@ -296,6 +297,9 @@ private fun MapExtrasContent(state: MapUiState, viewModel: MapViewModel, visible
             if (state.proposals.isNotEmpty()) {
                 ProposalsPanel(state, viewModel)
             }
+            if (state.lockProposals.isNotEmpty()) {
+                LockProposalsPanel(state, viewModel)
+            }
             SegmentsTablePanel(state, viewModel)
             TrashPanel(state, viewModel)
         }
@@ -335,29 +339,61 @@ private fun ProposalsPanel(state: MapUiState, viewModel: MapViewModel) {
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
+private fun LockProposalsPanel(state: MapUiState, viewModel: MapViewModel) {
+    Surface(color = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.94f), shape = MaterialTheme.shapes.medium) {
+        Column(Modifier.fillMaxWidth().padding(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text(stringResource(R.string.map_lock_proposals_title, state.lockProposals.size), style = MaterialTheme.typography.titleSmall)
+            state.lockProposals.forEach { proposal ->
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            proposal.segmentName ?: stringResource(R.string.map_proposal_segment, proposal.segmentId),
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                        Text(
+                            stringResource(R.string.map_lock_proposal_days, proposal.days),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    if (viewModel.canEditLockProposal(proposal)) {
+                        CompactOutlinedButton({ viewModel.approveLockProposal(proposal.id) }) {
+                            Text(stringResource(R.string.map_lock_proposal_approve), style = MaterialTheme.typography.labelSmall)
+                        }
+                        CompactOutlinedButton({ viewModel.dismissLockProposal(proposal.id) }) {
+                            Text(stringResource(R.string.map_proposal_dismiss), style = MaterialTheme.typography.labelSmall)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
 private fun MapSegmentPanel(segment: SegmentDto, state: MapUiState, viewModel: MapViewModel) {
     val conditions = viewModel.conditionsForSegment(segment.id)
-    var showLockDialog by remember { mutableStateOf(false) }
-    var lockDays by remember { mutableStateOf("7") }
-    var lockReason by remember { mutableStateOf("") }
+    var showRestrictDialog by remember { mutableStateOf(false) }
+    var restrictScope by remember { mutableStateOf("personal") }
+    var restrictDays by remember { mutableStateOf("7") }
+    var restrictReason by remember { mutableStateOf("muddy") }
+    val personalAvoided = viewModel.isPersonallyAvoided(segment.id)
+    val locked = segment.isLocked()
+    val canEdit = viewModel.canEditSegment(segment)
 
-    if (showLockDialog) {
+    if (showRestrictDialog) {
         AlertDialog(
-            onDismissRequest = { showLockDialog = false },
-            title = { Text(stringResource(R.string.map_lock)) },
+            onDismissRequest = { showRestrictDialog = false },
+            title = { Text(stringResource(R.string.map_restrict_button)) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    RestrictScopePicker(restrictScope, canEdit, onSelect = { restrictScope = it })
+                    ConditionReasonPicker(restrictReason, onSelect = { restrictReason = it })
                     OutlinedTextField(
-                        value = lockDays,
-                        onValueChange = { lockDays = it.filter { ch -> ch.isDigit() } },
+                        value = restrictDays,
+                        onValueChange = { restrictDays = it.filter { ch -> ch.isDigit() } },
                         label = { Text(stringResource(R.string.map_lock_days)) },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                    OutlinedTextField(
-                        value = lockReason,
-                        onValueChange = { lockReason = it },
-                        label = { Text(stringResource(R.string.map_lock_reason)) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                     )
@@ -365,13 +401,13 @@ private fun MapSegmentPanel(segment: SegmentDto, state: MapUiState, viewModel: M
             },
             confirmButton = {
                 TextButton(onClick = {
-                    showLockDialog = false
-                    val days = lockDays.toIntOrNull()?.coerceAtLeast(1) ?: 7
-                    viewModel.lockSegment(days, lockReason.ifBlank { null })
-                }) { Text(stringResource(R.string.map_lock)) }
+                    showRestrictDialog = false
+                    val days = restrictDays.toIntOrNull()?.coerceAtLeast(1) ?: 7
+                    viewModel.restrictSegment(restrictScope, restrictReason, days)
+                }) { Text(stringResource(R.string.map_restrict_submit)) }
             },
             dismissButton = {
-                TextButton(onClick = { showLockDialog = false }) { Text(stringResource(R.string.common_cancel)) }
+                TextButton(onClick = { showRestrictDialog = false }) { Text(stringResource(R.string.common_cancel)) }
             },
         )
     }
@@ -382,31 +418,35 @@ private fun MapSegmentPanel(segment: SegmentDto, state: MapUiState, viewModel: M
                 Text(segment.name ?: "#${segment.id}", style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
                 CompactOutlinedButton(viewModel::clearSelection) { Text(stringResource(R.string.common_close), style = MaterialTheme.typography.labelSmall) }
             }
-            if (conditions.isNotEmpty()) {
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    conditions.forEach { c ->
-                        AssistChip(onClick = {}, enabled = false, label = { Text(conditionReasonLabel(c.reason), style = MaterialTheme.typography.labelSmall) })
-                    }
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                if (personalAvoided) {
+                    AssistChip(onClick = {}, enabled = false, label = { Text(stringResource(R.string.map_personal_avoid_chip), style = MaterialTheme.typography.labelSmall) })
+                }
+                if (locked) {
+                    AssistChip(onClick = {}, enabled = false, label = { Text(stringResource(R.string.map_locked_chip), style = MaterialTheme.typography.labelSmall) })
+                }
+                conditions.forEach { c ->
+                    AssistChip(onClick = {}, enabled = false, label = { Text(conditionReasonLabel(c.reason), style = MaterialTheme.typography.labelSmall) })
                 }
             }
-            if (state.reportingCondition) {
-                ConditionReasonPicker(state.conditionReason, viewModel::setConditionReason)
-                CompactButton(viewModel::submitConditionReport) { Text(stringResource(R.string.map_condition_submit)) }
-                CompactOutlinedButton(viewModel::cancelReportCondition) { Text(stringResource(R.string.common_cancel)) }
-            } else {
-                CompactOutlinedButton(viewModel::startReportCondition) {
-                    Text(stringResource(R.string.map_condition_report), style = MaterialTheme.typography.labelMedium)
+            CompactOutlinedButton({ showRestrictDialog = true }) {
+                Text(stringResource(R.string.map_restrict_button), style = MaterialTheme.typography.labelMedium)
+            }
+            if (personalAvoided || (canEdit && locked)) {
+                CompactOutlinedButton({
+                    val scope = if (personalAvoided) "personal" else "global"
+                    viewModel.restrictSegment(scope, restrictReason, 7, clear = true)
+                }) {
+                    Text(stringResource(R.string.map_restrict_clear), style = MaterialTheme.typography.labelMedium)
                 }
             }
-            if (!viewModel.canEditSegment(segment)) return@Column
+            if (!canEdit) return@Column
             if (state.renamingSegment) {
                 OutlinedTextField(state.renameSegmentName, viewModel::updateRenameSegmentName, label = { Text(stringResource(R.string.map_segment_name)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
                 CompactButton(viewModel::saveRenameSegment) { Text(stringResource(R.string.map_rename)) }
             } else {
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     CompactOutlinedButton(viewModel::startRenameSegment) { Text(stringResource(R.string.map_rename)) }
-                    CompactOutlinedButton({ showLockDialog = true }) { Text(stringResource(R.string.map_lock)) }
-                    if (segment.lockedUntil != null) CompactOutlinedButton({ viewModel.lockSegment(null) }) { Text(stringResource(R.string.map_unlock)) }
                     CompactOutlinedButton(viewModel::startEditSegmentShape) { Text(stringResource(R.string.map_edit_shape)) }
                     CompactOutlinedButton(viewModel::startSplitSegment) { Text(stringResource(R.string.map_split)) }
                     CompactOutlinedButton(viewModel::deleteSelectedSegment) { Text(stringResource(R.string.map_delete)) }
@@ -544,6 +584,42 @@ private fun conditionReasonLabel(reason: String): String {
         else -> R.string.map_condition_report
     }
     return stringResource(res)
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun RestrictScopePicker(selected: String, canEditGlobal: Boolean, onSelect: (String) -> Unit) {
+    var expanded by remember { mutableStateOf(false) }
+    val label = when (selected) {
+        "global" -> if (canEditGlobal) stringResource(R.string.map_restrict_scope_global)
+        else stringResource(R.string.map_restrict_scope_recommend)
+        else -> stringResource(R.string.map_restrict_scope_personal)
+    }
+    ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = it }) {
+        OutlinedTextField(
+            value = label,
+            onValueChange = {},
+            readOnly = true,
+            label = { Text(stringResource(R.string.map_restrict_scope)) },
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) },
+            modifier = Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
+        )
+        ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.map_restrict_scope_personal)) },
+                onClick = { expanded = false; onSelect("personal") },
+            )
+            DropdownMenuItem(
+                text = {
+                    Text(
+                        if (canEditGlobal) stringResource(R.string.map_restrict_scope_global)
+                        else stringResource(R.string.map_restrict_scope_recommend),
+                    )
+                },
+                onClick = { expanded = false; onSelect("global") },
+            )
+        }
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

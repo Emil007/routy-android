@@ -75,6 +75,7 @@ import com.routy.app.RoutyApplication
 import com.routy.app.logic.api.FavoriteEntry
 import com.routy.app.logic.api.GeoPoint
 import com.routy.app.logic.api.NodeDto
+import com.routy.app.logic.api.PointPreviewBreakdown
 import com.routy.app.logic.geo.LatLng
 import com.routy.app.logic.route.VoiceCue
 import com.routy.app.logic.route.VoiceCueTracker
@@ -142,6 +143,7 @@ fun RouteScreen(onStartRecording: () -> Unit, accountLocaleTag: String, modifier
             myLocation = uiState.myLocation,
             fitKey = uiState.token.ifEmpty { route.nodeChain.joinToString("-") },
             completedWaypointIndex = uiState.completedWaypointIndex,
+            goldenSegmentIds = uiState.todayGoldenSegmentIds,
             modifier = Modifier.fillMaxSize(),
         )
 
@@ -184,10 +186,11 @@ fun RouteScreen(onStartRecording: () -> Unit, accountLocaleTag: String, modifier
 
     val pointsEarned = uiState.completionPointsEarned
     if (pointsEarned != null) {
+        val tierTitle = celebrationTitle(uiState.completionCelebrationTier)
         AlertDialog(
             onDismissRequest = viewModel::dismissCompletionStats,
             confirmButton = { TextButton(onClick = viewModel::dismissCompletionStats) { Text(stringResource(R.string.common_ok)) } },
-            title = { Text(stringResource(R.string.route_completion_title)) },
+            title = { Text(tierTitle ?: stringResource(R.string.route_completion_title)) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(
@@ -197,6 +200,12 @@ fun RouteScreen(onStartRecording: () -> Unit, accountLocaleTag: String, modifier
                             uiState.completionStreakMultiplier ?: 1.0,
                         ),
                     )
+                    uiState.completionPointBreakdown?.let { breakdown ->
+                        PointPreviewLines(breakdown)
+                    }
+                    if (uiState.completionGoldenHits > 0) {
+                        Text(stringResource(R.string.route_completion_golden_hits, uiState.completionGoldenHits))
+                    }
                     uiState.completionCurrentStreak?.let {
                         Text(stringResource(R.string.route_completion_streak, it))
                     }
@@ -221,11 +230,11 @@ private fun RoutePresetButtons(uiState: RouteUiState, viewModel: RouteViewModel)
     val loading = uiState.status == RouteStatus.LOADING
     val hasStart = uiState.startNodeId != null
     FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        CompactButton(onClick = { viewModel.suggest() }, enabled = !loading && hasStart) {
-            Text(stringResource(if (loading) R.string.route_generating else R.string.route_suggest), style = MaterialTheme.typography.labelMedium)
-        }
-        CompactOutlinedButton(onClick = { viewModel.suggest("short") }, enabled = !loading && hasStart) {
-            Text(stringResource(R.string.route_preset_short), style = MaterialTheme.typography.labelMedium)
+        CompactButton(onClick = { viewModel.suggest("short") }, enabled = !loading && hasStart) {
+            Text(
+                stringResource(if (loading) R.string.route_generating else R.string.route_preset_short),
+                style = MaterialTheme.typography.labelMedium,
+            )
         }
         CompactOutlinedButton(onClick = { viewModel.suggest("long") }, enabled = !loading && hasStart) {
             Text(stringResource(R.string.route_preset_long), style = MaterialTheme.typography.labelMedium)
@@ -262,6 +271,7 @@ private fun SuggestingMapLayout(
             myLocation = null,
             fitKey = uiState.nodes.size,
             fitToRouteOnly = false,
+            goldenSegmentIds = uiState.todayGoldenSegmentIds,
             modifier = Modifier.fillMaxSize(),
         )
 
@@ -316,6 +326,7 @@ private fun SuggestingMapLayout(
                 shape = MaterialTheme.shapes.medium,
             ) {
                 Column(modifier = Modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    PointBalanceRow(uiState.totalPoints, uiState.streakMultiplier)
                     NodeDropdown(stringResource(R.string.route_start), uiState.nodes, uiState.startNodeId, viewModel::setStartNodeId, dense = true)
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.Center) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -404,9 +415,20 @@ private fun RouteOverlayPanel(
                 AssistChip(onClick = {}, label = { Text("${"%.2f".format(route.lengthM / 1000.0)} km", style = MaterialTheme.typography.labelSmall) })
                 AssistChip(onClick = {}, label = { Text("${route.durationMin} min", style = MaterialTheme.typography.labelSmall) })
                 route.elevation?.let { AssistChip(onClick = {}, label = { Text("↗${it.gainM}m", style = MaterialTheme.typography.labelSmall) }) }
+                PointBalanceChip(uiState.totalPoints, uiState.streakMultiplier)
                 if (uiState.mode == RouteMode.ACTIVE && uiState.tracking) {
                     TrackProgressChip(uiState, route)
                 }
+            }
+            uiState.pointPreview?.let { preview ->
+                PointPreviewCard(preview)
+            }
+            route.segmentIds.intersect(uiState.todayGoldenSegmentIds).takeIf { it.isNotEmpty() }?.let { hits ->
+                Text(
+                    stringResource(R.string.route_golden_hint, hits.size),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.primary,
+                )
             }
 
             uiState.pendingShareToken?.let { token ->
@@ -701,6 +723,61 @@ private fun NodeDropdown(
 }
 
 private val CompactButtonPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
+
+@Composable
+private fun PointBalanceRow(totalPoints: Int, streakMultiplier: Double) {
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        PointBalanceChip(totalPoints, streakMultiplier)
+    }
+}
+
+@Composable
+private fun PointBalanceChip(totalPoints: Int, streakMultiplier: Double) {
+    AssistChip(
+        onClick = {},
+        enabled = false,
+        label = {
+            Text(
+                stringResource(R.string.route_point_balance, totalPoints, streakMultiplier),
+                style = MaterialTheme.typography.labelSmall,
+            )
+        },
+    )
+}
+
+@Composable
+private fun PointPreviewCard(preview: PointPreviewBreakdown) {
+    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text(
+            stringResource(R.string.route_point_preview_total, preview.total),
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.SemiBold,
+        )
+        PointPreviewLines(preview)
+    }
+}
+
+@Composable
+private fun PointPreviewLines(preview: PointPreviewBreakdown) {
+    Text(stringResource(R.string.route_point_preview_base, preview.base), style = MaterialTheme.typography.labelSmall)
+    if (preview.golden > 0) {
+        Text(stringResource(R.string.route_point_preview_golden, preview.golden), style = MaterialTheme.typography.labelSmall)
+    }
+    if (preview.exploration > 0) {
+        Text(stringResource(R.string.route_point_preview_exploration, preview.exploration), style = MaterialTheme.typography.labelSmall)
+    }
+    if (preview.diversity > 0) {
+        Text(stringResource(R.string.route_point_preview_diversity, preview.diversity), style = MaterialTheme.typography.labelSmall)
+    }
+}
+
+@Composable
+private fun celebrationTitle(tier: String): String? = when (tier) {
+    "golden" -> stringResource(R.string.route_celebration_golden)
+    "streak" -> stringResource(R.string.route_celebration_streak)
+    "achievement" -> stringResource(R.string.route_celebration_achievement)
+    else -> null
+}
 
 @Composable
 private fun CompactButton(onClick: () -> Unit, enabled: Boolean = true, content: @Composable RowScope.() -> Unit) {

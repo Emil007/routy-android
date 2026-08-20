@@ -11,7 +11,6 @@ import com.routy.app.core.network.profilePatchBody
 import com.routy.app.logic.api.ProfilePatchRequest
 import com.routy.app.logic.api.SessionListEntry
 import com.routy.app.logic.api.SessionUser
-import com.routy.app.logic.api.SegmentDto
 import java.io.IOException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -28,8 +27,6 @@ data class SettingsUiState(
     val error: Boolean = false,
     val needsRecreate: Boolean = false,
     val offlineCached: Boolean = false,
-    val segments: List<SegmentDto> = emptyList(),
-    val avoidSegmentIds: List<Int> = emptyList(),
 )
 
 class SettingsViewModel(
@@ -48,11 +45,11 @@ class SettingsViewModel(
             _uiState.value = _uiState.value.copy(loading = true, error = false, messageRes = null)
             val bootstrapResult = bootstrapLoader.load()
             val offline = bootstrapResult is BootstrapResult.CachedOnly
-            val (user, segments, avoidIds) = when (bootstrapResult) {
-                is BootstrapResult.Fresh -> Triple(bootstrapResult.body.user, bootstrapResult.body.segments, bootstrapResult.body.avoidSegmentIds)
-                is BootstrapResult.NotModified -> Triple(bootstrapResult.cached.user, bootstrapResult.cached.segments, bootstrapResult.cached.avoidSegmentIds)
-                is BootstrapResult.CachedOnly -> Triple(bootstrapResult.cached.user, bootstrapResult.cached.segments, bootstrapResult.cached.avoidSegmentIds)
-                else -> Triple(null, emptyList(), emptyList())
+            val user = when (bootstrapResult) {
+                is BootstrapResult.Fresh -> bootstrapResult.body.user
+                is BootstrapResult.NotModified -> bootstrapResult.cached.user
+                is BootstrapResult.CachedOnly -> bootstrapResult.cached.user
+                else -> null
             }
             try {
                 val sessionsRes = apiClientProvider.service.sessions()
@@ -65,8 +62,6 @@ class SettingsViewModel(
                     user = user,
                     sessions = sessions,
                     networkWalkSpeedKmh = networkWalkSpeed,
-                    segments = segments,
-                    avoidSegmentIds = avoidIds,
                 )
             } catch (_: IOException) {
                 _uiState.value = SettingsUiState(
@@ -75,8 +70,6 @@ class SettingsViewModel(
                     user = user,
                     sessions = emptyList(),
                     networkWalkSpeedKmh = _uiState.value.networkWalkSpeedKmh,
-                    segments = segments,
-                    avoidSegmentIds = avoidIds,
                     error = user == null,
                 )
             }
@@ -133,40 +126,6 @@ class SettingsViewModel(
 
     fun clearMessage() {
         _uiState.value = _uiState.value.copy(messageRes = null, error = false)
-    }
-
-    fun addAvoidSegment(segmentId: Int) {
-        viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(saving = true)
-            try {
-                val res = apiClientProvider.service.addAvoidSegment(com.routy.app.logic.api.AvoidSegmentRequest(segmentId))
-                if (res.isSuccessful) {
-                    bootstrapLoader.invalidate()
-                    load()
-                } else {
-                    _uiState.value = _uiState.value.copy(saving = false, error = true)
-                }
-            } catch (_: IOException) {
-                _uiState.value = _uiState.value.copy(saving = false, error = true)
-            }
-        }
-    }
-
-    fun removeAvoidSegment(segmentId: Int) {
-        viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(saving = true)
-            try {
-                val res = apiClientProvider.service.removeAvoidSegment(com.routy.app.logic.api.AvoidSegmentRequest(segmentId))
-                if (res.isSuccessful) {
-                    bootstrapLoader.invalidate()
-                    load()
-                } else {
-                    _uiState.value = _uiState.value.copy(saving = false, error = true)
-                }
-            } catch (_: IOException) {
-                _uiState.value = _uiState.value.copy(saving = false, error = true)
-            }
-        }
     }
 
     fun consumeRecreate() {

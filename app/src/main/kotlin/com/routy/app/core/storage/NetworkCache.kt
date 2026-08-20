@@ -32,6 +32,9 @@ class NetworkCache(context: Context) {
             routeState = body.routeState,
             avoidSegmentIds = body.avoidSegmentIds,
             segmentConditions = body.segmentConditions,
+            lockProposals = body.lockProposals,
+            todayGoldenSegmentIds = body.todayGoldenSegmentIds,
+            game = body.game,
             cachedAtMs = System.currentTimeMillis(),
         )
         bootstrapFile.writeText(json.encodeToString(payload))

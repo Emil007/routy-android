@@ -17,13 +17,14 @@ import com.routy.app.logic.api.NodeDto
 import com.routy.app.logic.api.NodeIdRequest
 import com.routy.app.logic.api.NodeMoveRequest
 import com.routy.app.logic.api.NodeRenameRequest
+import com.routy.app.logic.api.LockProposalDetailDto
+import com.routy.app.logic.api.LockProposalActionRequest
 import com.routy.app.logic.api.PathProposalDto
-import com.routy.app.logic.api.ReportConditionRequest
+import com.routy.app.logic.api.RestrictSegmentRequest
 import com.routy.app.logic.api.SegmentConditionDto
 import com.routy.app.logic.api.SegmentDto
 import com.routy.app.logic.api.SegmentGeometryRequest
 import com.routy.app.logic.api.SegmentIdRequest
-import com.routy.app.core.network.segmentLockBody
 import com.routy.app.logic.api.SegmentRenameRequest
 import com.routy.app.logic.api.SegmentSplitRequest
 import com.routy.app.logic.api.SessionUser
@@ -68,12 +69,12 @@ data class MapUiState(
     val nodes: List<NodeDto> = emptyList(),
     val segments: List<SegmentDto> = emptyList(),
     val segmentConditions: List<SegmentConditionDto> = emptyList(),
+    val avoidSegmentIds: List<Int> = emptyList(),
+    val lockProposals: List<LockProposalDetailDto> = emptyList(),
     val proposals: List<PathProposalDto> = emptyList(),
     val segmentUsage: Map<Int, Int> = emptyMap(),
     val deletedNodes: List<NodeDto> = emptyList(),
     val deletedSegments: List<SegmentDto> = emptyList(),
-    val reportingCondition: Boolean = false,
-    val conditionReason: String = "muddy",
     val mode: MapMode = MapMode.View,
     val selectedNode: NodeDto? = null,
     val selectedSegment: SegmentDto? = null,
@@ -286,11 +287,49 @@ class MapViewModel(
         }
     }
 
-    fun lockSegment(days: Int?, reason: String? = null) {
+    fun canEditLockProposal(proposal: LockProposalDetailDto): Boolean {
+        val segment = _uiState.value.segments.find { it.id == proposal.segmentId }
+            ?: _uiState.value.deletedSegments.find { it.id == proposal.segmentId }
+        val user = _uiState.value.user ?: return false
+        return canEdit(user.id, user.role == "admin", segment?.submittedBy)
+    }
+
+    fun isPersonallyAvoided(segmentId: Int): Boolean =
+        _uiState.value.avoidSegmentIds.contains(segmentId)
+
+    fun restrictSegment(scope: String, reason: String, days: Int, clear: Boolean = false) {
         val segment = _uiState.value.selectedSegment ?: return
-        if (!canEditSegment(segment)) return denyNotAllowed()
-        runMutation(R.string.map_saved) {
-            apiClientProvider.service.lockSegment(segmentLockBody(segment.id, days, reason?.trim()?.ifBlank { null }))
+        if (!clear && scope == "global" && !canEditSegment(segment)) {
+            // Non-owners may recommend a global lock via restrict API.
+        } else if (clear && scope == "global" && !canEditSegment(segment)) {
+            return denyNotAllowed()
+        }
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(actionBusy = true, messageRes = null)
+            val res = runCatching {
+                apiClientProvider.service.restrictSegment(
+                    RestrictSegmentRequest(
+                        segmentId = segment.id,
+                        scope = scope,
+                        reason = reason,
+                        days = days,
+                        clear = clear,
+                    ),
+                )
+            }.getOrNull()
+            if (res?.isSuccessful == true) {
+                bootstrapLoader.invalidate()
+                loadNetwork(forceRefresh = true)
+                val messageRes = when (res.body()?.action) {
+                    "lock_proposal" -> R.string.map_restrict_proposal_sent
+                    "cleared_personal", "cleared_global" -> R.string.map_restrict_cleared
+                    else -> R.string.map_saved
+                }
+                _uiState.value = _uiState.value.copy(actionBusy = false, messageRes = messageRes, isError = false)
+            } else {
+                val errorRes = if (res?.code() == 403) R.string.map_not_allowed else R.string.map_action_error
+                _uiState.value = _uiState.value.copy(actionBusy = false, messageRes = errorRes, isError = true)
+            }
         }
     }
 
@@ -655,36 +694,42 @@ class MapViewModel(
         }
     }
 
-    fun startReportCondition() {
-        _uiState.value = _uiState.value.copy(reportingCondition = true, conditionReason = "muddy")
+    fun refreshLockProposals() {
+        viewModelScope.launch {
+            val res = runCatching { apiClientProvider.service.lockProposals() }.getOrNull()
+            if (res?.isSuccessful == true) {
+                _uiState.value = _uiState.value.copy(lockProposals = res.body()?.proposals.orEmpty())
+            }
+        }
     }
 
-    fun cancelReportCondition() {
-        _uiState.value = _uiState.value.copy(reportingCondition = false)
-    }
-
-    fun setConditionReason(reason: String) {
-        _uiState.value = _uiState.value.copy(conditionReason = reason)
-    }
-
-    fun submitConditionReport() {
-        val segment = _uiState.value.selectedSegment ?: return
+    fun approveLockProposal(proposalId: Int) {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(actionBusy = true)
             val res = runCatching {
-                apiClientProvider.service.reportSegmentCondition(
-                    ReportConditionRequest(segment.id, _uiState.value.conditionReason),
-                )
+                apiClientProvider.service.approveLockProposal(LockProposalActionRequest(proposalId))
             }.getOrNull()
             if (res?.isSuccessful == true) {
                 bootstrapLoader.invalidate()
                 loadNetwork(forceRefresh = true)
-                _uiState.value = _uiState.value.copy(
-                    actionBusy = false,
-                    reportingCondition = false,
-                    messageRes = R.string.map_condition_reported,
-                    isError = false,
-                )
+                refreshLockProposals()
+                _uiState.value = _uiState.value.copy(actionBusy = false, messageRes = R.string.map_lock_proposal_approved, isError = false)
+            } else {
+                val messageRes = if (res?.code() == 403) R.string.map_not_allowed else R.string.common_error
+                _uiState.value = _uiState.value.copy(actionBusy = false, messageRes = messageRes, isError = true)
+            }
+        }
+    }
+
+    fun dismissLockProposal(proposalId: Int) {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(actionBusy = true)
+            val res = runCatching {
+                apiClientProvider.service.dismissLockProposal(LockProposalActionRequest(proposalId))
+            }.getOrNull()
+            if (res?.isSuccessful == true) {
+                refreshLockProposals()
+                _uiState.value = _uiState.value.copy(actionBusy = false)
             } else {
                 _uiState.value = _uiState.value.copy(actionBusy = false, messageRes = R.string.common_error, isError = true)
             }
@@ -785,14 +830,46 @@ class MapViewModel(
         viewModelScope.launch {
             if (!forceRefresh) {
                 networkCache.loadBootstrap()?.let { cached ->
-                    applyNetwork(cached.user, cached.nodes, cached.segments, cached.segmentConditions, offline = false)
+                    applyNetwork(
+                        cached.user,
+                        cached.nodes,
+                        cached.segments,
+                        cached.segmentConditions,
+                        cached.avoidSegmentIds,
+                        cached.lockProposals.map { it.toDetail(_uiState.value.segments) },
+                        offline = false,
+                    )
                 }
             }
 
             when (val result = bootstrapLoader.load()) {
-                is BootstrapResult.Fresh -> applyNetwork(result.body.user, result.body.nodes, result.body.segments, result.body.segmentConditions, offline = false)
-                is BootstrapResult.NotModified -> applyNetwork(result.cached.user, result.cached.nodes, result.cached.segments, result.cached.segmentConditions, offline = false)
-                is BootstrapResult.CachedOnly -> applyNetwork(result.cached.user, result.cached.nodes, result.cached.segments, result.cached.segmentConditions, offline = true)
+                is BootstrapResult.Fresh -> applyNetwork(
+                    result.body.user,
+                    result.body.nodes,
+                    result.body.segments,
+                    result.body.segmentConditions,
+                    result.body.avoidSegmentIds,
+                    result.body.lockProposals.map { it.toDetail(result.body.segments) },
+                    offline = false,
+                )
+                is BootstrapResult.NotModified -> applyNetwork(
+                    result.cached.user,
+                    result.cached.nodes,
+                    result.cached.segments,
+                    result.cached.segmentConditions,
+                    result.cached.avoidSegmentIds,
+                    result.cached.lockProposals.map { it.toDetail(result.cached.segments) },
+                    offline = false,
+                )
+                is BootstrapResult.CachedOnly -> applyNetwork(
+                    result.cached.user,
+                    result.cached.nodes,
+                    result.cached.segments,
+                    result.cached.segmentConditions,
+                    result.cached.avoidSegmentIds,
+                    result.cached.lockProposals.map { it.toDetail(result.cached.segments) },
+                    offline = true,
+                )
                 BootstrapResult.Unauthorized, BootstrapResult.Failed -> {
                     if (_uiState.value.nodes.isEmpty()) {
                         _uiState.value = _uiState.value.copy(loading = false, loadFailed = true)
@@ -800,6 +877,7 @@ class MapViewModel(
                 }
             }
             refreshProposals()
+            refreshLockProposals()
             refreshTrash()
             refreshSegmentUsage()
         }
@@ -810,6 +888,8 @@ class MapViewModel(
         nodes: List<NodeDto>,
         segments: List<SegmentDto>,
         segmentConditions: List<SegmentConditionDto>,
+        avoidSegmentIds: List<Int>,
+        lockProposals: List<LockProposalDetailDto>,
         offline: Boolean,
     ) {
         val prev = _uiState.value
@@ -821,8 +901,23 @@ class MapViewModel(
             nodes = nodes,
             segments = segments.filter { it.isCanonical() },
             segmentConditions = segmentConditions,
+            avoidSegmentIds = avoidSegmentIds,
+            lockProposals = lockProposals,
             selectedNode = prev.selectedNode?.let { sel -> nodes.find { it.id == sel.id } },
             selectedSegment = prev.selectedSegment?.let { sel -> segments.find { it.id == sel.id && it.isCanonical() } },
+        )
+    }
+
+    private fun com.routy.app.logic.api.LockProposalDto.toDetail(segments: List<SegmentDto>): LockProposalDetailDto {
+        val seg = segments.find { it.id == segmentId }
+        return LockProposalDetailDto(
+            id = id,
+            segmentId = segmentId,
+            segmentName = seg?.name,
+            requestedBy = requestedBy,
+            reason = reason,
+            days = days,
+            createdAt = createdAt,
         )
     }
 
