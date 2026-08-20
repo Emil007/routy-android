@@ -68,8 +68,11 @@
     <string name="route_track">Track</string>
     <string name="route_tracking_on">Tracking on</string>
     <string name="route_keep_screen_on">Keep screen on</string>
-    <string name="route_more_options">Favorites &amp; more ▾</string>
-    <string name="route_less_options">Less ▴</string>
+    <string name="route_more_options">More</string>
+    <string name="route_less_options">Less</string>
+    <string name="route_panel_expand">Expand menu</string>
+    <string name="route_panel_collapse">Collapse menu</string>
+    <string name="route_favorites_pick">Pick favorite</string>
     <string name="route_track_progress">Progress %1$d / %2$d</string>
     <string name="route_track_progress_chip">%1$d/%2$d → %3$s</string>
     <string name="route_next_waypoint">Next station: %1$s</string>
@@ -114,7 +117,8 @@
     <string name="route_destination">Destination</string>
     <string name="route_waypoint">Waypoint</string>
     <string name="route_waypoint_none">No waypoint</string>
-    <string name="route_force_golden">Include a golden path today</string>
+    <string name="route_force_golden">Golden route</string>
+    <string name="route_force_golden_hint">Only routes that use at least one of today\'s golden segments</string>
     <string name="route_explorer_mode">Explorer mode</string>
     <string name="route_explorer_mode_hint">Prefers path segments that have never been walked.</string>
     <string name="route_generating">Searching for a matching route …</string>
@@ -140,6 +144,7 @@
     <string name="route_discard_confirm">Discard this route? Won\'t count as walked.</string>
     <string name="route_completed_message">Nice! Counts toward your stats now.</string>
     <string name="route_no_route_found">No route found within the configured length range.</string>
+    <string name="route_no_golden_route">No route that uses today\'s golden path was found in the length range.</string>
     <string name="route_no_alternative">No alternative found.</string>
     <string name="route_session_expired">Session expired — please suggest again.</string>
 

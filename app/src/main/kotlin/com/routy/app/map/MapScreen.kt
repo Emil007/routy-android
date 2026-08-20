@@ -141,6 +141,7 @@ fun MapScreen(onStartRecording: () -> Unit, modifier: Modifier = Modifier) {
             overlayLine = overlayLine,
             editVertices = if (uiState.mode == MapMode.EditSegment) uiState.editSegmentPoints else null,
             selectedEditVertexIndex = uiState.selectedEditVertexIndex,
+            goldenSegmentIds = uiState.todayGoldenSegmentIds,
             onMapClick = viewModel::onMapClick,
             modifier = Modifier.fillMaxSize(),
         )

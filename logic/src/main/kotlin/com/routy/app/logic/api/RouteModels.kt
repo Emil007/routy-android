@@ -58,6 +58,8 @@ data class GenerateRouteResponse(
     val token: String,
     val route: RouteDisplayPayload,
     val pointPreview: PointPreviewBreakdown? = null,
+    val goldenHits: Int? = null,
+    val goldenHitIds: List<Int> = emptyList(),
 )
 
 @Serializable
