@@ -284,9 +284,13 @@ class RouteViewModel(
             watchingLocation = watching,
             myLocation = if (watching) _uiState.value.myLocation else null,
             tracking = if (watching) _uiState.value.tracking else false,
+            voiceEnabled = if (watching) _uiState.value.voiceEnabled else false,
         )
     }
-    fun setVoiceEnabled(enabled: Boolean) { _uiState.value = _uiState.value.copy(voiceEnabled = enabled) }
+    fun setVoiceEnabled(enabled: Boolean) {
+        if (enabled && !_uiState.value.watchingLocation) return
+        _uiState.value = _uiState.value.copy(voiceEnabled = enabled)
+    }
     fun setTracking(enabled: Boolean) { _uiState.value = _uiState.value.copy(tracking = enabled) }
     fun setKeepScreenOn(enabled: Boolean) { _uiState.value = _uiState.value.copy(keepScreenOn = enabled) }
     fun toggleControls() { _uiState.value = _uiState.value.copy(showControls = !_uiState.value.showControls) }
@@ -401,11 +405,6 @@ class RouteViewModel(
         }
     }
 
-    fun discover() {
-        _uiState.value = _uiState.value.copy(explorerMode = true)
-        suggest()
-    }
-
     fun surprise() {
         _uiState.value = _uiState.value.copy(explorerMode = false)
         suggest(preset = "surprise")
@@ -414,6 +413,10 @@ class RouteViewModel(
     fun suggest(preset: String? = null) {
         val state = _uiState.value
         val startNodeId = state.startNodeId ?: return
+        if (state.offlineCached) {
+            _uiState.value = state.copy(status = RouteStatus.ERROR, messageRes = R.string.route_connection_failed)
+            return
+        }
         val surprise = preset == "surprise"
         val explorerMode = if (surprise) false else state.explorerMode
         viewModelScope.launch {
@@ -435,7 +438,7 @@ class RouteViewModel(
                     status = RouteStatus.ERROR,
                     route = state.route,
                     token = state.token,
-                    messageRes = R.string.route_no_route_found,
+                    messageRes = R.string.route_connection_failed,
                 )
                 return@launch
             }
@@ -478,7 +481,7 @@ class RouteViewModel(
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(status = RouteStatus.LOADING)
             val response = try { call() } catch (_: IOException) {
-                _uiState.value = _uiState.value.copy(status = RouteStatus.IDLE, messageRes = R.string.route_no_alternative)
+                _uiState.value = _uiState.value.copy(status = RouteStatus.IDLE, messageRes = R.string.route_connection_failed)
                 return@launch
             }
             if (response.isSuccessful) {

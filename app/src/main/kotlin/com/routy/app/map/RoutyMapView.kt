@@ -69,6 +69,8 @@ private const val HIGHLIGHT_SOURCE = "routy-segment-highlight"
 private const val HIGHLIGHT_LAYER = "routy-segment-highlight-layer"
 private const val GOLDEN_SEGMENTS_SOURCE = "routy-segments-golden"
 private const val GOLDEN_SEGMENTS_LAYER = "routy-segments-golden-layer"
+private const val GOLDEN_HIT_SOURCE = "routy-segments-golden-hit"
+private const val GOLDEN_HIT_LAYER = "routy-segments-golden-hit-layer"
 private const val LOCKED_SEGMENTS_SOURCE = "routy-segments-locked"
 private const val LOCKED_SEGMENTS_LAYER = "routy-segments-locked-layer"
 private const val EDIT_VERTICES_SOURCE = "routy-edit-vertices"
@@ -96,6 +98,8 @@ fun RoutyMapView(
     /** When >= 0, stations at or below this index render as completed; the next station is highlighted. */
     completedWaypointIndex: Int = -1,
     goldenSegmentIds: Set<Int> = emptySet(),
+    /** Subset of [goldenSegmentIds] that are on the active/suggested route — drawn thicker. */
+    goldenHitIds: Set<Int> = emptySet(),
     selectedNodeId: Int? = null,
     selectedSegmentId: Int? = null,
     moveNodeId: Int? = null,
@@ -157,11 +161,11 @@ fun RoutyMapView(
         map.setStyle(Style.Builder().fromUri(style.assetUri)) { newStyle -> loadedStyle = newStyle }
     }
 
-    LaunchedEffect(loadedStyle, nodes, segments, routeGeometry, stations, myLocation, routeColor, completedWaypointIndex, goldenSegmentIds, selectedNodeId, moveNodeId, homeNodeId, selectedSegmentId, overlayLine, editVertices, selectedEditVertexIndex, emphasizeNetworkSegments, waymarkedOverlay) {
+    LaunchedEffect(loadedStyle, nodes, segments, routeGeometry, stations, myLocation, routeColor, completedWaypointIndex, goldenSegmentIds, goldenHitIds, selectedNodeId, moveNodeId, homeNodeId, selectedSegmentId, overlayLine, editVertices, selectedEditVertexIndex, emphasizeNetworkSegments, waymarkedOverlay) {
         val currentStyle = loadedStyle ?: return@LaunchedEffect
         updateWaymarkedOverlay(currentStyle, waymarkedOverlay)
         updateSegmentsLayer(currentStyle, segments, emphasizeNetworkSegments)
-        updateGoldenSegmentsLayer(currentStyle, segments, goldenSegmentIds)
+        updateGoldenSegmentsLayer(currentStyle, segments, goldenSegmentIds, goldenHitIds)
         updateSelectedSegmentLayer(currentStyle, segments, selectedSegmentId)
         updateOverlayLayer(currentStyle, overlayLine)
         updateEditVerticesLayer(currentStyle, editVertices, selectedEditVertexIndex)
@@ -275,39 +279,46 @@ private fun updateSegmentsLayer(style: Style, segments: List<SegmentDto>, emphas
     style.addLayer(lockedLayer)
 }
 
-private fun updateGoldenSegmentsLayer(style: Style, segments: List<SegmentDto>, goldenIds: Set<Int>) {
-    val golden = segments.filter { it.isCanonical() && goldenIds.contains(it.id) }
-    val collection = if (golden.isEmpty()) {
-        FeatureCollection.fromFeatures(emptyList())
-    } else {
-        FeatureCollection.fromFeatures(
-            golden.map { seg ->
-                Feature.fromGeometry(LineString.fromLngLats(seg.geometry.map { Point.fromLngLat(it.lng, it.lat) }))
-            },
+private fun updateGoldenSegmentsLayer(
+    style: Style,
+    segments: List<SegmentDto>,
+    goldenIds: Set<Int>,
+    hitIds: Set<Int> = emptySet(),
+) {
+    fun featuresFor(ids: Set<Int>) = segments
+        .filter { it.isCanonical() && ids.contains(it.id) }
+        .map { seg ->
+            Feature.fromGeometry(LineString.fromLngLats(seg.geometry.map { Point.fromLngLat(it.lng, it.lat) }))
+        }
+
+    fun upsert(sourceId: String, layerId: String, ids: Set<Int>, width: Float, opacity: Float) {
+        val collection = FeatureCollection.fromFeatures(featuresFor(ids))
+        val existing = style.getSourceAs<GeoJsonSource>(sourceId)
+        if (existing != null) {
+            existing.setGeoJson(collection)
+            return
+        }
+        if (ids.isEmpty()) return
+        style.addSource(GeoJsonSource(sourceId, collection))
+        val layer = LineLayer(layerId, sourceId)
+        layer.setProperties(
+            PropertyFactory.lineColor("#c99a2e"),
+            PropertyFactory.lineWidth(width),
+            PropertyFactory.lineOpacity(opacity),
+            PropertyFactory.lineDasharray(arrayOf(4f, 2f)),
+            PropertyFactory.lineCap(Property.LINE_CAP_ROUND),
+            PropertyFactory.lineJoin(Property.LINE_JOIN_ROUND),
         )
+        val aboveRoute = style.getLayer(ROUTE_LAYER)?.id
+        if (aboveRoute != null) {
+            style.addLayerBelow(layer, aboveRoute)
+        } else {
+            style.addLayer(layer)
+        }
     }
-    val existing = style.getSourceAs<GeoJsonSource>(GOLDEN_SEGMENTS_SOURCE)
-    if (existing != null) {
-        existing.setGeoJson(collection)
-        return
-    }
-    if (golden.isEmpty()) return
-    style.addSource(GeoJsonSource(GOLDEN_SEGMENTS_SOURCE, collection))
-    val layer = LineLayer(GOLDEN_SEGMENTS_LAYER, GOLDEN_SEGMENTS_SOURCE)
-    layer.setProperties(
-        PropertyFactory.lineColor("#c99a2e"),
-        PropertyFactory.lineWidth(6f),
-        PropertyFactory.lineOpacity(0.95f),
-        PropertyFactory.lineDasharray(arrayOf(4f, 2f)),
-        PropertyFactory.lineCap(Property.LINE_CAP_ROUND),
-        PropertyFactory.lineJoin(Property.LINE_JOIN_ROUND),
-    )
-    val aboveRoute = style.getLayer(ROUTE_LAYER)?.id
-    if (aboveRoute != null) {
-        style.addLayerBelow(layer, aboveRoute)
-    } else {
-        style.addLayer(layer)
-    }
+
+    upsert(GOLDEN_SEGMENTS_SOURCE, GOLDEN_SEGMENTS_LAYER, goldenIds, 5f, 0.85f)
+    upsert(GOLDEN_HIT_SOURCE, GOLDEN_HIT_LAYER, hitIds, 8f, 0.98f)
 }
 
 private fun updateRouteLayer(style: Style, routeGeometry: List<GeoPoint>, routeColor: String) {

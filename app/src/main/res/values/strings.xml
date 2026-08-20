@@ -114,7 +114,8 @@
     <string name="route_save_favorite">Als Favorit speichern</string>
     <string name="route_cancel">Abbrechen</string>
     <string name="route_start">Start</string>
-    <string name="route_loop">Rundweg (zurück zum Start)</string>
+    <string name="route_loop">Rundweg</string>
+    <string name="route_loop_hint">Rundweg zurück zum Start</string>
     <string name="route_destination">Ziel</string>
     <string name="route_waypoint">Zwischenziel</string>
     <string name="route_waypoint_none">Kein Zwischenziel</string>
@@ -126,7 +127,6 @@
     <string name="route_suggest">Route vorschlagen</string>
     <string name="route_preset_short">Kurze Runde</string>
     <string name="route_preset_long">Lange Runde</string>
-    <string name="route_preset_discover">Entdecken</string>
     <string name="route_preset_surprise">Überrasch mich</string>
     <string name="route_distance_label">Strecke</string>
     <string name="route_duration_label">Dauer</string>
@@ -140,11 +140,14 @@
     <string name="route_accept">Diese nehmen</string>
     <string name="route_hide_location">Standort ausblenden</string>
     <string name="route_show_location">Meinen Standort anzeigen</string>
+    <string name="route_location_check">Standort</string>
+    <string name="route_voice_check">Ansagen</string>
     <string name="route_complete_button">Als gegangen bestätigen</string>
     <string name="route_discard_button">Verwerfen</string>
     <string name="route_discard_confirm">Route verwerfen? Zählt dann nicht als gegangen.</string>
     <string name="route_completed_message">Nice! Zählt jetzt zu deiner Statistik.</string>
     <string name="route_no_route_found">Im eingestellten Längenbereich wurde keine Route gefunden.</string>
+    <string name="route_connection_failed">Server nicht erreichbar — Verbindung prüfen.</string>
     <string name="route_no_golden_route">Keine Route mit einem der heutigen goldenen Wege im Längenbereich gefunden.</string>
     <string name="route_no_alternative">Keine Alternative gefunden.</string>
     <string name="route_session_expired">Sitzung abgelaufen — bitte neu vorschlagen lassen.</string>
