@@ -101,6 +101,7 @@ data class MapUiState(
     val actionBusy: Boolean = false,
     val messageRes: Int? = null,
     val isError: Boolean = false,
+    val todayGoldenSegmentIds: Set<Int> = emptySet(),
 )
 
 class MapViewModel(
@@ -838,6 +839,7 @@ class MapViewModel(
                         cached.avoidSegmentIds,
                         cached.lockProposals.map { it.toDetail(_uiState.value.segments, _uiState.value.nodes) },
                         offline = false,
+                        todayGoldenSegmentIds = cached.todayGoldenSegmentIds,
                     )
                 }
             }
@@ -851,6 +853,7 @@ class MapViewModel(
                     result.body.avoidSegmentIds,
                     result.body.lockProposals.map { it.toDetail(result.body.segments, result.body.nodes) },
                     offline = false,
+                    todayGoldenSegmentIds = result.body.todayGoldenSegmentIds,
                 )
                 is BootstrapResult.NotModified -> applyNetwork(
                     result.cached.user,
@@ -860,6 +863,7 @@ class MapViewModel(
                     result.cached.avoidSegmentIds,
                     result.cached.lockProposals.map { it.toDetail(result.cached.segments, result.cached.nodes) },
                     offline = false,
+                    todayGoldenSegmentIds = result.cached.todayGoldenSegmentIds,
                 )
                 is BootstrapResult.CachedOnly -> applyNetwork(
                     result.cached.user,
@@ -869,6 +873,7 @@ class MapViewModel(
                     result.cached.avoidSegmentIds,
                     result.cached.lockProposals.map { it.toDetail(result.cached.segments, result.cached.nodes) },
                     offline = true,
+                    todayGoldenSegmentIds = result.cached.todayGoldenSegmentIds,
                 )
                 BootstrapResult.Unauthorized, BootstrapResult.Failed -> {
                     if (_uiState.value.nodes.isEmpty()) {
@@ -891,6 +896,7 @@ class MapViewModel(
         avoidSegmentIds: List<Int>,
         lockProposals: List<LockProposalDetailDto>,
         offline: Boolean,
+        todayGoldenSegmentIds: List<Int> = emptyList(),
     ) {
         val prev = _uiState.value
         _uiState.value = prev.copy(
@@ -903,6 +909,7 @@ class MapViewModel(
             segmentConditions = segmentConditions,
             avoidSegmentIds = avoidSegmentIds,
             lockProposals = lockProposals,
+            todayGoldenSegmentIds = todayGoldenSegmentIds.toSet(),
             selectedNode = prev.selectedNode?.let { sel -> nodes.find { it.id == sel.id } },
             selectedSegment = prev.selectedSegment?.let { sel -> segments.find { it.id == sel.id && it.isCanonical() } },
         )

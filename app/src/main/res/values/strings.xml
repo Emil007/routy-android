@@ -68,8 +68,11 @@
     <string name="route_track">Track</string>
     <string name="route_tracking_on">Tracking an</string>
     <string name="route_keep_screen_on">Bildschirm an</string>
-    <string name="route_more_options">Favoriten &amp; mehr ▾</string>
-    <string name="route_less_options">Weniger ▴</string>
+    <string name="route_more_options">Mehr</string>
+    <string name="route_less_options">Weniger</string>
+    <string name="route_panel_expand">Menü aufklappen</string>
+    <string name="route_panel_collapse">Menü einklappen</string>
+    <string name="route_favorites_pick">Favorit wählen</string>
     <string name="route_track_progress">Fortschritt %1$d / %2$d</string>
     <string name="route_track_progress_chip">%1$d/%2$d → %3$s</string>
     <string name="route_next_waypoint">Nächste Station: %1$s</string>
@@ -114,7 +117,8 @@
     <string name="route_destination">Ziel</string>
     <string name="route_waypoint">Zwischenziel</string>
     <string name="route_waypoint_none">Kein Zwischenziel</string>
-    <string name="route_force_golden">Goldenen Weg heute einbauen</string>
+    <string name="route_force_golden">Goldene Route</string>
+    <string name="route_force_golden_hint">Nur Routen mit mindestens einem heutigen goldenen Weg</string>
     <string name="route_explorer_mode">Explorer-Modus</string>
     <string name="route_explorer_mode_hint">Bevorzugt Wegabschnitte, die noch nie gegangen wurden.</string>
     <string name="route_generating">Suche passende Route …</string>
@@ -140,6 +144,7 @@
     <string name="route_discard_confirm">Route verwerfen? Zählt dann nicht als gegangen.</string>
     <string name="route_completed_message">Nice! Zählt jetzt zu deiner Statistik.</string>
     <string name="route_no_route_found">Im eingestellten Längenbereich wurde keine Route gefunden.</string>
+    <string name="route_no_golden_route">Keine Route mit einem der heutigen goldenen Wege im Längenbereich gefunden.</string>
     <string name="route_no_alternative">Keine Alternative gefunden.</string>
     <string name="route_session_expired">Sitzung abgelaufen — bitte neu vorschlagen lassen.</string>
 
