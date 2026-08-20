@@ -199,6 +199,7 @@
     <string name="map_style_streets">Straßenkarte</string>
     <string name="map_style_hiking">Wanderkarte</string>
     <string name="map_style_waymarked">Waymarked Trails</string>
+    <string name="map_style_waymarked_suffix"> + Wege</string>
     <string name="map_style_satellite">Satellit</string>
 
     <string name="common_close">Schließen</string>
@@ -314,16 +315,46 @@
     <string name="settings_walk_speed_label">Gehgeschwindigkeit (km/h)</string>
     <string name="settings_walk_speed_hint">Leer lassen für Netzwerk-Standard (aktuell %1$.1f km/h).</string>
     <string name="settings_walk_speed_save">Speichern</string>
-    <string name="settings_avoid_title">Wege meiden</string>
-    <string name="settings_avoid_subtitle">Routen bevorzugen andere Wege wenn möglich — kein hartes Verbot.</string>
-    <string name="settings_avoid_empty">Du meidest derzeit keine Wege.</string>
-    <string name="settings_avoid_add">Weg zur Meideliste hinzufügen</string>
     <string name="settings_account_security_title">Kontosicherheit</string>
     <string name="settings_account_security_subtitle">Passwort, Zwei-Faktor-Auth und Konto deaktivieren — in den Browser-Einstellungen.</string>
     <string name="settings_account_security_open">Kontosicherheit öffnen</string>
     <string name="settings_crash_consent_title">Absturzberichte</string>
     <string name="settings_crash_consent_subtitle">Anonyme Absturzberichte an den Server senden (nur mit Einwilligung).</string>
     <string name="common_remove">Entfernen</string>
+
+    <string name="map_restrict_button">Einschränken</string>
+    <string name="map_restrict_scope">Geltungsbereich</string>
+    <string name="map_restrict_scope_personal">Persönlich meiden</string>
+    <string name="map_restrict_scope_global">Für alle sperren</string>
+    <string name="map_restrict_scope_recommend">Sperre vorschlagen</string>
+    <string name="map_restrict_submit">Anwenden</string>
+    <string name="map_restrict_clear">Aufheben</string>
+    <string name="map_restrict_proposal_sent">Sperrvorschlag gesendet.</string>
+    <string name="map_restrict_cleared">Einschränkung aufgehoben.</string>
+    <string name="map_personal_avoid_chip">Persönlich gemieden</string>
+    <string name="map_locked_chip">Gesperrt</string>
+    <string name="map_lock_proposals_title">Sperrvorschläge (%1$d)</string>
+    <string name="map_lock_proposal_days">%1$d Tage</string>
+    <string name="map_lock_proposal_approve">Sperren</string>
+    <string name="map_lock_proposal_approved">Weg gesperrt.</string>
+
+    <string name="route_point_balance">%1$d Pkt · ×%2$.1f</string>
+    <string name="route_point_preview_total">~%1$d Punkte erwartet</string>
+    <string name="route_point_preview_base">Basis: %1$d</string>
+    <string name="route_point_preview_golden">Golden: +%1$d</string>
+    <string name="route_point_preview_exploration">Erkundung: +%1$d</string>
+    <string name="route_point_preview_diversity">Vielfalt: +%1$d</string>
+    <string name="route_golden_hint">%1$d goldene Wege auf dieser Route</string>
+    <string name="route_completion_golden_hits">%1$d goldene Wege erwischt!</string>
+    <string name="route_celebration_golden">Goldene Route!</string>
+    <string name="route_celebration_streak">Serien-Bonus!</string>
+    <string name="route_celebration_achievement">Starker Lauf!</string>
+
+    <string name="stats_game_hub_title">Spiel</string>
+    <string name="stats_game_point_balance">%1$d Punkte</string>
+    <string name="stats_game_streak_multiplier">Serien-Multiplikator ×%1$.1f</string>
+    <string name="stats_golden_today_title">Heute golden</string>
+    <string name="stats_golden_today_empty">Heute keine goldenen Wege.</string>
 
     <string name="notification_recording_channel_name">Wegaufzeichnung</string>
     <string name="notification_recording_title">Aufzeichnung läuft</string>

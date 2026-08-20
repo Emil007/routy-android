@@ -18,9 +18,11 @@ import com.routy.app.logic.api.AdjustRouteRequest
 import com.routy.app.logic.api.ApiErrorBody
 import com.routy.app.logic.api.FavoriteEntry
 import com.routy.app.logic.api.GenerateRouteRequest
+import com.routy.app.logic.api.GameSummaryDto
 import com.routy.app.logic.api.GeoPoint
 import com.routy.app.logic.api.NicknameRequest
 import com.routy.app.logic.api.NodeDto
+import com.routy.app.logic.api.PointPreviewBreakdown
 import com.routy.app.logic.api.RouteDisplayPayload
 import com.routy.app.logic.api.RouteTokenRequest
 import com.routy.app.logic.api.RouteStateResponse
@@ -82,6 +84,15 @@ data class RouteUiState(
     val completionCurrentStreak: Int? = null,
     val completionWeeklyPoints: Int? = null,
     val completionNewAchievements: List<String> = emptyList(),
+    val completionPointBreakdown: PointPreviewBreakdown? = null,
+    val completionGoldenHits: Int = 0,
+    val completionCelebrationTier: String = "normal",
+
+    val totalPoints: Int = 0,
+    val weeklyPoints: Int = 0,
+    val streakMultiplier: Double = 1.0,
+    val todayGoldenSegmentIds: Set<Int> = emptySet(),
+    val pointPreview: PointPreviewBreakdown? = null,
 )
 
 class RouteViewModel(
@@ -122,6 +133,8 @@ class RouteViewModel(
                     cachedBootstrap.nodes,
                     cachedBootstrap.segments,
                     cachedBootstrap.routeState,
+                    cachedBootstrap.game,
+                    cachedBootstrap.todayGoldenSegmentIds,
                     offlineCached = false,
                 )
             } else if (cachedNetwork != null) {
@@ -130,17 +143,17 @@ class RouteViewModel(
 
             when (val result = bootstrapLoader.load()) {
                 is BootstrapResult.Fresh -> {
-                    applyNetworkState(result.body.nodes, result.body.segments, result.body.routeState, offlineCached = false)
+                    applyNetworkState(result.body.nodes, result.body.segments, result.body.routeState, result.body.game, result.body.todayGoldenSegmentIds, offlineCached = false)
                     restoreProgress(result.body.routeState.activeRoute)
                     consumeDeepLink()
                 }
                 is BootstrapResult.NotModified -> {
-                    applyNetworkState(result.cached.nodes, result.cached.segments, result.cached.routeState, offlineCached = false)
+                    applyNetworkState(result.cached.nodes, result.cached.segments, result.cached.routeState, result.cached.game, result.cached.todayGoldenSegmentIds, offlineCached = false)
                     restoreProgress(result.cached.routeState.activeRoute)
                     consumeDeepLink()
                 }
                 is BootstrapResult.CachedOnly -> {
-                    applyNetworkState(result.cached.nodes, result.cached.segments, result.cached.routeState, offlineCached = true)
+                    applyNetworkState(result.cached.nodes, result.cached.segments, result.cached.routeState, result.cached.game, result.cached.todayGoldenSegmentIds, offlineCached = true)
                     restoreProgress(result.cached.routeState.activeRoute)
                     consumeDeepLink()
                 }
@@ -171,7 +184,14 @@ class RouteViewModel(
                 ?: networkEtag
             networkCache.save(freshEtag ?: "legacy", nodes, segments)
         }
-        applyNetworkState(nodes, segments, state, offlineCached = nodesResponse?.isSuccessful != true)
+        applyNetworkState(
+            nodes,
+            segments,
+            state,
+            GameSummaryDto(_uiState.value.totalPoints, _uiState.value.weeklyPoints, _uiState.value.streakMultiplier),
+            _uiState.value.todayGoldenSegmentIds.toList(),
+            offlineCached = nodesResponse?.isSuccessful != true,
+        )
         restoreProgress(state?.activeRoute)
         consumeDeepLink()
     }
@@ -193,6 +213,8 @@ class RouteViewModel(
         nodes: List<NodeDto>,
         segments: List<SegmentDto>,
         state: RouteStateResponse?,
+        game: GameSummaryDto = GameSummaryDto(),
+        todayGoldenSegmentIds: List<Int> = emptyList(),
         offlineCached: Boolean,
     ) {
         val homeNodeId = nodes.firstOrNull { it.isHome }?.id
@@ -207,6 +229,10 @@ class RouteViewModel(
             mode = if (state?.activeRoute != null) RouteMode.ACTIVE else RouteMode.SUGGESTING,
             route = state?.activeRoute,
             nickname = state?.nickname ?: "",
+            totalPoints = game.totalPoints,
+            weeklyPoints = game.weeklyPoints,
+            streakMultiplier = game.streakMultiplier,
+            todayGoldenSegmentIds = todayGoldenSegmentIds.toSet(),
         )
         if (state?.activeRoute != null) prefetchMapTiles(state.activeRoute)
     }
@@ -238,6 +264,9 @@ class RouteViewModel(
             completionCurrentStreak = null,
             completionWeeklyPoints = null,
             completionNewAchievements = emptyList(),
+            completionPointBreakdown = null,
+            completionGoldenHits = 0,
+            completionCelebrationTier = "normal",
         )
     }
 
@@ -302,7 +331,14 @@ class RouteViewModel(
                     return@launch
                 }
                 routeProgressStore.clear()
-                applyNetworkState(_uiState.value.nodes, _uiState.value.segments, state, offlineCached = _uiState.value.offlineCached)
+                applyNetworkState(
+                    _uiState.value.nodes,
+                    _uiState.value.segments,
+                    state,
+                    GameSummaryDto(_uiState.value.totalPoints, _uiState.value.weeklyPoints, _uiState.value.streakMultiplier),
+                    _uiState.value.todayGoldenSegmentIds.toList(),
+                    offlineCached = _uiState.value.offlineCached,
+                )
                 _uiState.value = _uiState.value.copy(
                     mode = RouteMode.ACTIVE,
                     status = RouteStatus.IDLE,
@@ -362,7 +398,12 @@ class RouteViewModel(
             }
             if (response.isSuccessful) {
                 val body = response.body()
-                _uiState.value = _uiState.value.copy(status = RouteStatus.IDLE, token = body?.token ?: "", route = body?.route)
+                _uiState.value = _uiState.value.copy(
+                    status = RouteStatus.IDLE,
+                    token = body?.token ?: "",
+                    route = body?.route,
+                    pointPreview = body?.pointPreview,
+                )
             } else {
                 _uiState.value = _uiState.value.copy(
                     status = RouteStatus.ERROR,
@@ -392,7 +433,13 @@ class RouteViewModel(
             }
             if (response.isSuccessful) {
                 val body = response.body()
-                _uiState.value = _uiState.value.copy(status = RouteStatus.IDLE, token = body?.token ?: token, route = body?.route, messageRes = null)
+                _uiState.value = _uiState.value.copy(
+                    status = RouteStatus.IDLE,
+                    token = body?.token ?: token,
+                    route = body?.route,
+                    pointPreview = body?.pointPreview,
+                    messageRes = null,
+                )
             } else {
                 _uiState.value = _uiState.value.copy(status = RouteStatus.IDLE, messageRes = R.string.route_no_alternative)
             }
@@ -438,7 +485,7 @@ class RouteViewModel(
         if (_uiState.value.route == null) return
         viewModelScope.launch {
             try { apiClientProvider.service.cancelRoute(RouteTokenRequest(token)) } catch (_: IOException) {}
-            _uiState.value = _uiState.value.copy(route = null, token = "", status = RouteStatus.IDLE, messageRes = null)
+            _uiState.value = _uiState.value.copy(route = null, token = "", status = RouteStatus.IDLE, messageRes = null, pointPreview = null)
         }
     }
 
@@ -475,11 +522,18 @@ class RouteViewModel(
                     myLocation = null,
                     completedWaypointIndex = -1,
                     voiceAnnouncedIndex = 0,
+                    pointPreview = null,
+                    totalPoints = afterStats?.points?.totalPoints ?: (_uiState.value.totalPoints + (body?.pointsEarned ?: 0)),
+                    weeklyPoints = afterStats?.points?.weeklyPoints ?: _uiState.value.weeklyPoints,
+                    streakMultiplier = body?.streakMultiplier ?: _uiState.value.streakMultiplier,
                     completionPointsEarned = body?.pointsEarned,
                     completionStreakMultiplier = body?.streakMultiplier,
                     completionCurrentStreak = body?.currentStreak,
                     completionWeeklyPoints = afterStats?.points?.weeklyPoints,
                     completionNewAchievements = diffNewAchievements(beforeAchievements, afterStats?.achievements),
+                    completionPointBreakdown = body?.pointBreakdown,
+                    completionGoldenHits = body?.goldenHits ?: 0,
+                    completionCelebrationTier = body?.celebrationTier ?: "normal",
                 )
             } else {
                 _uiState.value = _uiState.value.copy(status = RouteStatus.IDLE, messageRes = R.string.common_error)
