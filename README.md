@@ -8,7 +8,7 @@ Same household network of paths, same accounts — but with a native map (MapLib
 |---|---|---|
 | Role | Hosts data, web UI, API | Client for phones |
 | Required? | Yes — run this first | Optional (browser works too) |
-| Version line | **0.33s** | **0.34a** |
+| Version (aligned batch) | **0.35s** | **0.35a** |
 
 ---
 
@@ -16,7 +16,7 @@ Same household network of paths, same accounts — but with a native map (MapLib
 
 **From CI (easiest):** every push to `main` publishes a signed APK under GitHub Actions → latest **Publish APK** run → Artifacts.
 
-**From a tag:** push `v0.34a` (or whatever the tag is) — [release.yml](.github/workflows/release.yml) attaches an APK to the GitHub Release.
+**From a tag:** push `v0.35a` (or whatever the current tag is) — [release.yml](.github/workflows/release.yml) attaches an APK to the GitHub Release.
 
 **From source:** open in Android Studio, set `sdk.dir` in `local.properties`, run **Run app** or:
 
@@ -44,15 +44,15 @@ Optional: open a shared route link (`routy://share/…`) — the app accepts it 
 
 | Tab | What it does |
 |-----|----------------|
-| **Route** | Pick start/destination, generate a walk, accept it, follow with map + voice cues, complete or discard. |
-| **Map** | View and edit the path network — draw, GPX import, rename/move/split, trash, segment locks, path proposals. |
-| **Stats** | Your walks, streaks, achievements, household leaderboards, network usage. |
-| **Settings** | Locale, theme, walk speed, avoid list, sessions, link to server-side account security (password / 2FA open in the browser). |
-| **Admin** | Full server admin UI in a WebView (admins only). |
+| **Route** | Pick start/destination; Short / Long / Discover / Surprise presets; point preview and golden paths; accept, follow with map + voice cues, complete (celebration + breakdown) or discard. |
+| **Map** | View and edit the path network — draw, GPX import, rename/move/split, trash, unified path restrict (personal / global / lock proposals), GPX split proposals. |
+| **Stats** | Game hub (point balance, golden today), walks, streaks, achievements, household leaderboards, network usage. |
+| **Settings** | Locale, theme, walk speed, sessions; account security (password / 2FA) opens in an authenticated in-app WebView sheet (`/settings#account`). |
+| **Admin** | Full server admin UI in a WebView (admins only; compact ⋮ user actions on the server page). |
 
 Recording lives on the map and route flows: start a track, walk with the screen on (foreground GPS service), then commit endpoints back to the network.
 
-Map base layers match the web (street / hiking / satellite) with an optional **Waymarked Trails** overlay chip.
+Map base layers match the web (street / hiking / satellite). Optional **Waymarked Trails** overlay lives inside the style dropdown (same as the web).
 
 ---
 
@@ -79,6 +79,6 @@ Gradle/Android Studio history and known device quirks: [NOTES.md](NOTES.md) (lon
 
 ## Version tags
 
-Android uses tags like **`v0.34a`**. CI `apk-publish` on `main` uses the version in [app/build.gradle.kts](app/build.gradle.kts) (and [apk-publish.yml](.github/workflows/apk-publish.yml)). Tagged releases override via the tag name.
+Android uses tags like **`v0.35a`**. CI `apk-publish` on `main` uses the version in [app/build.gradle.kts](app/build.gradle.kts) (and [apk-publish.yml](.github/workflows/apk-publish.yml)). Tagged releases override via the tag name.
 
-Server version (**0.33s**) is unrelated — deploy server updates on their own schedule. Server repo: [github.com/Emil007/routy](https://github.com/Emil007/routy).
+Server and Android keep the **same number** for a release batch (`0.35s` + `0.35a`); only the `s` / `a` suffix differs. Deploy each repo on its own schedule, but bump both when shipping a paired feature set. Server repo: [github.com/Emil007/routy](https://github.com/Emil007/routy).
