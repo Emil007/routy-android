@@ -15,10 +15,12 @@ object CookieBridge {
     fun installSessionCookie(baseUrl: String, token: String) {
         val cookieManager = CookieManager.getInstance()
         cookieManager.setAcceptCookie(true)
-        // Secure (https-only) and no Max-Age: a session cookie, cleared when clearSessionCookie()
-        // runs at sign-out — matches the web app's own cookie lifetime semantics closely enough
-        // for a WebView that only exists for this session's lifetime anyway.
-        cookieManager.setCookie(baseUrl, "$SESSION_COOKIE_NAME=$token; Secure; Path=/")
+        // Secure + Path=/ + HttpOnly: CookieManager accepts the Set-Cookie attribute string.
+        // No Max-Age: session cookie, cleared when clearSessionCookie() runs at sign-out.
+        cookieManager.setCookie(
+            baseUrl,
+            "$SESSION_COOKIE_NAME=$token; Secure; Path=/; HttpOnly",
+        )
         cookieManager.flush()
     }
 

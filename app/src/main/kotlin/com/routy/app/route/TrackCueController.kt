@@ -28,6 +28,12 @@ class TrackCueController(context: Context) {
         vibrate(120)
     }
 
+    /** Stronger cue for non-normal celebration tiers on walk complete. */
+    fun celebration() {
+        tone.startTone(ToneGenerator.TONE_CDMA_ALERT_NETWORK_LITE, 450)
+        vibrate(220)
+    }
+
     fun release() {
         tone.release()
     }

@@ -99,6 +99,7 @@ fun RoutyMapView(
     selectedNodeId: Int? = null,
     selectedSegmentId: Int? = null,
     moveNodeId: Int? = null,
+    homeNodeId: Int? = null,
     overlayLine: List<GeoPoint> = emptyList(),
     editVertices: List<GeoPoint>? = null,
     selectedEditVertexIndex: Int? = null,
@@ -156,7 +157,7 @@ fun RoutyMapView(
         map.setStyle(Style.Builder().fromUri(style.assetUri)) { newStyle -> loadedStyle = newStyle }
     }
 
-    LaunchedEffect(loadedStyle, nodes, segments, routeGeometry, stations, myLocation, routeColor, completedWaypointIndex, goldenSegmentIds, selectedNodeId, moveNodeId, selectedSegmentId, overlayLine, editVertices, selectedEditVertexIndex, emphasizeNetworkSegments, waymarkedOverlay) {
+    LaunchedEffect(loadedStyle, nodes, segments, routeGeometry, stations, myLocation, routeColor, completedWaypointIndex, goldenSegmentIds, selectedNodeId, moveNodeId, homeNodeId, selectedSegmentId, overlayLine, editVertices, selectedEditVertexIndex, emphasizeNetworkSegments, waymarkedOverlay) {
         val currentStyle = loadedStyle ?: return@LaunchedEffect
         updateWaymarkedOverlay(currentStyle, waymarkedOverlay)
         updateSegmentsLayer(currentStyle, segments, emphasizeNetworkSegments)
@@ -165,7 +166,7 @@ fun RoutyMapView(
         updateOverlayLayer(currentStyle, overlayLine)
         updateEditVerticesLayer(currentStyle, editVertices, selectedEditVertexIndex)
         updateRouteLayer(currentStyle, routeGeometry, routeColor)
-        updateNodesLayer(currentStyle, nodes, selectedNodeId, moveNodeId)
+        updateNodesLayer(currentStyle, nodes, selectedNodeId, moveNodeId, homeNodeId)
         updateStationsLayer(currentStyle, stations, completedWaypointIndex)
         updateMyLocationLayer(currentStyle, myLocation)
     }
@@ -423,17 +424,17 @@ private fun updateOverlayLayer(style: Style, overlayLine: List<GeoPoint>) {
     style.addLayer(layer)
 }
 
-private fun updateNodesLayer(style: Style, nodes: List<NodeDto>, selectedNodeId: Int?, moveNodeId: Int?) {
+private fun updateNodesLayer(style: Style, nodes: List<NodeDto>, selectedNodeId: Int?, moveNodeId: Int?, homeNodeId: Int?) {
     val features = nodes.map { node ->
         val color = when {
             node.id == moveNodeId -> "#1e4a32"
             node.id == selectedNodeId -> "#2563eb"
-            node.isHome -> "#a5711c"
+            node.id == homeNodeId || (homeNodeId == null && node.isHome) -> "#a5711c"
             else -> "#2e6b49"
         }
         val radius = when {
             node.id == moveNodeId || node.id == selectedNodeId -> 8f
-            node.isHome -> 5f
+            node.id == homeNodeId || (homeNodeId == null && node.isHome) -> 5f
             else -> 3f
         }
         val properties = JsonObject().apply {

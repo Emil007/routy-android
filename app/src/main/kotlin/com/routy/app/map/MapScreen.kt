@@ -138,6 +138,7 @@ fun MapScreen(onStartRecording: () -> Unit, modifier: Modifier = Modifier) {
             selectedNodeId = uiState.selectedNode?.id ?: uiState.moveNodeId,
             selectedSegmentId = uiState.selectedSegment?.id,
             moveNodeId = uiState.moveNodeId,
+            homeNodeId = uiState.user?.homeNodeId,
             overlayLine = overlayLine,
             editVertices = if (uiState.mode == MapMode.EditSegment) uiState.editSegmentPoints else null,
             selectedEditVertexIndex = uiState.selectedEditVertexIndex,
@@ -268,7 +269,7 @@ private fun MapNodePanel(node: NodeDto, state: MapUiState, viewModel: MapViewMod
                 Text(node.name ?: "#${node.id}", style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
                 CompactOutlinedButton(viewModel::clearSelection) { Text(stringResource(R.string.common_close), style = MaterialTheme.typography.labelSmall) }
             }
-            if (node.isHome) Text(stringResource(R.string.map_node_home), style = MaterialTheme.typography.labelSmall)
+            if (node.id == state.user?.homeNodeId) Text(stringResource(R.string.map_node_home), style = MaterialTheme.typography.labelSmall)
             if (canEdit) {
                 if (state.renamingNode) {
                     OutlinedTextField(state.renamePart1, viewModel::updateRenamePart1, label = { Text(stringResource(R.string.record_name_part1)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
@@ -277,14 +278,14 @@ private fun MapNodePanel(node: NodeDto, state: MapUiState, viewModel: MapViewMod
                 } else {
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         CompactOutlinedButton(viewModel::startRenameNode) { Text(stringResource(R.string.map_rename)) }
-                        if (!node.isHome) CompactOutlinedButton(viewModel::setHomeNode) { Text(stringResource(R.string.map_set_home)) }
+                        if (node.id != state.user?.homeNodeId) CompactOutlinedButton(viewModel::setHomeNode) { Text(stringResource(R.string.map_set_home)) }
                         CompactOutlinedButton(viewModel::toggleMoveNode) {
                             Text(if (state.moveNodeId == node.id) stringResource(R.string.map_move_active) else stringResource(R.string.map_move))
                         }
                         CompactOutlinedButton(viewModel::deleteSelectedNode) { Text(stringResource(R.string.map_delete)) }
                     }
                 }
-            } else if (!node.isHome) {
+            } else if (node.id != state.user?.homeNodeId) {
                 CompactOutlinedButton(viewModel::setHomeNode) { Text(stringResource(R.string.map_set_home)) }
             }
         }

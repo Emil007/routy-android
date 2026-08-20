@@ -133,54 +133,22 @@ fun RouteScreen(onStartRecording: () -> Unit, accountLocaleTag: String, modifier
             viewModel = viewModel,
             modifier = modifier,
         )
-        return
+    } else {
+        RouteWithMapLayout(
+            uiState = uiState,
+            route = route,
+            viewModel = viewModel,
+            accountLocaleTag = accountLocaleTag,
+            onStartRecording = onStartRecording,
+            modifier = modifier,
+        )
     }
 
-    RouteWithMapLayout(
-        uiState = uiState,
-        route = route,
-        viewModel = viewModel,
-        accountLocaleTag = accountLocaleTag,
-        onStartRecording = onStartRecording,
-        modifier = modifier,
-    )
-
-    val pointsEarned = uiState.completionPointsEarned
-    if (pointsEarned != null) {
-        val tierTitle = celebrationTitle(uiState.completionCelebrationTier)
-        AlertDialog(
-            onDismissRequest = viewModel::dismissCompletionStats,
-            confirmButton = { TextButton(onClick = viewModel::dismissCompletionStats) { Text(stringResource(R.string.common_ok)) } },
-            title = { Text(tierTitle ?: stringResource(R.string.route_completion_title)) },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(
-                        stringResource(
-                            R.string.route_completion_points,
-                            pointsEarned,
-                            uiState.completionStreakMultiplier ?: 1.0,
-                        ),
-                    )
-                    uiState.completionPointBreakdown?.let { breakdown ->
-                        PointPreviewLines(breakdown)
-                    }
-                    if (uiState.completionGoldenHits > 0) {
-                        Text(stringResource(R.string.route_completion_golden_hits, uiState.completionGoldenHits))
-                    }
-                    uiState.completionCurrentStreak?.let {
-                        Text(stringResource(R.string.route_completion_streak, it))
-                    }
-                    uiState.completionWeeklyPoints?.let {
-                        Text(stringResource(R.string.route_completion_weekly, it))
-                    }
-                    if (uiState.completionNewAchievements.isNotEmpty()) {
-                        Text(stringResource(R.string.route_completion_achievements_title), fontWeight = FontWeight.SemiBold)
-                        uiState.completionNewAchievements.forEach { label ->
-                            Text(stringResource(R.string.route_completion_new_achievement, label))
-                        }
-                    }
-                }
-            },
+    uiState.completionPointsEarned?.let {
+        CompletionStatsDialog(
+            uiState = uiState,
+            accountLocaleTag = accountLocaleTag,
+            onDismiss = viewModel::dismissCompletionStats,
         )
     }
 }
@@ -909,6 +877,64 @@ private fun CompactOutlinedButton(onClick: () -> Unit, enabled: Boolean = true, 
             content()
         }
     }
+}
+
+@Composable
+private fun CompletionStatsDialog(
+    uiState: RouteUiState,
+    accountLocaleTag: String,
+    onDismiss: () -> Unit,
+) {
+    val pointsEarned = checkNotNull(uiState.completionPointsEarned)
+    val tier = uiState.completionCelebrationTier
+    val tierTitle = celebrationTitle(tier)
+    val context = LocalContext.current
+    val voiceController = rememberVoiceGuidanceController(accountLocaleTag)
+    val cueController = remember(context) { TrackCueController(context) }
+    DisposableEffect(Unit) { onDispose { cueController.release() } }
+
+    val celebrationSpoken = stringResource(R.string.route_celebration)
+    LaunchedEffect(pointsEarned, tier) {
+        if (tier != "normal") {
+            cueController.celebration()
+            voiceController.speak(celebrationSpoken)
+        }
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_ok)) } },
+        title = { Text(tierTitle ?: stringResource(R.string.route_completion_title)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(
+                    stringResource(
+                        R.string.route_completion_points,
+                        pointsEarned,
+                        uiState.completionStreakMultiplier ?: 1.0,
+                    ),
+                )
+                uiState.completionPointBreakdown?.let { breakdown ->
+                    PointPreviewLines(breakdown)
+                }
+                if (uiState.completionGoldenHits > 0) {
+                    Text(stringResource(R.string.route_completion_golden_hits, uiState.completionGoldenHits))
+                }
+                uiState.completionCurrentStreak?.let {
+                    Text(stringResource(R.string.route_completion_streak, it))
+                }
+                uiState.completionWeeklyPoints?.let {
+                    Text(stringResource(R.string.route_completion_weekly, it))
+                }
+                if (uiState.completionNewAchievements.isNotEmpty()) {
+                    Text(stringResource(R.string.route_completion_achievements_title), fontWeight = FontWeight.SemiBold)
+                    uiState.completionNewAchievements.forEach { label ->
+                        Text(stringResource(R.string.route_completion_new_achievement, label))
+                    }
+                }
+            }
+        },
+    )
 }
 
 @Composable

@@ -8,7 +8,7 @@ Same household network of paths, same accounts — but with a native map (MapLib
 |---|---|---|
 | Role | Hosts data, web UI, API | Client for phones |
 | Required? | Yes — run this first | Optional (browser works too) |
-| Version (aligned batch) | **0.37s** | **0.37a** |
+| Version (aligned batch) | **0.38s** | **0.38a** |
 
 ---
 
@@ -16,7 +16,7 @@ Same household network of paths, same accounts — but with a native map (MapLib
 
 **From CI (easiest):** every push to `main` publishes a signed APK under GitHub Actions → latest **Publish APK** run → Artifacts.
 
-**From a tag:** push `v0.37a` (or whatever the current tag is) — [release.yml](.github/workflows/release.yml) attaches an APK to the GitHub Release.
+**From a tag:** push `v0.38a` (or whatever the current tag is) — [release.yml](.github/workflows/release.yml) attaches an APK to the GitHub Release.
 
 **From source:** open in Android Studio, set `sdk.dir` in `local.properties`, run **Run app** or:
 
@@ -79,6 +79,6 @@ Gradle/Android Studio history and known device quirks: [NOTES.md](NOTES.md) (lon
 
 ## Version tags
 
-Android uses tags like **`v0.37a`**. CI `apk-publish` on `main` uses the version in [app/build.gradle.kts](app/build.gradle.kts) (and [apk-publish.yml](.github/workflows/apk-publish.yml)). Tagged releases override via the tag name.
+Android uses tags like **`v0.38a`**. CI `apk-publish` on `main` uses the version in [app/build.gradle.kts](app/build.gradle.kts) (and [apk-publish.yml](.github/workflows/apk-publish.yml)). Tagged releases override via the tag name.
 
-Server and Android keep the **same number** for a release batch (`0.37s` + `0.37a`); only the `s` / `a` suffix differs. Deploy each repo on its own schedule, but bump both when shipping a paired feature set. Server repo: [github.com/Emil007/routy](https://github.com/Emil007/routy).
+Server and Android keep the **same number** for a release batch (`0.38s` + `0.38a`); only the `s` / `a` suffix differs. Deploy each repo on its own schedule, but bump both when shipping a paired feature set. Server repo: [github.com/Emil007/routy](https://github.com/Emil007/routy).

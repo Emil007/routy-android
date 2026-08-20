@@ -17,6 +17,7 @@ import com.routy.app.logic.api.LockProposalsResponse
 import com.routy.app.logic.api.LoginRequest
 import com.routy.app.logic.api.LoginResponse
 import com.routy.app.logic.api.MapTrashResponse
+import com.routy.app.logic.api.PublicConfigResponse
 import com.routy.app.logic.api.SetupRequest
 import com.routy.app.logic.api.MeResponse
 import com.routy.app.logic.api.NicknameRequest
@@ -87,6 +88,9 @@ private val EMPTY_JSON_BODY: RequestBody = "{}".toRequestBody("application/json"
 interface ApiService {
     @GET("api/health")
     suspend fun health(): Response<HealthResponse>
+
+    @GET("api/auth/public-config")
+    suspend fun getPublicConfig(): Response<PublicConfigResponse>
 
     @POST("api/auth/setup")
     suspend fun setup(@Body body: SetupRequest): Response<LoginResponse>

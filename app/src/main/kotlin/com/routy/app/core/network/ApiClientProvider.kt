@@ -1,5 +1,6 @@
 package com.routy.app.core.network
 
+import com.routy.app.BuildConfig
 import com.routy.app.core.storage.SecureStorage
 import com.routy.app.logic.api.ProfilePatchRequest
 import com.routy.app.logic.api.ProfilePatchResponse
@@ -58,21 +59,24 @@ class ApiClientProvider(private val secureStorage: SecureStorage) {
     }
 
     private fun buildApiService(baseUrl: String): ApiService {
-        val loggingInterceptor = HttpLoggingInterceptor().apply {
-            // Headers only, never BODY — request/response bodies can carry passwords and TOTP codes.
-            level = HttpLoggingInterceptor.Level.HEADERS
-        }
-        val client = OkHttpClient.Builder()
+        val clientBuilder = OkHttpClient.Builder()
             .addInterceptor(AuthInterceptor(secureStorage))
             .addInterceptor(RetryInterceptor())
-            .addInterceptor(loggingInterceptor)
             .connectTimeout(15, TimeUnit.SECONDS)
             .readTimeout(30, TimeUnit.SECONDS)
-            .build()
+
+        // Never attach header logging in release — Authorization/Cookie must not hit logcat.
+        if (BuildConfig.DEBUG) {
+            clientBuilder.addInterceptor(
+                HttpLoggingInterceptor().apply {
+                    level = HttpLoggingInterceptor.Level.HEADERS
+                },
+            )
+        }
 
         return Retrofit.Builder()
             .baseUrl(baseUrl)
-            .client(client)
+            .client(clientBuilder.build())
             .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
             .build()
             .create(ApiService::class.java)

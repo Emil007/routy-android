@@ -86,6 +86,7 @@
     <string name="route_completion_achievements_title">New achievements</string>
     <string name="route_completion_new_achievement">• %1$s</string>
     <string name="stats_points">Points</string>
+    <string name="stats_walk_points">Points</string>
     <string name="stats_weekly_points">Weekly points</string>
     <string name="stats_points_leaderboard">Points leaderboard</string>
     <string name="stats_network_usage_title">Network usage</string>
@@ -352,6 +353,7 @@
     <string name="route_point_preview_diversity">Diversity: +%1$d</string>
     <string name="route_golden_hint">%1$d golden paths on this route</string>
     <string name="route_completion_golden_hits">%1$d golden paths hit!</string>
+    <string name="route_celebration">Great walk!</string>
     <string name="route_celebration_golden">Golden route!</string>
     <string name="route_celebration_streak">Streak bonus!</string>
     <string name="route_celebration_achievement">Great walk!</string>

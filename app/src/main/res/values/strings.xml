@@ -86,6 +86,7 @@
     <string name="route_completion_achievements_title">Neue Erfolge</string>
     <string name="route_completion_new_achievement">• %1$s</string>
     <string name="stats_points">Punkte</string>
+    <string name="stats_walk_points">Punkte</string>
     <string name="stats_weekly_points">Wochenpunkte</string>
     <string name="stats_points_leaderboard">Punkte-Rangliste</string>
     <string name="stats_network_usage_title">Netzwerk-Nutzung</string>
@@ -352,6 +353,7 @@
     <string name="route_point_preview_diversity">Vielfalt: +%1$d</string>
     <string name="route_golden_hint">%1$d goldene Wege auf dieser Route</string>
     <string name="route_completion_golden_hits">%1$d goldene Wege erwischt!</string>
+    <string name="route_celebration">Starke Runde!</string>
     <string name="route_celebration_golden">Goldene Route!</string>
     <string name="route_celebration_streak">Serien-Bonus!</string>
     <string name="route_celebration_achievement">Starker Lauf!</string>

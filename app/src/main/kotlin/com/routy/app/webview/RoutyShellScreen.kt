@@ -140,19 +140,23 @@ fun RoutyShellScreen(onSignedOut: () -> Unit, onStartRecording: () -> Unit) {
             PendingUploadBanner()
             RecordingActiveBanner(onOpenRecording = onStartRecording)
             Box(modifier = Modifier.weight(1f).fillMaxSize()) {
-                webTabs.forEach { tab ->
-                    val visible = currentTab.path == tab.path
-                    RoutyWebView(
-                        url = "$baseUrl/${tab.path}",
-                        onNavigateToLogin = { viewModel.signOut() },
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .zIndex(if (visible) 1f else 0f),
-                        interactive = visible,
-                        restoredState = webViewStates[tab.path],
-                        onStateSnapshot = { bundle -> webViewStates[tab.path] = bundle },
-                        onWebViewReady = { webView -> webViews[tab.path] = webView },
-                    )
+                val allowedHost = hostFromBaseUrl(baseUrl)
+                if (allowedHost != null) {
+                    webTabs.forEach { tab ->
+                        val visible = currentTab.path == tab.path
+                        RoutyWebView(
+                            url = "$baseUrl/${tab.path}",
+                            allowedHost = allowedHost,
+                            onNavigateToLogin = { viewModel.signOut() },
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .zIndex(if (visible) 1f else 0f),
+                            interactive = visible,
+                            restoredState = webViewStates[tab.path],
+                            onStateSnapshot = { bundle -> webViewStates[tab.path] = bundle },
+                            onWebViewReady = { webView -> webViews[tab.path] = webView },
+                        )
+                    }
                 }
                 when (currentTab.path) {
                     "route" -> Surface(
