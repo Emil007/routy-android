@@ -2,6 +2,7 @@ package com.routy.app.core
 
 import android.app.Application
 import com.routy.app.BuildConfig
+import io.sentry.Sentry
 import io.sentry.android.core.SentryAndroid
 
 /** Invoked reflectively from CrashReporting on release builds compiled with `-PsentryDsn`. */
@@ -17,5 +18,10 @@ object SentryBootstrap {
             options.environment = if (BuildConfig.DEBUG) "debug" else "release"
             options.isDebug = BuildConfig.DEBUG
         }
+    }
+
+    @JvmStatic
+    fun close() {
+        Sentry.close()
     }
 }

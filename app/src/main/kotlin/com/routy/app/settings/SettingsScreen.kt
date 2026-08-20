@@ -201,7 +201,7 @@ fun SettingsScreen(
                         checked = consent,
                         onCheckedChange = {
                             consent = it
-                            app.secureStorage.crashReportConsent = it
+                            app.applyCrashReportConsent(it)
                         },
                     )
                 }

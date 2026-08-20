@@ -23,6 +23,7 @@ data class SessionUser(
     val active: Boolean,
     val theme: String,
     val totpEnabled: Boolean,
+    val homeNodeId: Int? = null,
     val client: String = "web",
 )
 

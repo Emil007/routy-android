@@ -48,8 +48,10 @@ class RoutyApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
-        CrashReporting.install(this)
+        // SecureStorage before crash handler so consent can be read on first uncaught exception.
         secureStorage = SecureStorage(this)
+        crashReportStore = com.routy.app.core.storage.CrashReportStore(this)
+        CrashReporting.install(this, secureStorage)
         apiClientProvider = ApiClientProvider(secureStorage)
         routeProgressStore = com.routy.app.core.storage.RouteProgressStore(this)
         networkCache = com.routy.app.core.storage.NetworkCache(this)
@@ -59,7 +61,6 @@ class RoutyApplication : Application() {
         gpxCommitQueueStore = com.routy.app.core.storage.GpxCommitQueueStore(this)
         gpxCommitScheduler = com.routy.app.recording.GpxCommitScheduler(this, gpxCommitQueueStore)
         bootstrapLoader = BootstrapLoader(apiClientProvider, networkCache)
-        crashReportStore = com.routy.app.core.storage.CrashReportStore(this)
         mapTilePrefetchScheduler = MapTilePrefetchScheduler(this)
         networkCache.loadBootstrap()?.user?.locale?.let { AccountLocale.apply(it) }
         networkCache.loadBootstrap()?.user?.theme?.let { AccountTheme.apply(it) }
@@ -79,10 +80,22 @@ class RoutyApplication : Application() {
         }
     }
 
+    /** Settings toggle: persist consent, then upload pending / init Sentry, or clear + close Sentry. */
+    fun applyCrashReportConsent(enabled: Boolean) {
+        secureStorage.crashReportConsent = enabled
+        if (enabled) {
+            CrashReporting.enableSentry(this)
+            appScope.launch { uploadPendingCrashReport() }
+        } else {
+            crashReportStore.clear()
+            CrashReporting.disableSentry()
+        }
+    }
+
     private suspend fun uploadPendingCrashReport() {
+        if (!secureStorage.crashReportConsent) return
         val pending = crashReportStore.load() ?: return
         if (secureStorage.token.isNullOrBlank()) return
-        if (!secureStorage.crashReportConsent) return
         val res = runCatching {
             apiClientProvider.service.reportCrash(
                 com.routy.app.logic.api.CrashReportRequest(

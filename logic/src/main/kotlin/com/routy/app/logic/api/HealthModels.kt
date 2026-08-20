@@ -12,9 +12,18 @@ data class CaptchaConfig(
     fun isRequired(): Boolean = provider != "none" && !siteKey.isNullOrBlank() && !scriptSrc.isNullOrBlank() && !widgetClass.isNullOrBlank()
 }
 
+/** Minimal public liveness — no setup/captcha fingerprinting. */
 @Serializable
 data class HealthResponse(
     val status: String,
+    val version: String? = null,
+    val versionDisplay: String? = null,
+    val dbReachable: Boolean = false,
+)
+
+/** Login/onboarding bootstrap: setup flag + captcha widget config. */
+@Serializable
+data class PublicConfigResponse(
     val needsSetup: Boolean = false,
     val captcha: CaptchaConfig = CaptchaConfig(),
 )

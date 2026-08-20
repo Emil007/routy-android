@@ -29,6 +29,14 @@ data class WalkLogEntryDto(
     val durationMin: Int,
     val nickname: String? = null,
     val acceptedAt: String,
+    val pointsEarned: Int? = null,
+    val pointsBase: Int? = null,
+    val pointsGolden: Int? = null,
+    val pointsExploration: Int? = null,
+    val pointsDiversity: Int? = null,
+    val streakMultiplier: Double? = null,
+    val celebrationTier: String? = null,
+    val goldenHits: Int? = null,
 )
 
 @Serializable

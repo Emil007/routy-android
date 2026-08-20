@@ -837,7 +837,7 @@ class MapViewModel(
                         cached.segments,
                         cached.segmentConditions,
                         cached.avoidSegmentIds,
-                        cached.lockProposals.map { it.toDetail(_uiState.value.segments, _uiState.value.nodes) },
+                        cached.lockProposals.map { it.toDetail(cached.segments, cached.nodes) },
                         offline = false,
                         todayGoldenSegmentIds = cached.todayGoldenSegmentIds,
                     )
