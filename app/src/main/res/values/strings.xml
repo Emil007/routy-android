@@ -114,6 +114,7 @@
     <string name="route_destination">Ziel</string>
     <string name="route_waypoint">Zwischenziel</string>
     <string name="route_waypoint_none">Kein Zwischenziel</string>
+    <string name="route_force_golden">Goldenen Weg heute einbauen</string>
     <string name="route_explorer_mode">Explorer-Modus</string>
     <string name="route_explorer_mode_hint">Bevorzugt Wegabschnitte, die noch nie gegangen wurden.</string>
     <string name="route_generating">Suche passende Route …</string>

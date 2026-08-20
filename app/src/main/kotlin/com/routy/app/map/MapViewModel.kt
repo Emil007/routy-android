@@ -836,7 +836,7 @@ class MapViewModel(
                         cached.segments,
                         cached.segmentConditions,
                         cached.avoidSegmentIds,
-                        cached.lockProposals.map { it.toDetail(_uiState.value.segments) },
+                        cached.lockProposals.map { it.toDetail(_uiState.value.segments, _uiState.value.nodes) },
                         offline = false,
                     )
                 }
@@ -849,7 +849,7 @@ class MapViewModel(
                     result.body.segments,
                     result.body.segmentConditions,
                     result.body.avoidSegmentIds,
-                    result.body.lockProposals.map { it.toDetail(result.body.segments) },
+                    result.body.lockProposals.map { it.toDetail(result.body.segments, result.body.nodes) },
                     offline = false,
                 )
                 is BootstrapResult.NotModified -> applyNetwork(
@@ -858,7 +858,7 @@ class MapViewModel(
                     result.cached.segments,
                     result.cached.segmentConditions,
                     result.cached.avoidSegmentIds,
-                    result.cached.lockProposals.map { it.toDetail(result.cached.segments) },
+                    result.cached.lockProposals.map { it.toDetail(result.cached.segments, result.cached.nodes) },
                     offline = false,
                 )
                 is BootstrapResult.CachedOnly -> applyNetwork(
@@ -867,7 +867,7 @@ class MapViewModel(
                     result.cached.segments,
                     result.cached.segmentConditions,
                     result.cached.avoidSegmentIds,
-                    result.cached.lockProposals.map { it.toDetail(result.cached.segments) },
+                    result.cached.lockProposals.map { it.toDetail(result.cached.segments, result.cached.nodes) },
                     offline = true,
                 )
                 BootstrapResult.Unauthorized, BootstrapResult.Failed -> {
@@ -908,12 +908,21 @@ class MapViewModel(
         )
     }
 
-    private fun com.routy.app.logic.api.LockProposalDto.toDetail(segments: List<SegmentDto>): LockProposalDetailDto {
+    private fun com.routy.app.logic.api.LockProposalDto.toDetail(
+        segments: List<SegmentDto>,
+        nodes: List<NodeDto>,
+    ): LockProposalDetailDto {
         val seg = segments.find { it.id == segmentId }
+        val named = seg?.name
+        val fallback = seg?.let { s ->
+            val start = nodes.find { it.id == s.startNodeId }?.name ?: "#${s.startNodeId}"
+            val end = nodes.find { it.id == s.endNodeId }?.name ?: "#${s.endNodeId}"
+            "$start — $end"
+        }
         return LockProposalDetailDto(
             id = id,
             segmentId = segmentId,
-            segmentName = seg?.name,
+            segmentName = named ?: fallback,
             requestedBy = requestedBy,
             reason = reason,
             days = days,

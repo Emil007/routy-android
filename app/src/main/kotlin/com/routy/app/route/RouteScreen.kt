@@ -258,7 +258,7 @@ private fun SuggestingMapLayout(
     var mapStyle by remember { mutableStateOf(BaseMapStyle.STREETS) }
     var waymarkedOverlay by remember { mutableStateOf(false) }
     var expanded by remember { mutableStateOf(false) }
-    val hasSecondary = uiState.favorites.isNotEmpty() || !uiState.isLoop || uiState.waypointNodeId != null
+    val hasSecondary = true // waypoint + forceGolden live under "more options"
 
     Box(modifier = modifier.fillMaxSize()) {
         RoutyMapView(
@@ -315,6 +315,10 @@ private fun SuggestingMapLayout(
                             stringResource(R.string.route_waypoint_none),
                             dense = true,
                         )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Checkbox(checked = uiState.forceGolden, onCheckedChange = viewModel::setForceGolden)
+                            Text(stringResource(R.string.route_force_golden), style = MaterialTheme.typography.labelSmall)
+                        }
                     }
                 }
             }
@@ -419,6 +423,18 @@ private fun RouteOverlayPanel(
                 if (uiState.mode == RouteMode.ACTIVE && uiState.tracking) {
                     TrackProgressChip(uiState, route)
                 }
+            }
+            val stationPath = route.shortStationGroups.joinToString(" › ") { group ->
+                val via = group.viaSegmentName
+                if (via.isNullOrBlank()) group.text else "${group.text} (via $via)"
+            }
+            if (stationPath.isNotBlank()) {
+                Text(
+                    stationPath,
+                    style = MaterialTheme.typography.labelMedium,
+                    maxLines = 2,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                )
             }
             uiState.pointPreview?.let { preview ->
                 PointPreviewCard(preview)
