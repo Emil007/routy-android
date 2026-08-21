@@ -61,6 +61,11 @@
             android:exported="false"
             android:foregroundServiceType="location" />
 
+        <service
+            android:name=".route.RouteTrackingForegroundService"
+            android:exported="false"
+            android:foregroundServiceType="location" />
+
         <receiver
             android:name=".widget.RoutyWidgetProvider"
             android:exported="true"
