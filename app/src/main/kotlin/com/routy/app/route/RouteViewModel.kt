@@ -291,7 +291,36 @@ class RouteViewModel(
         if (enabled && !_uiState.value.watchingLocation) return
         _uiState.value = _uiState.value.copy(voiceEnabled = enabled)
     }
-    fun setTracking(enabled: Boolean) { _uiState.value = _uiState.value.copy(tracking = enabled) }
+    fun setTracking(enabled: Boolean) {
+        _uiState.value = _uiState.value.copy(
+            tracking = enabled,
+            watchingLocation = if (enabled) true else _uiState.value.watchingLocation,
+        )
+    }
+
+    /** Apply progress updates from [RouteTrackingForegroundService] (background-safe). */
+    fun syncFromTrackingService(completedWaypointIndex: Int, voiceAnnouncedIndex: Int, trackingActive: Boolean) {
+        val state = _uiState.value
+        val route = state.route
+        val completed = maxOf(state.completedWaypointIndex, completedWaypointIndex)
+        val voiceIdx = maxOf(state.voiceAnnouncedIndex, voiceAnnouncedIndex)
+        val nextTracking = if (!trackingActive) false else state.tracking
+        if (
+            completed == state.completedWaypointIndex &&
+            voiceIdx == state.voiceAnnouncedIndex &&
+            nextTracking == state.tracking
+        ) {
+            return
+        }
+        if (route != null && (completed != state.completedWaypointIndex || voiceIdx != state.voiceAnnouncedIndex)) {
+            routeProgressStore.save(routeKey(route), completed, voiceIdx)
+        }
+        _uiState.value = state.copy(
+            completedWaypointIndex = completed,
+            voiceAnnouncedIndex = voiceIdx,
+            tracking = nextTracking,
+        )
+    }
     fun setKeepScreenOn(enabled: Boolean) { _uiState.value = _uiState.value.copy(keepScreenOn = enabled) }
     fun toggleControls() { _uiState.value = _uiState.value.copy(showControls = !_uiState.value.showControls) }
     fun clearPendingShareUrl() { _uiState.value = _uiState.value.copy(pendingShareUrl = null) }
