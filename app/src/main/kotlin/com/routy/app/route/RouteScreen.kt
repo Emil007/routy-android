@@ -3,7 +3,13 @@ package com.routy.app.route
 import android.Manifest
 import android.annotation.SuppressLint
 import android.content.ClipData
+import android.content.ComponentName
+import android.content.Context
+import android.content.Intent
+import android.content.ServiceConnection
 import android.content.pm.PackageManager
+import android.os.Build
+import android.os.IBinder
 import android.os.Looper
 import android.view.WindowManager
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -91,6 +97,7 @@ import com.routy.app.logic.route.WaypointProgressTracker
 import com.routy.app.map.BaseMapStyle
 import com.routy.app.map.MapStyleSwitcher
 import com.routy.app.map.RoutyMapView
+import com.routy.app.recording.BatteryOptimizationPrompt
 import com.routy.app.ui.OfflineBanner
 import java.text.Collator
 
@@ -411,6 +418,42 @@ private fun RouteWithMapLayout(
         hasLocationPermission = granted
         if (granted) viewModel.setWatchingLocation(true)
     }
+    fun needsNotificationPermission() =
+        Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+
+    var pendingStartTracking by remember { mutableStateOf(false) }
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
+        if (pendingStartTracking) {
+            pendingStartTracking = false
+            viewModel.setTracking(true)
+        }
+    }
+    val trackingLocationPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        hasLocationPermission = granted
+        if (!granted) {
+            pendingStartTracking = false
+            return@rememberLauncherForActivityResult
+        }
+        if (needsNotificationPermission()) {
+            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        } else {
+            pendingStartTracking = false
+            viewModel.setTracking(true)
+        }
+    }
+    fun requestStartTracking() {
+        pendingStartTracking = true
+        when {
+            ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED ->
+                trackingLocationPermissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+            needsNotificationPermission() -> notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            else -> {
+                pendingStartTracking = false
+                viewModel.setTracking(true)
+            }
+        }
+    }
     var pendingDiscard by remember { mutableStateOf(false) }
 
     if (pendingDiscard) {
@@ -433,9 +476,13 @@ private fun RouteWithMapLayout(
         )
     }
 
-    ActiveRouteLocationEffect(uiState, hasLocationPermission, viewModel)
+    // While tracking, the foreground service owns GPS / TTS / progress so it survives the pocket.
+    ActiveRouteLocationEffect(uiState, hasLocationPermission && !uiState.tracking, viewModel)
     if (uiState.mode == RouteMode.ACTIVE) {
-        ActiveTrackingEffects(uiState, route, viewModel, accountLocaleTag)
+        ActiveRouteTrackingServiceEffect(uiState, route, viewModel, accountLocaleTag)
+        if (!uiState.tracking) {
+            ActiveTrackingEffects(uiState, route, viewModel, accountLocaleTag)
+        }
     }
 
     val loading = uiState.status == RouteStatus.LOADING
@@ -564,7 +611,10 @@ private fun RouteWithMapLayout(
                         }
                         FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                             if (uiState.watchingLocation) {
-                                CompactOutlinedButton(onClick = { viewModel.setTracking(!uiState.tracking) }) {
+                                CompactOutlinedButton(onClick = {
+                                    if (uiState.tracking) viewModel.setTracking(false)
+                                    else requestStartTracking()
+                                }) {
                                     Text(stringResource(if (uiState.tracking) R.string.route_tracking_on else R.string.route_track))
                                 }
                             }
@@ -575,6 +625,9 @@ private fun RouteWithMapLayout(
                             CompactOutlinedButton(onClick = { pendingDiscard = true }) {
                                 Text(stringResource(R.string.route_discard_button))
                             }
+                        }
+                        if (uiState.tracking) {
+                            BatteryOptimizationPrompt(modifier = Modifier.fillMaxWidth())
                         }
                     }
                 }
@@ -687,11 +740,12 @@ private fun DenseTextField(value: String, onValueChange: (String) -> Unit, label
 @Composable
 private fun ActiveRouteLocationEffect(uiState: RouteUiState, hasLocationPermission: Boolean, viewModel: RouteViewModel) {
     val context = LocalContext.current
-    DisposableEffect(uiState.watchingLocation, hasLocationPermission) {
-        if (!uiState.watchingLocation || !hasLocationPermission) return@DisposableEffect onDispose {}
+    DisposableEffect(uiState.watchingLocation, hasLocationPermission, uiState.tracking) {
+        if (!uiState.watchingLocation || !hasLocationPermission || uiState.tracking) {
+            return@DisposableEffect onDispose {}
+        }
         val client = LocationServices.getFusedLocationProviderClient(context)
-        val interval = if (uiState.tracking) 3000L else 5000L
-        val request = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, interval).build()
+        val request = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 5_000L).build()
         val callback = object : LocationCallback() {
             override fun onLocationResult(result: LocationResult) {
                 result.lastLocation?.let { viewModel.setMyLocation(GeoPoint(it.latitude, it.longitude)) }
@@ -703,9 +757,80 @@ private fun ActiveRouteLocationEffect(uiState: RouteUiState, hasLocationPermissi
 }
 
 @Composable
+private fun ActiveRouteTrackingServiceEffect(
+    uiState: RouteUiState,
+    route: RouteDisplayPayload,
+    viewModel: RouteViewModel,
+    accountLocaleTag: String,
+) {
+    val context = LocalContext.current
+    var service by remember { mutableStateOf<RouteTrackingForegroundService?>(null) }
+    val routeKey = remember(route.nodeChain) { route.nodeChain.joinToString("-") }
+
+    LaunchedEffect(uiState.tracking) {
+        if (!uiState.tracking) {
+            RouteTrackingForegroundService.stop(context)
+            service = null
+        }
+    }
+
+    DisposableEffect(uiState.tracking, routeKey, accountLocaleTag) {
+        if (!uiState.tracking) {
+            return@DisposableEffect onDispose {}
+        }
+
+        RouteTrackingForegroundService.start(
+            context = context,
+            stations = route.stations,
+            routeKey = routeKey,
+            accountLocaleTag = accountLocaleTag,
+            voiceEnabled = uiState.voiceEnabled,
+            completedWaypointIndex = uiState.completedWaypointIndex,
+            voiceAnnouncedIndex = uiState.voiceAnnouncedIndex,
+        )
+
+        val connection = object : ServiceConnection {
+            override fun onServiceConnected(name: ComponentName?, binder: IBinder?) {
+                service = (binder as RouteTrackingForegroundService.LocalBinder).getService()
+            }
+
+            override fun onServiceDisconnected(name: ComponentName?) {
+                service = null
+            }
+        }
+        context.bindService(
+            Intent(context, RouteTrackingForegroundService::class.java),
+            connection,
+            Context.BIND_AUTO_CREATE,
+        )
+        onDispose {
+            runCatching { context.unbindService(connection) }
+        }
+    }
+
+    LaunchedEffect(uiState.tracking, uiState.voiceEnabled) {
+        if (uiState.tracking) {
+            RouteTrackingForegroundService.setVoiceEnabled(context, uiState.voiceEnabled)
+        }
+    }
+
+    LaunchedEffect(service) {
+        val bound = service ?: return@LaunchedEffect
+        bound.state.collect { serviceState ->
+            serviceState.myLocation?.let(viewModel::setMyLocation)
+            viewModel.syncFromTrackingService(
+                completedWaypointIndex = serviceState.completedWaypointIndex,
+                voiceAnnouncedIndex = serviceState.voiceAnnouncedIndex,
+                trackingActive = serviceState.active,
+            )
+        }
+    }
+}
+
+@Composable
 private fun ActiveTrackingEffects(
     uiState: RouteUiState,
-    route: com.routy.app.logic.api.RouteDisplayPayload,
+    route: RouteDisplayPayload,
     viewModel: RouteViewModel,
     accountLocaleTag: String,
 ) {
