@@ -67,6 +67,7 @@
     <string name="route_offline_cached">Server nicht erreichbar — gecachte Netzwerkdaten</string>
     <string name="route_track">Track</string>
     <string name="route_tracking_on">Tracking an</string>
+    <string name="route_track_stop">Tracking beenden</string>
     <string name="route_keep_screen_on">Bildschirm an</string>
     <string name="route_more_options">Mehr</string>
     <string name="route_less_options">Weniger</string>
@@ -370,4 +371,8 @@
     <string name="notification_recording_channel_name">Wegaufzeichnung</string>
     <string name="notification_recording_title">Aufzeichnung läuft</string>
     <string name="notification_recording_text">%1$d Punkte, %2$s km</string>
+    <string name="notification_route_tracking_channel_name">Routen-Tracking</string>
+    <string name="notification_route_tracking_title">Route wird getrackt</string>
+    <string name="notification_route_tracking_text">Station %1$d / %2$d</string>
+    <string name="notification_route_tracking_text_next">%1$d / %2$d → %3$s</string>
 </resources>
