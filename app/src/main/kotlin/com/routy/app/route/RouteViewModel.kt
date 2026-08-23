@@ -12,9 +12,11 @@ import com.routy.app.logic.cache.CachedBootstrap
 import com.routy.app.logic.cache.CachedNetwork
 import com.routy.app.core.storage.NetworkCache
 import com.routy.app.core.storage.RouteProgressStore
+import com.routy.app.core.storage.RouteWalkTrackStore
+import com.routy.app.logic.api.AdjustRouteRequest
 import com.routy.app.map.MapTilePrefetchScheduler
 import com.routy.app.logic.api.AchievementsDto
-import com.routy.app.logic.api.AdjustRouteRequest
+import com.routy.app.logic.api.CompleteRouteRequest
 import com.routy.app.logic.api.ApiErrorBody
 import com.routy.app.logic.api.FavoriteEntry
 import com.routy.app.logic.api.GenerateRouteRequest
@@ -22,14 +24,21 @@ import com.routy.app.logic.api.GameSummaryDto
 import com.routy.app.logic.api.GeoPoint
 import com.routy.app.logic.api.NicknameRequest
 import com.routy.app.logic.api.NodeDto
+import com.routy.app.logic.api.NodeMoveRequest
+import com.routy.app.logic.api.NodeRenameRequest
 import com.routy.app.logic.api.PointPreviewBreakdown
 import com.routy.app.logic.api.RouteDisplayPayload
+import com.routy.app.logic.api.RateWalkRequest
 import com.routy.app.logic.api.RouteTokenRequest
 import com.routy.app.logic.api.RouteStateResponse
 import com.routy.app.logic.api.SaveFavoriteRequest
 import com.routy.app.logic.api.SegmentDto
 import com.routy.app.logic.api.goldenHitsOnRoute
 import com.routy.app.logic.api.ShareFavoriteRequest
+import com.routy.app.logic.geo.LatLng
+import com.routy.app.logic.geo.haversineMeters
+import com.routy.app.logic.route.RetagLocationBuffer
+import com.routy.app.logic.route.ROUTE_TRACK_GEOMETRY_ACCURACY_MAX_M
 import java.io.IOException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -42,17 +51,25 @@ import kotlinx.serialization.json.Json
 enum class RouteMode { SUGGESTING, ACTIVE }
 enum class RouteStatus { IDLE, LOADING, ERROR }
 
+/** Map compass cycle: north + free rotate → heading-up → north locked. */
+enum class MapCompassMode { NORTH_FREE, HEADING_UP, NORTH_LOCKED }
+
 data class RouteUiState(
     val loadingInitial: Boolean = true,
     val offlineCached: Boolean = false,
     val nodes: List<NodeDto> = emptyList(),
     val segments: List<SegmentDto> = emptyList(),
     val favorites: List<FavoriteEntry> = emptyList(),
+    val homeNodeId: Int? = null,
 
     val startNodeId: Int? = null,
     val isLoop: Boolean = true,
     val destinationNodeId: Int? = null,
-    val waypointNodeId: Int? = null,
+    val mustVisitNodeIds: List<Int> = emptyList(),
+    val requiredSegmentIds: List<Int> = emptyList(),
+    val excludedSegmentIds: List<Int> = emptyList(),
+    val selectedNodeId: Int? = null,
+    val selectedSegmentId: Int? = null,
     val forceGolden: Boolean = false,
     val explorerMode: Boolean = false,
 
@@ -61,27 +78,48 @@ data class RouteUiState(
     val route: RouteDisplayPayload? = null,
     val status: RouteStatus = RouteStatus.IDLE,
     val messageRes: Int? = null,
+    val messageArgs: List<Any> = emptyList(),
 
     val nickname: String = "",
     val nicknameSaving: Boolean = false,
 
-    val suggestFavoriteName: String = "",
     val savingFavorite: Boolean = false,
 
     val myLocation: GeoPoint? = null,
-    val watchingLocation: Boolean = false,
+    val locationBearing: Float? = null,
+    val locationSpeed: Float? = null,
+    val followEnabled: Boolean = false,
     val voiceEnabled: Boolean = false,
-    val tracking: Boolean = false,
+    val trackEnabled: Boolean = false,
+    val trackedGeometry: List<GeoPoint> = emptyList(),
+    val compassMode: MapCompassMode = MapCompassMode.NORTH_FREE,
     val keepScreenOn: Boolean = true,
     val completedWaypointIndex: Int = -1,
     val voiceAnnouncedIndex: Int = 0,
     val showControls: Boolean = true,
+
+    /** Active-walk retag (spec D7): long-press nearby station → name-parts editor. */
+    val retagNodeId: Int? = null,
+    val retagLat: Double? = null,
+    val retagLng: Double? = null,
+    val retagPart1: String = "",
+    val retagPart2: String = "",
+    val retagOfferMove: Boolean = false,
+    val retagMoveLat: Double? = null,
+    val retagMoveLng: Double? = null,
+    val retagSaving: Boolean = false,
 
     val pendingShareUrl: String? = null,
     val pendingShareToken: String? = null,
     val sharedRouteName: String? = null,
 
     val completionPointsEarned: Int? = null,
+    val completionWalkId: Int? = null,
+    val completionRouteSnapshot: RouteDisplayPayload? = null,
+    val completionFavoriteName: String = "",
+    val completionLengthRating: Int? = null,
+    val completionRatingSaving: Boolean = false,
+    val completionRatingSaved: Boolean = false,
     val completionStreakMultiplier: Double? = null,
     val completionCurrentStreak: Int? = null,
     val completionWeeklyPoints: Int? = null,
@@ -96,11 +134,14 @@ data class RouteUiState(
     val todayGoldenSegmentIds: Set<Int> = emptySet(),
     val pointPreview: PointPreviewBreakdown? = null,
     val goldenHitIds: Set<Int> = emptySet(),
+    /** null = unknown; true = network suggest min/max; false = personal taste. */
+    val usingNetworkFallback: Boolean? = null,
 )
 
 class RouteViewModel(
     private val apiClientProvider: ApiClientProvider,
     private val routeProgressStore: RouteProgressStore,
+    private val routeWalkTrackStore: RouteWalkTrackStore,
     private val networkCache: NetworkCache,
     private val bootstrapLoader: BootstrapLoader,
     private val mapTilePrefetchScheduler: MapTilePrefetchScheduler,
@@ -110,6 +151,7 @@ class RouteViewModel(
 
     private val errorJson = Json { ignoreUnknownKeys = true }
     private val initialLoadDone = MutableStateFlow(false)
+    private val retagLocationBuffer = RetagLocationBuffer()
 
     init {
         loadInitial()
@@ -231,10 +273,19 @@ class RouteViewModel(
 
     private fun restoreProgress(activeRoute: RouteDisplayPayload?) {
         val route = activeRoute ?: return
-        val saved = routeProgressStore.load(routeKey(route)) ?: return
+        val key = routeKey(route)
+        val saved = routeProgressStore.load(key) ?: return
+        val savedTrack = routeWalkTrackStore.load(key)
         _uiState.value = _uiState.value.copy(
             completedWaypointIndex = saved.completedIndex,
             voiceAnnouncedIndex = saved.voiceAnnouncedIndex,
+            trackedGeometry = savedTrack?.points
+                ?.filter { point ->
+                    val accuracy = point.accuracy
+                    accuracy == null || accuracy <= ROUTE_TRACK_GEOMETRY_ACCURACY_MAX_M
+                }
+                ?.map { GeoPoint(it.lat, it.lng) }
+                .orEmpty(),
         )
     }
 
@@ -254,8 +305,9 @@ class RouteViewModel(
             nodes = nodes,
             segments = segments,
             favorites = state?.favorites.orEmpty(),
-            startNodeId = resolvedHome,
-            destinationNodeId = resolvedHome,
+            homeNodeId = resolvedHome,
+            startNodeId = _uiState.value.startNodeId ?: resolvedHome,
+            destinationNodeId = _uiState.value.destinationNodeId ?: resolvedHome,
             mode = if (state?.activeRoute != null) RouteMode.ACTIVE else RouteMode.SUGGESTING,
             route = state?.activeRoute,
             nickname = state?.nickname ?: "",
@@ -270,45 +322,197 @@ class RouteViewModel(
         if (state?.activeRoute != null) prefetchMapTiles(state.activeRoute)
     }
 
-    fun setStartNodeId(id: Int) { _uiState.value = _uiState.value.copy(startNodeId = id) }
-    fun setIsLoop(loop: Boolean) { _uiState.value = _uiState.value.copy(isLoop = loop) }
+    fun setStartNodeId(id: Int) {
+        _uiState.value = _uiState.value.copy(
+            startNodeId = id,
+            destinationNodeId = if (_uiState.value.isLoop) id else _uiState.value.destinationNodeId,
+        )
+    }
+    fun setIsLoop(loop: Boolean) {
+        val state = _uiState.value
+        _uiState.value = state.copy(
+            isLoop = loop,
+            destinationNodeId = if (loop) state.startNodeId else state.destinationNodeId,
+        )
+    }
     fun setDestinationNodeId(id: Int) { _uiState.value = _uiState.value.copy(destinationNodeId = id) }
-    fun setWaypointNodeId(id: Int?) { _uiState.value = _uiState.value.copy(waypointNodeId = id) }
     fun setForceGolden(value: Boolean) { _uiState.value = _uiState.value.copy(forceGolden = value) }
     fun setExplorerMode(enabled: Boolean) { _uiState.value = _uiState.value.copy(explorerMode = enabled) }
     fun setNickname(value: String) { _uiState.value = _uiState.value.copy(nickname = value) }
-    fun setSuggestFavoriteName(value: String) { _uiState.value = _uiState.value.copy(suggestFavoriteName = value) }
-    fun setMyLocation(point: GeoPoint?) { _uiState.value = _uiState.value.copy(myLocation = point) }
-    fun setWatchingLocation(watching: Boolean) {
-        _uiState.value = _uiState.value.copy(
-            watchingLocation = watching,
-            myLocation = if (watching) _uiState.value.myLocation else null,
-            tracking = if (watching) _uiState.value.tracking else false,
-            voiceEnabled = if (watching) _uiState.value.voiceEnabled else false,
-        )
+    fun setCompletionFavoriteName(value: String) { _uiState.value = _uiState.value.copy(completionFavoriteName = value) }
+
+    fun onPlanningMapClick(lat: Double, lng: Double) {
+        val state = _uiState.value
+        if (state.route != null || state.mode != RouteMode.SUGGESTING) return
+        val point = com.routy.app.logic.geo.LatLng(lat, lng)
+        val nearestNode = state.nodes
+            .map { it to com.routy.app.logic.geo.haversineMeters(point, com.routy.app.logic.geo.LatLng(it.lat, it.lng)) }
+            .minByOrNull { it.second }
+            ?.takeIf { it.second <= PLANNING_NODE_TAP_RADIUS_M }
+            ?.first
+        if (nearestNode != null) {
+            _uiState.value = state.copy(selectedNodeId = nearestNode.id, selectedSegmentId = null)
+            return
+        }
+        val segmentHit = com.routy.app.logic.geo.findSegmentAtTap(state.segments, point)
+        if (segmentHit != null) {
+            _uiState.value = state.copy(selectedSegmentId = segmentHit.first.id, selectedNodeId = null)
+            return
+        }
+        _uiState.value = state.copy(selectedNodeId = null, selectedSegmentId = null)
     }
-    fun setVoiceEnabled(enabled: Boolean) {
-        if (enabled && !_uiState.value.watchingLocation) return
-        _uiState.value = _uiState.value.copy(voiceEnabled = enabled)
-    }
-    fun setTracking(enabled: Boolean) {
-        _uiState.value = _uiState.value.copy(
-            tracking = enabled,
-            watchingLocation = if (enabled) true else _uiState.value.watchingLocation,
+
+    private fun clearNodeRole(nodeId: Int) {
+        val state = _uiState.value
+        val home = state.homeNodeId
+        _uiState.value = state.copy(
+            startNodeId = if (state.startNodeId == nodeId) home else state.startNodeId,
+            destinationNodeId = if (state.destinationNodeId == nodeId) home else state.destinationNodeId,
+            mustVisitNodeIds = state.mustVisitNodeIds.filter { it != nodeId },
         )
     }
 
+    fun setNodeAsStart(nodeId: Int) {
+        clearNodeRole(nodeId)
+        val state = _uiState.value
+        _uiState.value = state.copy(
+            startNodeId = nodeId,
+            destinationNodeId = if (state.isLoop) nodeId else state.destinationNodeId,
+            selectedNodeId = null,
+        )
+    }
+
+    fun setNodeAsEnd(nodeId: Int) {
+        clearNodeRole(nodeId)
+        _uiState.value = _uiState.value.copy(destinationNodeId = nodeId, selectedNodeId = null)
+    }
+
+    fun toggleMustVisit(nodeId: Int) {
+        val state = _uiState.value
+        if (state.mustVisitNodeIds.contains(nodeId)) {
+            _uiState.value = state.copy(
+                mustVisitNodeIds = state.mustVisitNodeIds.filter { it != nodeId },
+                selectedNodeId = null,
+            )
+        } else {
+            _uiState.value = state.copy(
+                startNodeId = if (state.startNodeId == nodeId) state.homeNodeId else state.startNodeId,
+                destinationNodeId = if (state.destinationNodeId == nodeId) state.homeNodeId else state.destinationNodeId,
+                mustVisitNodeIds = state.mustVisitNodeIds + nodeId,
+                selectedNodeId = null,
+            )
+        }
+    }
+
+    fun clearSelectedNodeRole() {
+        val nodeId = _uiState.value.selectedNodeId ?: return
+        clearNodeRole(nodeId)
+        _uiState.value = _uiState.value.copy(selectedNodeId = null)
+    }
+
+    fun setSegmentRequired(segmentId: Int) {
+        val state = _uiState.value
+        _uiState.value = state.copy(
+            excludedSegmentIds = state.excludedSegmentIds.filter { it != segmentId },
+            requiredSegmentIds = if (state.requiredSegmentIds.contains(segmentId)) state.requiredSegmentIds else state.requiredSegmentIds + segmentId,
+            selectedSegmentId = null,
+        )
+    }
+
+    fun setSegmentExcluded(segmentId: Int) {
+        val state = _uiState.value
+        _uiState.value = state.copy(
+            requiredSegmentIds = state.requiredSegmentIds.filter { it != segmentId },
+            excludedSegmentIds = if (state.excludedSegmentIds.contains(segmentId)) state.excludedSegmentIds else state.excludedSegmentIds + segmentId,
+            selectedSegmentId = null,
+        )
+    }
+
+    fun clearSegmentConstraint(segmentId: Int) {
+        val state = _uiState.value
+        _uiState.value = state.copy(
+            requiredSegmentIds = state.requiredSegmentIds.filter { it != segmentId },
+            excludedSegmentIds = state.excludedSegmentIds.filter { it != segmentId },
+            selectedSegmentId = null,
+        )
+    }
+
+    fun clearPlanningSelection() {
+        _uiState.value = _uiState.value.copy(selectedNodeId = null, selectedSegmentId = null)
+    }
+    fun setMyLocation(point: GeoPoint?) { _uiState.value = _uiState.value.copy(myLocation = point) }
+    fun addRetagLocationSample(lat: Double, lng: Double, accuracyM: Float?) {
+        retagLocationBuffer.addSample(lat, lng, accuracyM)
+    }
+    fun setLocationMotion(bearing: Float?, speed: Float?) {
+        _uiState.value = _uiState.value.copy(locationBearing = bearing, locationSpeed = speed)
+    }
+    fun setFollowEnabled(enabled: Boolean) {
+        _uiState.value = _uiState.value.copy(
+            followEnabled = enabled,
+            myLocation = if (enabled) _uiState.value.myLocation else null,
+            trackEnabled = if (enabled) _uiState.value.trackEnabled else false,
+            voiceEnabled = if (enabled) _uiState.value.voiceEnabled else false,
+            locationBearing = if (enabled) _uiState.value.locationBearing else null,
+            locationSpeed = if (enabled) _uiState.value.locationSpeed else null,
+        )
+    }
+    fun setVoiceEnabled(enabled: Boolean) {
+        if (enabled) {
+            _uiState.value = _uiState.value.copy(followEnabled = true, voiceEnabled = true)
+        } else {
+            _uiState.value = _uiState.value.copy(voiceEnabled = false)
+        }
+    }
+    fun setTrackEnabled(enabled: Boolean) {
+        _uiState.value = _uiState.value.copy(
+            trackEnabled = enabled,
+            followEnabled = if (enabled) true else _uiState.value.followEnabled,
+        )
+    }
+    fun cycleCompassMode() {
+        val next = when (_uiState.value.compassMode) {
+            MapCompassMode.NORTH_FREE -> MapCompassMode.HEADING_UP
+            MapCompassMode.HEADING_UP -> MapCompassMode.NORTH_LOCKED
+            MapCompassMode.NORTH_LOCKED -> MapCompassMode.NORTH_FREE
+        }
+        _uiState.value = _uiState.value.copy(compassMode = next)
+    }
+    fun setTrackedGeometry(points: List<GeoPoint>) {
+        if (points != _uiState.value.trackedGeometry) {
+            _uiState.value = _uiState.value.copy(trackedGeometry = points)
+        }
+    }
+
+    fun trackPointsForComplete(route: RouteDisplayPayload): List<com.routy.app.logic.route.RouteWalkTrackPoint> =
+        routeWalkTrackStore.load(routeKey(route))?.points.orEmpty()
+
     /** Apply progress updates from [RouteTrackingForegroundService] (background-safe). */
-    fun syncFromTrackingService(completedWaypointIndex: Int, voiceAnnouncedIndex: Int, trackingActive: Boolean) {
+    fun syncFromTrackingService(
+        completedWaypointIndex: Int,
+        voiceAnnouncedIndex: Int,
+        trackingActive: Boolean,
+        trackEnabled: Boolean,
+        myLocation: GeoPoint?,
+        locationBearing: Float?,
+        locationSpeed: Float?,
+        trackedGeometry: List<GeoPoint>,
+    ) {
         val state = _uiState.value
         val route = state.route
         val completed = maxOf(state.completedWaypointIndex, completedWaypointIndex)
         val voiceIdx = maxOf(state.voiceAnnouncedIndex, voiceAnnouncedIndex)
-        val nextTracking = if (!trackingActive) false else state.tracking
+        val nextTrack = when {
+            !trackingActive -> false
+            !trackEnabled && state.trackEnabled -> false
+            else -> state.trackEnabled
+        }
         if (
             completed == state.completedWaypointIndex &&
             voiceIdx == state.voiceAnnouncedIndex &&
-            nextTracking == state.tracking
+            nextTrack == state.trackEnabled &&
+            myLocation == state.myLocation &&
+            trackedGeometry == state.trackedGeometry
         ) {
             return
         }
@@ -318,7 +522,12 @@ class RouteViewModel(
         _uiState.value = state.copy(
             completedWaypointIndex = completed,
             voiceAnnouncedIndex = voiceIdx,
-            tracking = nextTracking,
+            trackEnabled = nextTrack,
+            myLocation = myLocation ?: state.myLocation,
+            locationBearing = locationBearing ?: state.locationBearing,
+            locationSpeed = locationSpeed ?: state.locationSpeed,
+            trackedGeometry = trackedGeometry,
+            followEnabled = state.followEnabled || myLocation != null,
         )
     }
     fun setKeepScreenOn(enabled: Boolean) { _uiState.value = _uiState.value.copy(keepScreenOn = enabled) }
@@ -327,6 +536,12 @@ class RouteViewModel(
     fun dismissCompletionStats() {
         _uiState.value = _uiState.value.copy(
             completionPointsEarned = null,
+            completionWalkId = null,
+            completionRouteSnapshot = null,
+            completionFavoriteName = "",
+            completionLengthRating = null,
+            completionRatingSaving = false,
+            completionRatingSaved = false,
             completionStreakMultiplier = null,
             completionCurrentStreak = null,
             completionWeeklyPoints = null,
@@ -348,6 +563,114 @@ class RouteViewModel(
         val route = _uiState.value.route ?: return
         routeProgressStore.save(routeKey(route), _uiState.value.completedWaypointIndex, announcedCount)
         _uiState.value = _uiState.value.copy(voiceAnnouncedIndex = announcedCount)
+    }
+
+    /** Long-press on map during active walk — open retag editor for a nearby route station. */
+    fun onActiveMapLongPress(lat: Double, lng: Double) {
+        if (_uiState.value.mode != RouteMode.ACTIVE) return
+        val route = _uiState.value.route ?: return
+        val tap = LatLng(lat, lng)
+        val hit = route.stations
+            .map { it to haversineMeters(tap, LatLng(it.lat, it.lng)) }
+            .minByOrNull { it.second }
+            ?.takeIf { it.second <= STATION_RETAG_RADIUS_M }
+            ?.first ?: return
+        val node = _uiState.value.nodes.find { it.id == hit.nodeId }
+        val stored = LatLng(hit.lat, hit.lng)
+        val moveTarget = retagLocationBuffer.clusterMoveTarget(stored)
+        _uiState.value = _uiState.value.copy(
+            retagNodeId = hit.nodeId,
+            retagLat = hit.lat,
+            retagLng = hit.lng,
+            retagPart1 = node?.namePart1Text ?: node?.name.orEmpty(),
+            retagPart2 = node?.namePart2Text.orEmpty(),
+            retagOfferMove = moveTarget != null,
+            retagMoveLat = moveTarget?.lat,
+            retagMoveLng = moveTarget?.lng,
+        )
+    }
+
+    fun updateRetagPart1(value: String) {
+        _uiState.value = _uiState.value.copy(retagPart1 = value)
+    }
+
+    fun updateRetagPart2(value: String) {
+        _uiState.value = _uiState.value.copy(retagPart2 = value)
+    }
+
+    fun dismissRetag() {
+        _uiState.value = _uiState.value.copy(
+            retagNodeId = null,
+            retagLat = null,
+            retagLng = null,
+            retagPart1 = "",
+            retagPart2 = "",
+            retagOfferMove = false,
+            retagMoveLat = null,
+            retagMoveLng = null,
+            retagSaving = false,
+        )
+    }
+
+    fun saveRetagNode() {
+        val state = _uiState.value
+        val nodeId = state.retagNodeId ?: return
+        val part1 = state.retagPart1.trim()
+        if (part1.isEmpty()) return
+        val part2 = state.retagPart2.trim()
+        val composed = if (part2.isEmpty()) part1 else "$part1/$part2"
+        viewModelScope.launch {
+            _uiState.value = state.copy(retagSaving = true)
+            val renameOk = runCatching {
+                apiClientProvider.service.renameNode(NodeRenameRequest(nodeId, part1, part2))
+            }.getOrNull()?.isSuccessful == true
+            var moveOk = true
+            if (renameOk && state.retagOfferMove && state.retagMoveLat != null && state.retagMoveLng != null) {
+                moveOk = runCatching {
+                    apiClientProvider.service.moveNode(NodeMoveRequest(nodeId, state.retagMoveLat, state.retagMoveLng))
+                }.getOrNull()?.isSuccessful == true
+            }
+            if (!renameOk || !moveOk) {
+                _uiState.value = state.copy(retagSaving = false, messageRes = R.string.common_error, messageArgs = emptyList())
+                return@launch
+            }
+            val moveLat = if (state.retagOfferMove) state.retagMoveLat else null
+            val moveLng = if (state.retagOfferMove) state.retagMoveLng else null
+            val updatedNodes = state.nodes.map { node ->
+                if (node.id != nodeId) node
+                else node.copy(
+                    name = composed,
+                    namePart1Text = part1,
+                    namePart2Text = part2,
+                    lat = moveLat ?: node.lat,
+                    lng = moveLng ?: node.lng,
+                )
+            }
+            val updatedRoute = state.route?.copy(
+                stations = state.route.stations.map { station ->
+                    if (station.nodeId != nodeId) station
+                    else station.copy(
+                        name = composed,
+                        speakName = composed,
+                        lat = moveLat ?: station.lat,
+                        lng = moveLng ?: station.lng,
+                    )
+                },
+            )
+            _uiState.value = state.copy(
+                nodes = updatedNodes,
+                route = updatedRoute,
+                retagNodeId = null,
+                retagLat = null,
+                retagLng = null,
+                retagPart1 = "",
+                retagPart2 = "",
+                retagOfferMove = false,
+                retagMoveLat = null,
+                retagMoveLng = null,
+                retagSaving = false,
+            )
+        }
     }
 
     fun openShareToken(token: String) {
@@ -405,6 +728,7 @@ class RouteViewModel(
                     return@launch
                 }
                 routeProgressStore.clear()
+                routeWalkTrackStore.clear()
                 applyNetworkState(
                     _uiState.value.nodes,
                     _uiState.value.segments,
@@ -441,23 +765,30 @@ class RouteViewModel(
 
     fun suggest(preset: String? = null) {
         val state = _uiState.value
-        val startNodeId = state.startNodeId ?: return
+        val startNodeId = state.startNodeId ?: state.homeNodeId
+        if (startNodeId == null) {
+            _uiState.value = state.copy(messageRes = R.string.route_no_home_node, messageArgs = emptyList())
+            return
+        }
         if (state.offlineCached) {
-            _uiState.value = state.copy(status = RouteStatus.ERROR, messageRes = R.string.route_connection_failed)
+            _uiState.value = state.copy(status = RouteStatus.ERROR, messageRes = R.string.route_connection_failed, messageArgs = emptyList())
             return
         }
         val surprise = preset == "surprise"
         val explorerMode = if (surprise) false else state.explorerMode
+        val destination = if (state.isLoop) startNodeId else (state.destinationNodeId ?: startNodeId)
+        val mustVisit = state.mustVisitNodeIds.filter { it != startNodeId && it != destination }
         viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(status = RouteStatus.LOADING, messageRes = null)
+            _uiState.value = _uiState.value.copy(status = RouteStatus.LOADING, messageRes = null, messageArgs = emptyList(), selectedNodeId = null, selectedSegmentId = null)
             val response = try {
                 apiClientProvider.service.generateRoute(
                     GenerateRouteRequest(
                         startNodeId = startNodeId,
-                        destinationNodeId = if (state.isLoop) startNodeId else (state.destinationNodeId ?: startNodeId),
-                        waypointNodeId = state.waypointNodeId,
+                        destinationNodeId = destination,
+                        mustVisitNodeIds = mustVisit,
+                        requiredSegmentIds = state.requiredSegmentIds,
+                        excludedSegmentIds = state.excludedSegmentIds,
                         explorerMode = explorerMode,
-                        surpriseMode = surprise,
                         preset = preset,
                         forceGolden = state.forceGolden,
                     ),
@@ -468,6 +799,7 @@ class RouteViewModel(
                     route = state.route,
                     token = state.token,
                     messageRes = R.string.route_connection_failed,
+                    messageArgs = emptyList(),
                 )
                 return@launch
             }
@@ -478,20 +810,40 @@ class RouteViewModel(
                         goldenHitsOnRoute(it.segmentIds, _uiState.value.todayGoldenSegmentIds, _uiState.value.segments)
                     }
                     ?: emptySet()
+                val lengthRelaxed = body?.lengthRelaxed == true
+                val lengthKm = body?.lengthKm ?: body?.route?.lengthM?.let { it / 1000.0 }
                 _uiState.value = _uiState.value.copy(
                     status = RouteStatus.IDLE,
                     token = body?.token ?: "",
                     route = body?.route,
                     pointPreview = body?.pointPreview,
                     goldenHitIds = hitIds,
+                    usingNetworkFallback = body?.usingNetworkFallback,
+                    messageRes = if (lengthRelaxed && lengthKm != null) R.string.route_length_relaxed else null,
+                    messageArgs = if (lengthRelaxed && lengthKm != null) listOf(String.format("%.2f", lengthKm)) else emptyList(),
                 )
             } else {
-                val code = parseErrorCode(response.errorBody()?.string())
+                val errorBody = response.errorBody()?.string()
+                val code = parseErrorCode(errorBody)
+                val retryAfter = parseRetryAfterSeconds(errorBody)
+                val messageRes = when {
+                    response.code() == 429 && code == "rate_limited" -> R.string.route_rate_limited
+                    code == "no_home_node" -> R.string.route_no_home_node
+                    code == "no_golden_route" -> R.string.route_no_golden_route
+                    code == "constraints_impossible" -> R.string.route_constraints_impossible
+                    else -> R.string.route_no_route_found
+                }
+                val messageArgs = if (response.code() == 429 && code == "rate_limited") {
+                    listOf(retryAfter ?: 60)
+                } else {
+                    emptyList()
+                }
                 _uiState.value = _uiState.value.copy(
                     status = RouteStatus.ERROR,
                     route = state.route,
                     token = state.token,
-                    messageRes = if (code == "no_golden_route") R.string.route_no_golden_route else R.string.route_no_route_found,
+                    messageRes = messageRes,
+                    messageArgs = messageArgs,
                 )
             }
         }
@@ -520,13 +872,16 @@ class RouteViewModel(
                         goldenHitsOnRoute(it.segmentIds, _uiState.value.todayGoldenSegmentIds, _uiState.value.segments)
                     }
                     ?: emptySet()
+                val lengthRelaxed = body?.lengthRelaxed == true
+                val lengthKm = body?.lengthKm ?: body?.route?.lengthM?.let { it / 1000.0 }
                 _uiState.value = _uiState.value.copy(
                     status = RouteStatus.IDLE,
                     token = body?.token ?: token,
                     route = body?.route,
                     pointPreview = body?.pointPreview,
                     goldenHitIds = hitIds,
-                    messageRes = null,
+                    messageRes = if (lengthRelaxed && lengthKm != null) R.string.route_length_relaxed else null,
+                    messageArgs = if (lengthRelaxed && lengthKm != null) listOf(String.format("%.2f", lengthKm)) else emptyList(),
                 )
             } else {
                 _uiState.value = _uiState.value.copy(status = RouteStatus.IDLE, messageRes = R.string.route_no_alternative)
@@ -544,6 +899,7 @@ class RouteViewModel(
             }
             if (response.isSuccessful) {
                 routeProgressStore.clear()
+                routeWalkTrackStore.clear()
                 prefetchMapTiles(_uiState.value.route)
                 _uiState.value = _uiState.value.copy(mode = RouteMode.ACTIVE, status = RouteStatus.IDLE, messageRes = null, nickname = "", completedWaypointIndex = -1, voiceAnnouncedIndex = 0)
             } else {
@@ -579,6 +935,7 @@ class RouteViewModel(
 
     fun complete() {
         viewModelScope.launch {
+            val completedRoute = _uiState.value.route
             _uiState.value = _uiState.value.copy(status = RouteStatus.LOADING)
             val beforeAchievements = runCatching {
                 apiClientProvider.service.appStatsMe()
@@ -586,12 +943,17 @@ class RouteViewModel(
                     ?.body()
                     ?.achievements
             }.getOrNull()
-            val response = try { apiClientProvider.service.completeRoute() } catch (_: IOException) {
-                _uiState.value = _uiState.value.copy(status = RouteStatus.IDLE, messageRes = R.string.common_error)
+            val route = _uiState.value.route
+            val trackPoints = route?.let { trackPointsForComplete(it) }.orEmpty()
+            val response = try {
+                apiClientProvider.service.completeRoute(CompleteRouteRequest(trackPoints = trackPoints))
+            } catch (_: IOException) {
+                _uiState.value = _uiState.value.copy(status = RouteStatus.IDLE, messageRes = R.string.common_error, messageArgs = emptyList())
                 return@launch
             }
             if (response.isSuccessful) {
                 routeProgressStore.clear()
+                routeWalkTrackStore.clear()
                 val body = response.body()
                 val afterStats = runCatching {
                     apiClientProvider.service.appStatsMe()
@@ -604,10 +966,13 @@ class RouteViewModel(
                     mode = RouteMode.SUGGESTING,
                     status = RouteStatus.IDLE,
                     messageRes = R.string.route_completed_message,
+                    messageArgs = emptyList(),
                     nickname = "",
-                    watchingLocation = false,
-                    tracking = false,
+                    followEnabled = false,
+                    trackEnabled = false,
+                    voiceEnabled = false,
                     myLocation = null,
+                    trackedGeometry = emptyList(),
                     completedWaypointIndex = -1,
                     voiceAnnouncedIndex = 0,
                     pointPreview = null,
@@ -616,6 +981,12 @@ class RouteViewModel(
                     weeklyPoints = afterStats?.points?.weeklyPoints ?: _uiState.value.weeklyPoints,
                     streakMultiplier = body?.streakMultiplier ?: _uiState.value.streakMultiplier,
                     completionPointsEarned = body?.pointsEarned,
+                    completionWalkId = body?.walkId,
+                    completionRouteSnapshot = completedRoute,
+                    completionFavoriteName = "",
+                    completionLengthRating = null,
+                    completionRatingSaving = false,
+                    completionRatingSaved = false,
                     completionStreakMultiplier = body?.streakMultiplier,
                     completionCurrentStreak = body?.currentStreak,
                     completionWeeklyPoints = afterStats?.points?.weeklyPoints,
@@ -625,64 +996,33 @@ class RouteViewModel(
                     completionCelebrationTier = body?.celebrationTier ?: "normal",
                 )
             } else {
-                _uiState.value = _uiState.value.copy(status = RouteStatus.IDLE, messageRes = R.string.common_error)
+                _uiState.value = _uiState.value.copy(status = RouteStatus.IDLE, messageRes = R.string.common_error, messageArgs = emptyList())
             }
         }
     }
 
-    fun discardActive() {
+    fun submitLengthRating(rating: Int) {
+        val walkId = _uiState.value.completionWalkId ?: return
         viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(status = RouteStatus.LOADING)
-            try { apiClientProvider.service.discardRoute() } catch (_: IOException) {}
-            routeProgressStore.clear()
+            _uiState.value = _uiState.value.copy(completionLengthRating = rating, completionRatingSaving = true)
+            val response = try {
+                apiClientProvider.service.rateWalk(RateWalkRequest(walkId, rating))
+            } catch (_: IOException) {
+                _uiState.value = _uiState.value.copy(completionRatingSaving = false, messageRes = R.string.common_error, messageArgs = emptyList())
+                return@launch
+            }
             _uiState.value = _uiState.value.copy(
-                route = null,
-                mode = RouteMode.SUGGESTING,
-                status = RouteStatus.IDLE,
-                messageRes = null,
-                nickname = "",
-                watchingLocation = false,
-                tracking = false,
-                myLocation = null,
-                completedWaypointIndex = -1,
-                voiceAnnouncedIndex = 0,
-                pointPreview = null,
-                goldenHitIds = emptySet(),
+                completionRatingSaving = false,
+                completionRatingSaved = response.isSuccessful,
+                messageRes = if (response.isSuccessful) null else R.string.common_error,
+                messageArgs = emptyList(),
             )
         }
     }
 
-    fun saveFavoriteFromSuggestion(name: String) {
-        val route = _uiState.value.route ?: return
-        val trimmed = name.trim()
-        if (trimmed.isEmpty()) return
-        viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(savingFavorite = true)
-            val response = try {
-                apiClientProvider.service.saveFavorite(
-                    SaveFavoriteRequest(trimmed, route.nodeChain, route.segmentIds, route.lengthM, route.durationMin),
-                )
-            } catch (_: IOException) {
-                _uiState.value = _uiState.value.copy(savingFavorite = false, messageRes = R.string.common_error)
-                return@launch
-            }
-            _uiState.value = _uiState.value.copy(savingFavorite = false)
-            if (response.isSuccessful) {
-                _uiState.value = _uiState.value.copy(
-                    suggestFavoriteName = "",
-                    messageRes = R.string.route_favorite_saved,
-                )
-                refreshFavorites()
-            } else {
-                _uiState.value = _uiState.value.copy(messageRes = R.string.common_error)
-            }
-        }
-    }
-
-    fun saveFavorite() {
-        val state = _uiState.value
-        val route = state.route ?: return
-        val name = state.nickname.trim()
+    fun saveFavoriteAfterComplete() {
+        val route = _uiState.value.completionRouteSnapshot ?: return
+        val name = _uiState.value.completionFavoriteName.trim()
         if (name.isEmpty()) return
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(savingFavorite = true)
@@ -691,16 +1031,41 @@ class RouteViewModel(
                     SaveFavoriteRequest(name, route.nodeChain, route.segmentIds, route.lengthM, route.durationMin),
                 )
             } catch (_: IOException) {
-                _uiState.value = _uiState.value.copy(savingFavorite = false, messageRes = R.string.common_error)
+                _uiState.value = _uiState.value.copy(savingFavorite = false, messageRes = R.string.common_error, messageArgs = emptyList())
                 return@launch
             }
-            _uiState.value = _uiState.value.copy(savingFavorite = false)
-            if (response.isSuccessful) {
-                _uiState.value = _uiState.value.copy(messageRes = R.string.route_favorite_saved)
-                refreshFavorites()
-            } else {
-                _uiState.value = _uiState.value.copy(messageRes = R.string.common_error)
-            }
+            _uiState.value = _uiState.value.copy(
+                savingFavorite = false,
+                completionFavoriteName = if (response.isSuccessful) "" else _uiState.value.completionFavoriteName,
+                messageRes = if (response.isSuccessful) R.string.route_favorite_saved else R.string.common_error,
+                messageArgs = emptyList(),
+            )
+            if (response.isSuccessful) refreshFavorites()
+        }
+    }
+
+    fun discardActive() {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(status = RouteStatus.LOADING)
+            try { apiClientProvider.service.discardRoute() } catch (_: IOException) {}
+            routeProgressStore.clear()
+            routeWalkTrackStore.clear()
+            _uiState.value = _uiState.value.copy(
+                route = null,
+                mode = RouteMode.SUGGESTING,
+                status = RouteStatus.IDLE,
+                messageRes = null,
+                nickname = "",
+                followEnabled = false,
+                trackEnabled = false,
+                voiceEnabled = false,
+                myLocation = null,
+                trackedGeometry = emptyList(),
+                completedWaypointIndex = -1,
+                voiceAnnouncedIndex = 0,
+                pointPreview = null,
+                goldenHitIds = emptySet(),
+            )
         }
     }
 
@@ -713,6 +1078,7 @@ class RouteViewModel(
             }
             if (response.isSuccessful) {
                 routeProgressStore.clear()
+                routeWalkTrackStore.clear()
                 prefetchMapTiles(favorite.display)
                 _uiState.value = _uiState.value.copy(
                     route = favorite.display,
@@ -815,6 +1181,11 @@ class RouteViewModel(
         return try { errorJson.decodeFromString(ApiErrorBody.serializer(), errorBodyJson).error } catch (_: Exception) { null }
     }
 
+    private fun parseRetryAfterSeconds(errorBodyJson: String?): Int? {
+        if (errorBodyJson == null) return null
+        return try { errorJson.decodeFromString(ApiErrorBody.serializer(), errorBodyJson).retryAfterSeconds } catch (_: Exception) { null }
+    }
+
     private fun diffNewAchievements(before: AchievementsDto?, after: AchievementsDto?): List<String> {
         if (before == null || after == null) return emptyList()
         val labels = mutableListOf<String>()
@@ -833,3 +1204,6 @@ class RouteViewModel(
         return labels
     }
 }
+
+private const val PLANNING_NODE_TAP_RADIUS_M = 45.0
+private const val STATION_RETAG_RADIUS_M = 45.0

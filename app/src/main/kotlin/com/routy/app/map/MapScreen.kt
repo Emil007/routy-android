@@ -272,8 +272,15 @@ private fun MapNodePanel(node: NodeDto, state: MapUiState, viewModel: MapViewMod
             if (node.id == state.user?.homeNodeId) Text(stringResource(R.string.map_node_home), style = MaterialTheme.typography.labelSmall)
             if (canEdit) {
                 if (state.renamingNode) {
-                    OutlinedTextField(state.renamePart1, viewModel::updateRenamePart1, label = { Text(stringResource(R.string.record_name_part1)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                    OutlinedTextField(state.renamePart2, viewModel::updateRenamePart2, label = { Text(stringResource(R.string.record_name_part2)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                    NamePartsInput(
+                        lat = node.lat,
+                        lng = node.lng,
+                        part1 = state.renamePart1,
+                        part2 = state.renamePart2,
+                        onPart1 = viewModel::updateRenamePart1,
+                        onPart2 = viewModel::updateRenamePart2,
+                        prefillPart1 = false,
+                    )
                     CompactButton(viewModel::saveRenameNode) { Text(stringResource(R.string.map_rename)) }
                 } else {
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -478,8 +485,8 @@ private fun MapDrawPanel(state: MapUiState, viewModel: MapViewModel) {
             } else {
                 val start = state.drawStartDecision ?: return@Column
                 val end = state.drawEndDecision ?: return@Column
-                EndpointBlock(stringResource(R.string.map_start), viewModel.nodeCandidates(state.drawPoints.first()), start, viewModel::updateDrawStartDecision)
-                EndpointBlock(stringResource(R.string.map_end), viewModel.nodeCandidates(state.drawPoints.last()), end, viewModel::updateDrawEndDecision)
+                EndpointBlock(stringResource(R.string.map_start), state.drawPoints.first().lat, state.drawPoints.first().lng, viewModel.nodeCandidates(state.drawPoints.first()), start, viewModel::updateDrawStartDecision)
+                EndpointBlock(stringResource(R.string.map_end), state.drawPoints.last().lat, state.drawPoints.last().lng, viewModel.nodeCandidates(state.drawPoints.last()), end, viewModel::updateDrawEndDecision)
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Checkbox(state.drawMarkStartAsHome, viewModel::setDrawMarkStartAsHome)
                     Text(stringResource(R.string.record_mark_as_home), style = MaterialTheme.typography.labelSmall)
@@ -501,8 +508,8 @@ private fun MapGpxPanel(state: MapUiState, viewModel: MapViewModel) {
                 val startPt = track.points.firstOrNull()?.let { LatLng(it.lat, it.lng) }
                 val endPt = track.points.lastOrNull()?.let { LatLng(it.lat, it.lng) }
                 Text(track.name ?: stringResource(R.string.map_gpx_track, index + 1), style = MaterialTheme.typography.titleSmall)
-                if (startPt != null) EndpointBlock(stringResource(R.string.map_start), viewModel.nodeCandidates(startPt), start) { viewModel.updateGpxDecision(index, true, it) }
-                if (endPt != null) EndpointBlock(stringResource(R.string.map_end), viewModel.nodeCandidates(endPt), end) { viewModel.updateGpxDecision(index, false, it) }
+                if (startPt != null) EndpointBlock(stringResource(R.string.map_start), startPt.lat, startPt.lng, viewModel.nodeCandidates(startPt), start) { viewModel.updateGpxDecision(index, true, it) }
+                if (endPt != null) EndpointBlock(stringResource(R.string.map_end), endPt.lat, endPt.lng, viewModel.nodeCandidates(endPt), end) { viewModel.updateGpxDecision(index, false, it) }
             }
             CompactButton(viewModel::commitGpxImport) { Text(stringResource(R.string.map_save)) }
             CompactOutlinedButton(viewModel::cancelGpxImport) { Text(stringResource(R.string.common_close)) }
@@ -545,7 +552,7 @@ private fun MapSplitPanel(state: MapUiState, viewModel: MapViewModel) {
         Column(Modifier.fillMaxWidth().padding(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             state.splitTarget?.let { target ->
                 val decision = state.splitDecision ?: EndpointDecision.NewJunction()
-                EndpointBlock(stringResource(R.string.map_split_junction), viewModel.nodeCandidates(target), decision, viewModel::updateSplitDecision)
+                EndpointBlock(stringResource(R.string.map_split_junction), target.lat, target.lng, viewModel.nodeCandidates(target), decision, viewModel::updateSplitDecision)
                 CompactButton(viewModel::confirmSplit) { Text(stringResource(R.string.map_split_confirm)) }
             }
             CompactOutlinedButton(viewModel::cancelSplit) { Text(stringResource(R.string.common_close)) }
@@ -555,7 +562,14 @@ private fun MapSplitPanel(state: MapUiState, viewModel: MapViewModel) {
 
 @OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
 @Composable
-private fun EndpointBlock(label: String, candidates: List<NodeCandidate>, decision: EndpointDecision, onDecisionChange: (EndpointDecision) -> Unit) {
+private fun EndpointBlock(
+    label: String,
+    pointLat: Double,
+    pointLng: Double,
+    candidates: List<NodeCandidate>,
+    decision: EndpointDecision,
+    onDecisionChange: (EndpointDecision) -> Unit,
+) {
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Text(label, style = MaterialTheme.typography.labelSmall)
         FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -563,8 +577,14 @@ private fun EndpointBlock(label: String, candidates: List<NodeCandidate>, decisi
             FilterChip(decision is EndpointDecision.NewJunction, onClick = { onDecisionChange(EndpointDecision.NewJunction()) }, label = { Text(stringResource(R.string.record_create_new), style = MaterialTheme.typography.labelSmall) })
         }
         if (decision is EndpointDecision.NewJunction) {
-            OutlinedTextField(decision.part1, { onDecisionChange(decision.copy(part1 = it)) }, placeholder = { Text(stringResource(R.string.record_name_part1)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
-            OutlinedTextField(decision.part2, { onDecisionChange(decision.copy(part2 = it)) }, placeholder = { Text(stringResource(R.string.record_name_part2)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
+            NamePartsInput(
+                lat = pointLat,
+                lng = pointLng,
+                part1 = decision.part1,
+                part2 = decision.part2,
+                onPart1 = { onDecisionChange(decision.copy(part1 = it)) },
+                onPart2 = { onDecisionChange(decision.copy(part2 = it)) },
+            )
         }
     }
 }

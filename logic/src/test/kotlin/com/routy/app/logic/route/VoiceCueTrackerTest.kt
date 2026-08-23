@@ -34,6 +34,21 @@ class VoiceCueTrackerTest {
     }
 
     @Test
+    fun `does not announce next station until leaving previous radius`() {
+        val tracker = VoiceCueTracker(stations)
+        tracker.onLocationUpdate(LatLng(52.0, 13.0))
+        // Still within station 0 radius — station 1 cue must wait.
+        assertNull(tracker.onLocationUpdate(LatLng(52.0, 13.0001)))
+    }
+
+    @Test
+    fun `peekUpcomingCue does not advance tracker`() {
+        val tracker = VoiceCueTracker(stations)
+        assertIs<VoiceCue.ArrivingAtNext>(tracker.peekUpcomingCue())
+        assertEquals(0, tracker.announcedCount())
+    }
+
+    @Test
     fun `does not re-announce the same station on a repeated update within radius`() {
         val tracker = VoiceCueTracker(stations)
         tracker.onLocationUpdate(LatLng(52.0, 13.0))
@@ -44,8 +59,8 @@ class VoiceCueTrackerTest {
     @Test
     fun `walks through all stations in order`() {
         val tracker = VoiceCueTracker(stations)
-        tracker.onLocationUpdate(LatLng(52.0, 13.0)) // arrives at Home -> next is Oak Junction
-        val cue = tracker.onLocationUpdate(LatLng(52.0, 13.0008)) // arrives at Oak Junction -> next is unnamed
+        tracker.onLocationUpdate(LatLng(52.0, 13.0))
+        val cue = tracker.onLocationUpdate(LatLng(52.0, 13.0008))
         val next = assertIs<VoiceCue.ArrivingAtNext>(cue)
         assertEquals("Oak Junction", next.hereName)
         assertNull(next.nextName)

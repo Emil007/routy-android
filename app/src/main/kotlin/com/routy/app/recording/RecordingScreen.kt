@@ -69,6 +69,7 @@ import com.routy.app.logic.recording.NodeCandidate
 import com.routy.app.logic.recording.RecordingPhase
 import com.routy.app.map.BaseMapStyle
 import com.routy.app.map.MapStyleSwitcher
+import com.routy.app.map.NamePartsInput
 import com.routy.app.map.RoutyMapView
 import com.routy.app.ui.OfflineBanner
 
@@ -397,6 +398,8 @@ private fun ConfirmSection(
             if (start != null && startDecision != null) {
                 CompactEndpointBlock(
                     label = stringResource(R.string.record_start_node),
+                    pointLat = start.lat,
+                    pointLng = start.lng,
                     candidates = viewModel.startCandidates(),
                     decision = startDecision,
                     onDecisionChange = viewModel::setStartDecision,
@@ -406,6 +409,8 @@ private fun ConfirmSection(
             if (end != null && endDecision != null) {
                 CompactEndpointBlock(
                     label = stringResource(R.string.record_end_node),
+                    pointLat = end.lat,
+                    pointLng = end.lng,
                     candidates = viewModel.endCandidates(),
                     decision = endDecision,
                     onDecisionChange = viewModel::setEndDecision,
@@ -448,6 +453,8 @@ private fun ConfirmSection(
 @Composable
 private fun CompactEndpointBlock(
     label: String,
+    pointLat: Double,
+    pointLng: Double,
     candidates: List<NodeCandidate>,
     decision: EndpointDecision,
     onDecisionChange: (EndpointDecision) -> Unit,
@@ -472,21 +479,13 @@ private fun CompactEndpointBlock(
         when (decision) {
             is EndpointDecision.Existing -> CandidateDropdown(candidates, decision.nodeId) { onDecisionChange(EndpointDecision.Existing(it)) }
             is EndpointDecision.NewJunction -> {
-                OutlinedTextField(
-                    value = decision.part1,
-                    onValueChange = { onDecisionChange(decision.copy(part1 = it)) },
-                    placeholder = { Text(stringResource(R.string.record_name_part1), style = MaterialTheme.typography.labelSmall) },
-                    singleLine = true,
-                    textStyle = MaterialTheme.typography.labelSmall,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                OutlinedTextField(
-                    value = decision.part2,
-                    onValueChange = { onDecisionChange(decision.copy(part2 = it)) },
-                    placeholder = { Text(stringResource(R.string.record_name_part2), style = MaterialTheme.typography.labelSmall) },
-                    singleLine = true,
-                    textStyle = MaterialTheme.typography.labelSmall,
-                    modifier = Modifier.fillMaxWidth(),
+                NamePartsInput(
+                    lat = pointLat,
+                    lng = pointLng,
+                    part1 = decision.part1,
+                    part2 = decision.part2,
+                    onPart1 = { onDecisionChange(decision.copy(part1 = it)) },
+                    onPart2 = { onDecisionChange(decision.copy(part2 = it)) },
                 )
             }
         }

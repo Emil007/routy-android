@@ -13,6 +13,25 @@ data class NodeMoveRequest(val nodeId: Int, val lat: Double, val lng: Double)
 data class NodeIdRequest(val nodeId: Int)
 
 @Serializable
+data class SuggestNamePartsRequest(val lat: Double, val lng: Double)
+
+@Serializable
+data class NamePartSuggestion(
+    val id: Int,
+    val text: String,
+    val displayText: String? = null,
+    val speakText: String? = null,
+)
+
+@Serializable
+data class SuggestNamePartsResponse(
+    val osmSpeakText: String? = null,
+    val osmDisplayText: String? = null,
+    val osmText: String? = null,
+    val nearbyParts: List<NamePartSuggestion> = emptyList(),
+)
+
+@Serializable
 data class SegmentRenameRequest(val segmentId: Int, val name: String)
 
 @Serializable

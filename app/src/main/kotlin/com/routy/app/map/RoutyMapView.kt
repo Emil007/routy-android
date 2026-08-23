@@ -22,6 +22,8 @@ import com.routy.app.logic.api.RouteStation
 import com.routy.app.logic.api.SegmentDto
 import com.routy.app.logic.api.isCanonical
 import com.routy.app.logic.api.isLocked
+import com.routy.app.route.MapCompassMode
+import org.maplibre.android.camera.CameraPosition
 import org.maplibre.android.camera.CameraUpdateFactory
 import org.maplibre.android.geometry.LatLng
 import org.maplibre.android.geometry.LatLngBounds
@@ -75,8 +77,14 @@ private const val LOCKED_SEGMENTS_SOURCE = "routy-segments-locked"
 private const val LOCKED_SEGMENTS_LAYER = "routy-segments-locked-layer"
 private const val EDIT_VERTICES_SOURCE = "routy-edit-vertices"
 private const val EDIT_VERTICES_LAYER = "routy-edit-vertices-layer"
+private const val TRACKED_SOURCE = "routy-tracked"
+private const val TRACKED_LAYER = "routy-tracked-layer"
 private const val ME_SOURCE = "routy-me"
 private const val ME_LAYER = "routy-me-layer"
+private const val NODE_BADGES_SOURCE = "routy-node-badges"
+private const val NODE_BADGES_LAYER = "routy-node-badges-layer"
+private const val SEGMENT_BADGES_SOURCE = "routy-segment-badges"
+private const val SEGMENT_BADGES_LAYER = "routy-segment-badges-layer"
 
 /**
  * Read-only network + route display: every known segment drawn faint in the background, the
@@ -100,14 +108,30 @@ fun RoutyMapView(
     goldenSegmentIds: Set<Int> = emptySet(),
     /** Subset of [goldenSegmentIds] that are on the active/suggested route — drawn thicker. */
     goldenHitIds: Set<Int> = emptySet(),
+    /** GPS trace recorded while Track is on (completed hops). */
+    trackedGeometry: List<GeoPoint> = emptyList(),
+    followEnabled: Boolean = false,
+    compassMode: MapCompassMode = MapCompassMode.NORTH_FREE,
+    locationBearing: Float? = null,
+    locationSpeed: Float? = null,
     selectedNodeId: Int? = null,
     selectedSegmentId: Int? = null,
     moveNodeId: Int? = null,
     homeNodeId: Int? = null,
+    startNodeId: Int? = null,
+    endNodeId: Int? = null,
+    mustVisitNodeIds: List<Int> = emptyList(),
+    isLoop: Boolean = true,
+    requiredSegmentIds: Set<Int> = emptySet(),
+    excludedSegmentIds: Set<Int> = emptySet(),
+    nodeBadges: Map<Int, String> = emptyMap(),
+    /** M1: R/E badges with segment names at path midpoints during route planning. */
+    segmentBadges: Map<Int, String> = emptyMap(),
     overlayLine: List<GeoPoint> = emptyList(),
     editVertices: List<GeoPoint>? = null,
     selectedEditVertexIndex: Int? = null,
     onMapClick: ((lat: Double, lng: Double) -> Unit)? = null,
+    onMapLongClick: ((lat: Double, lng: Double) -> Unit)? = null,
     modifier: Modifier = Modifier,
     /** When true (default), camera fits route geometry + stations (+ myLocation), not the whole network. */
     fitToRouteOnly: Boolean = true,
@@ -124,6 +148,7 @@ fun RoutyMapView(
     var maplibreMap by remember { mutableStateOf<MapLibreMap?>(null) }
     var loadedStyle by remember { mutableStateOf<Style?>(null) }
     val onMapClickState by rememberUpdatedState(onMapClick)
+    val onMapLongClickState by rememberUpdatedState(onMapLongClick)
 
     DisposableEffect(lifecycleOwner, mapView) {
         val observer = LifecycleEventObserver { _, event ->
@@ -152,6 +177,10 @@ fun RoutyMapView(
                 onMapClickState?.invoke(point.latitude, point.longitude)
                 true
             }
+            map.addOnMapLongClickListener { point ->
+                onMapLongClickState?.invoke(point.latitude, point.longitude)
+                true
+            }
         }
     }
 
@@ -161,18 +190,58 @@ fun RoutyMapView(
         map.setStyle(Style.Builder().fromUri(style.assetUri)) { newStyle -> loadedStyle = newStyle }
     }
 
-    LaunchedEffect(loadedStyle, nodes, segments, routeGeometry, stations, myLocation, routeColor, completedWaypointIndex, goldenSegmentIds, goldenHitIds, selectedNodeId, moveNodeId, homeNodeId, selectedSegmentId, overlayLine, editVertices, selectedEditVertexIndex, emphasizeNetworkSegments, waymarkedOverlay) {
+    LaunchedEffect(loadedStyle, nodes, segments, routeGeometry, stations, myLocation, trackedGeometry, routeColor, completedWaypointIndex, goldenSegmentIds, goldenHitIds, selectedNodeId, moveNodeId, homeNodeId, startNodeId, endNodeId, mustVisitNodeIds, isLoop, requiredSegmentIds, excludedSegmentIds, nodeBadges, segmentBadges, selectedSegmentId, overlayLine, editVertices, selectedEditVertexIndex, emphasizeNetworkSegments, waymarkedOverlay) {
         val currentStyle = loadedStyle ?: return@LaunchedEffect
         updateWaymarkedOverlay(currentStyle, waymarkedOverlay)
-        updateSegmentsLayer(currentStyle, segments, emphasizeNetworkSegments)
+        updateSegmentsLayer(currentStyle, segments, emphasizeNetworkSegments, requiredSegmentIds, excludedSegmentIds, goldenSegmentIds)
         updateGoldenSegmentsLayer(currentStyle, segments, goldenSegmentIds, goldenHitIds)
         updateSelectedSegmentLayer(currentStyle, segments, selectedSegmentId)
         updateOverlayLayer(currentStyle, overlayLine)
         updateEditVerticesLayer(currentStyle, editVertices, selectedEditVertexIndex)
         updateRouteLayer(currentStyle, routeGeometry, routeColor)
-        updateNodesLayer(currentStyle, nodes, selectedNodeId, moveNodeId, homeNodeId)
+        updateTrackedLayer(currentStyle, trackedGeometry)
+        updateNodesLayer(currentStyle, nodes, selectedNodeId, moveNodeId, homeNodeId, startNodeId, endNodeId, mustVisitNodeIds, isLoop)
+        updateNodeBadgesLayer(currentStyle, nodes, nodeBadges)
+        updateSegmentBadgesLayer(currentStyle, segments, segmentBadges)
         updateStationsLayer(currentStyle, stations, completedWaypointIndex)
         updateMyLocationLayer(currentStyle, myLocation)
+    }
+
+    LaunchedEffect(maplibreMap, followEnabled, myLocation, compassMode, locationBearing, locationSpeed) {
+        val map = maplibreMap ?: return@LaunchedEffect
+        if (!followEnabled || myLocation == null) return@LaunchedEffect
+        val ui = map.uiSettings
+        val heading = when {
+            (locationSpeed ?: 0f) >= 1f && locationBearing != null -> locationBearing.toDouble()
+            locationBearing != null -> locationBearing.toDouble()
+            else -> 0.0
+        }
+        when (compassMode) {
+            MapCompassMode.NORTH_FREE -> {
+                ui.isRotateGesturesEnabled = true
+                map.animateCamera(CameraUpdateFactory.newLatLng(LatLng(myLocation.lat, myLocation.lng)), 400)
+            }
+            MapCompassMode.HEADING_UP -> {
+                ui.isRotateGesturesEnabled = false
+                val pos = CameraPosition.Builder()
+                    .target(LatLng(myLocation.lat, myLocation.lng))
+                    .zoom(map.cameraPosition.zoom.coerceAtLeast(15.0))
+                    .bearing(heading)
+                    .tilt(0.0)
+                    .build()
+                map.animateCamera(CameraUpdateFactory.newCameraPosition(pos), 400)
+            }
+            MapCompassMode.NORTH_LOCKED -> {
+                ui.isRotateGesturesEnabled = true
+                val pos = CameraPosition.Builder()
+                    .target(LatLng(myLocation.lat, myLocation.lng))
+                    .zoom(map.cameraPosition.zoom.coerceAtLeast(15.0))
+                    .bearing(0.0)
+                    .tilt(0.0)
+                    .build()
+                map.animateCamera(CameraUpdateFactory.newCameraPosition(pos), 400)
+            }
+        }
     }
 
     LaunchedEffect(loadedStyle, fitKey, fitToRouteOnly) {
@@ -220,26 +289,53 @@ private fun updateWaymarkedOverlay(style: Style, enabled: Boolean) {
     }
 }
 
-private fun updateSegmentsLayer(style: Style, segments: List<SegmentDto>, emphasize: Boolean) {
+private fun updateSegmentsLayer(
+    style: Style,
+    segments: List<SegmentDto>,
+    emphasize: Boolean,
+    requiredIds: Set<Int> = emptySet(),
+    excludedIds: Set<Int> = emptySet(),
+    goldenIds: Set<Int> = emptySet(),
+) {
     val canonical = segments.filter { it.isCanonical() }
     val unlocked = canonical.filter { !it.isLocked() }
     val locked = canonical.filter { it.isLocked() }
-    val color = if (emphasize) "#2e6b49" else "#9a9a90"
-    val width = if (emphasize) 4f else 2f
-    val opacity = if (emphasize) 0.92f else 0.7f
 
-    val unlockedCollection = FeatureCollection.fromFeatures(
-        unlocked.map { seg ->
-            Feature.fromGeometry(LineString.fromLngLats(seg.geometry.map { Point.fromLngLat(it.lng, it.lat) }))
-        },
-    )
+    fun segmentColor(id: Int): String = when {
+        excludedIds.contains(id) -> "#c53030"
+        requiredIds.contains(id) -> "#2b6cb0"
+        goldenIds.contains(id) -> "#c99a2e"
+        else -> if (emphasize) "#2e6b49" else "#9a9a90"
+    }
+    fun segmentWidth(id: Int): Float = when {
+        requiredIds.contains(id) || goldenIds.contains(id) -> 6f
+        else -> if (emphasize) 4f else 2f
+    }
+    fun segmentOpacity(id: Int): Float = when {
+        excludedIds.contains(id) -> 0.85f
+        else -> if (emphasize) 0.92f else 0.7f
+    }
+
+    val unlockedFeatures = unlocked.map { seg ->
+        val properties = JsonObject().apply {
+            addProperty("color", segmentColor(seg.id))
+            addProperty("width", segmentWidth(seg.id))
+            addProperty("opacity", segmentOpacity(seg.id))
+            seg.id.let { addProperty("segmentId", it) }
+        }
+        Feature.fromGeometry(
+            LineString.fromLngLats(seg.geometry.map { Point.fromLngLat(it.lng, it.lat) }),
+            properties,
+        )
+    }
+    val unlockedCollection = FeatureCollection.fromFeatures(unlockedFeatures)
     val existing = style.getSourceAs<GeoJsonSource>(SEGMENTS_SOURCE)
     if (existing != null) {
         existing.setGeoJson(unlockedCollection)
         (style.getLayer(SEGMENTS_LAYER) as? LineLayer)?.setProperties(
-            PropertyFactory.lineColor(color),
-            PropertyFactory.lineWidth(width),
-            PropertyFactory.lineOpacity(opacity),
+            PropertyFactory.lineColor(org.maplibre.android.style.expressions.Expression.get("color")),
+            PropertyFactory.lineWidth(org.maplibre.android.style.expressions.Expression.get("width")),
+            PropertyFactory.lineOpacity(org.maplibre.android.style.expressions.Expression.get("opacity")),
             PropertyFactory.lineCap(Property.LINE_CAP_ROUND),
             PropertyFactory.lineJoin(Property.LINE_JOIN_ROUND),
         )
@@ -247,9 +343,9 @@ private fun updateSegmentsLayer(style: Style, segments: List<SegmentDto>, emphas
         style.addSource(GeoJsonSource(SEGMENTS_SOURCE, unlockedCollection))
         val layer = LineLayer(SEGMENTS_LAYER, SEGMENTS_SOURCE)
         layer.setProperties(
-            PropertyFactory.lineColor(color),
-            PropertyFactory.lineWidth(width),
-            PropertyFactory.lineOpacity(opacity),
+            PropertyFactory.lineColor(org.maplibre.android.style.expressions.Expression.get("color")),
+            PropertyFactory.lineWidth(org.maplibre.android.style.expressions.Expression.get("width")),
+            PropertyFactory.lineOpacity(org.maplibre.android.style.expressions.Expression.get("opacity")),
             PropertyFactory.lineCap(Property.LINE_CAP_ROUND),
             PropertyFactory.lineJoin(Property.LINE_JOIN_ROUND),
         )
@@ -268,10 +364,12 @@ private fun updateSegmentsLayer(style: Style, segments: List<SegmentDto>, emphas
     }
     style.addSource(GeoJsonSource(LOCKED_SEGMENTS_SOURCE, lockedCollection))
     val lockedLayer = LineLayer(LOCKED_SEGMENTS_LAYER, LOCKED_SEGMENTS_SOURCE)
+    val lockedWidth = if (emphasize) 4f else 2f
+    val lockedOpacity = if (emphasize) 0.92f else 0.7f
     lockedLayer.setProperties(
         PropertyFactory.lineColor(if (emphasize) "#6b7280" else "#9a9a90"),
-        PropertyFactory.lineWidth(width),
-        PropertyFactory.lineOpacity(opacity * 0.85f),
+        PropertyFactory.lineWidth(lockedWidth),
+        PropertyFactory.lineOpacity(lockedOpacity * 0.85f),
         PropertyFactory.lineDasharray(arrayOf(2f, 2f)),
         PropertyFactory.lineCap(Property.LINE_CAP_ROUND),
         PropertyFactory.lineJoin(Property.LINE_JOIN_ROUND),
@@ -339,6 +437,32 @@ private fun updateRouteLayer(style: Style, routeGeometry: List<GeoPoint>, routeC
     layer.setProperties(
         PropertyFactory.lineColor(routeColor),
         PropertyFactory.lineWidth(5f),
+        PropertyFactory.lineCap(Property.LINE_CAP_ROUND),
+        PropertyFactory.lineJoin(Property.LINE_JOIN_ROUND),
+    )
+    style.addLayer(layer)
+}
+
+private fun updateTrackedLayer(style: Style, trackedGeometry: List<GeoPoint>) {
+    val collection = if (trackedGeometry.size >= 2) {
+        FeatureCollection.fromFeature(
+            Feature.fromGeometry(LineString.fromLngLats(trackedGeometry.map { Point.fromLngLat(it.lng, it.lat) })),
+        )
+    } else {
+        FeatureCollection.fromFeatures(emptyList())
+    }
+    val existing = style.getSourceAs<GeoJsonSource>(TRACKED_SOURCE)
+    if (existing != null) {
+        existing.setGeoJson(collection)
+        return
+    }
+    if (trackedGeometry.size < 2) return
+    style.addSource(GeoJsonSource(TRACKED_SOURCE, collection))
+    val layer = LineLayer(TRACKED_LAYER, TRACKED_SOURCE)
+    layer.setProperties(
+        PropertyFactory.lineColor("#2563eb"),
+        PropertyFactory.lineWidth(6f),
+        PropertyFactory.lineOpacity(0.95f),
         PropertyFactory.lineCap(Property.LINE_CAP_ROUND),
         PropertyFactory.lineJoin(Property.LINE_JOIN_ROUND),
     )
@@ -435,16 +559,31 @@ private fun updateOverlayLayer(style: Style, overlayLine: List<GeoPoint>) {
     style.addLayer(layer)
 }
 
-private fun updateNodesLayer(style: Style, nodes: List<NodeDto>, selectedNodeId: Int?, moveNodeId: Int?, homeNodeId: Int?) {
+private fun updateNodesLayer(
+    style: Style,
+    nodes: List<NodeDto>,
+    selectedNodeId: Int?,
+    moveNodeId: Int?,
+    homeNodeId: Int?,
+    startNodeId: Int? = null,
+    endNodeId: Int? = null,
+    mustVisitNodeIds: List<Int> = emptyList(),
+    isLoop: Boolean = true,
+) {
     val features = nodes.map { node ->
         val color = when {
             node.id == moveNodeId -> "#1e4a32"
             node.id == selectedNodeId -> "#2563eb"
+            node.id == startNodeId -> "#a5711c"
+            !isLoop && node.id == endNodeId -> "#a5711c"
+            mustVisitNodeIds.contains(node.id) -> "#2b6cb0"
             node.id == homeNodeId || (homeNodeId == null && node.isHome) -> "#a5711c"
             else -> "#2e6b49"
         }
         val radius = when {
             node.id == moveNodeId || node.id == selectedNodeId -> 8f
+            node.id == startNodeId || (!isLoop && node.id == endNodeId) -> 7f
+            mustVisitNodeIds.contains(node.id) -> 6f
             node.id == homeNodeId || (homeNodeId == null && node.isHome) -> 5f
             else -> 3f
         }
@@ -467,6 +606,63 @@ private fun updateNodesLayer(style: Style, nodes: List<NodeDto>, selectedNodeId:
         PropertyFactory.circleRadius(org.maplibre.android.style.expressions.Expression.get("radius")),
         PropertyFactory.circleStrokeColor("#ffffff"),
         PropertyFactory.circleStrokeWidth(1f),
+    )
+    style.addLayer(layer)
+}
+
+private fun updateNodeBadgesLayer(style: Style, nodes: List<NodeDto>, badges: Map<Int, String>) {
+    val features = nodes.mapNotNull { node ->
+        val badge = badges[node.id] ?: return@mapNotNull null
+        val properties = JsonObject().apply { addProperty("badge", badge) }
+        Feature.fromGeometry(Point.fromLngLat(node.lng, node.lat), properties)
+    }
+    val collection = FeatureCollection.fromFeatures(features)
+    val existing = style.getSourceAs<GeoJsonSource>(NODE_BADGES_SOURCE)
+    if (existing != null) {
+        existing.setGeoJson(collection)
+        return
+    }
+    if (features.isEmpty()) return
+    style.addSource(GeoJsonSource(NODE_BADGES_SOURCE, collection))
+    val layer = org.maplibre.android.style.layers.SymbolLayer(NODE_BADGES_LAYER, NODE_BADGES_SOURCE)
+    layer.setProperties(
+        PropertyFactory.textField(org.maplibre.android.style.expressions.Expression.get("badge")),
+        PropertyFactory.textSize(11f),
+        PropertyFactory.textColor("#ffffff"),
+        PropertyFactory.textHaloColor("#1a1a1a"),
+        PropertyFactory.textHaloWidth(1.5f),
+        PropertyFactory.textAllowOverlap(true),
+        PropertyFactory.textIgnorePlacement(true),
+        PropertyFactory.textOffset(arrayOf(0f, -1.2f)),
+    )
+    style.addLayer(layer)
+}
+
+private fun updateSegmentBadgesLayer(style: Style, segments: List<SegmentDto>, badges: Map<Int, String>) {
+    val features = segments.mapNotNull { segment ->
+        val badge = badges[segment.id] ?: return@mapNotNull null
+        if (segment.geometry.isEmpty()) return@mapNotNull null
+        val mid = segment.geometry[segment.geometry.size / 2]
+        val properties = JsonObject().apply { addProperty("badge", badge) }
+        Feature.fromGeometry(Point.fromLngLat(mid.lng, mid.lat), properties)
+    }
+    val collection = FeatureCollection.fromFeatures(features)
+    val existing = style.getSourceAs<GeoJsonSource>(SEGMENT_BADGES_SOURCE)
+    if (existing != null) {
+        existing.setGeoJson(collection)
+        return
+    }
+    if (features.isEmpty()) return
+    style.addSource(GeoJsonSource(SEGMENT_BADGES_SOURCE, collection))
+    val layer = org.maplibre.android.style.layers.SymbolLayer(SEGMENT_BADGES_LAYER, SEGMENT_BADGES_SOURCE)
+    layer.setProperties(
+        PropertyFactory.textField(org.maplibre.android.style.expressions.Expression.get("badge")),
+        PropertyFactory.textSize(10f),
+        PropertyFactory.textColor("#ffffff"),
+        PropertyFactory.textHaloColor("#1a1a1a"),
+        PropertyFactory.textHaloWidth(1.5f),
+        PropertyFactory.textAllowOverlap(true),
+        PropertyFactory.textIgnorePlacement(true),
     )
     style.addLayer(layer)
 }
