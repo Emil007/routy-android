@@ -25,6 +25,8 @@ class RoutyApplication : Application() {
         private set
     lateinit var apiClientProvider: ApiClientProvider
         private set
+    lateinit var routeWalkTrackStore: com.routy.app.core.storage.RouteWalkTrackStore
+        private set
     lateinit var routeProgressStore: com.routy.app.core.storage.RouteProgressStore
         private set
     lateinit var networkCache: com.routy.app.core.storage.NetworkCache
@@ -54,6 +56,7 @@ class RoutyApplication : Application() {
         CrashReporting.install(this, secureStorage)
         apiClientProvider = ApiClientProvider(secureStorage)
         routeProgressStore = com.routy.app.core.storage.RouteProgressStore(this)
+        routeWalkTrackStore = com.routy.app.core.storage.RouteWalkTrackStore(this)
         networkCache = com.routy.app.core.storage.NetworkCache(this)
         recordingSnapshotStore = com.routy.app.core.storage.RecordingSnapshotStore(this)
         recordingSnapshotStore.loadSnapshot()?.phase?.let { com.routy.app.recording.RecordingForegroundService.syncRecordingActive(it) }

@@ -37,4 +37,5 @@ data class RouteProgress(
     val routeKey: String,
     val completedIndex: Int,
     val voiceAnnouncedIndex: Int = 0,
+    val goldenHitSegmentIds: List<Int> = emptyList(),
 )

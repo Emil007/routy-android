@@ -22,6 +22,7 @@ import com.routy.app.logic.api.SetupRequest
 import com.routy.app.logic.api.MeResponse
 import com.routy.app.logic.api.NicknameRequest
 import com.routy.app.logic.api.NodesResponse
+import com.routy.app.logic.api.CompleteRouteRequest
 import com.routy.app.logic.api.CompleteRouteResponse
 import com.routy.app.logic.api.AppStatsMeResponse
 import com.routy.app.logic.api.ProposalActionRequest
@@ -31,6 +32,7 @@ import com.routy.app.logic.api.ReportConditionResponse
 import com.routy.app.logic.api.RestrictSegmentRequest
 import com.routy.app.logic.api.RestrictSegmentResponse
 import com.routy.app.logic.api.RouteStateResponse
+import com.routy.app.logic.api.RateWalkRequest
 import com.routy.app.logic.api.RouteTokenRequest
 import com.routy.app.logic.api.SaveFavoriteRequest
 import com.routy.app.logic.api.SegmentsResponse
@@ -47,6 +49,8 @@ import com.routy.app.logic.api.GpxParseResponse
 import com.routy.app.logic.api.NodeIdRequest
 import com.routy.app.logic.api.NodeMoveRequest
 import com.routy.app.logic.api.NodeRenameRequest
+import com.routy.app.logic.api.SuggestNamePartsRequest
+import com.routy.app.logic.api.SuggestNamePartsResponse
 import com.routy.app.logic.api.SegmentGeometryRequest
 import com.routy.app.logic.api.SegmentIdRequest
 import com.routy.app.logic.api.SegmentRenameRequest
@@ -159,7 +163,10 @@ interface ApiService {
     suspend fun cancelRoute(@Body body: RouteTokenRequest): Response<Unit>
 
     @POST("api/route/complete")
-    suspend fun completeRoute(@Body body: RequestBody = EMPTY_JSON_BODY): Response<CompleteRouteResponse>
+    suspend fun completeRoute(@Body body: CompleteRouteRequest = CompleteRouteRequest()): Response<CompleteRouteResponse>
+
+    @POST("api/app/walks/rate")
+    suspend fun rateWalk(@Body body: RateWalkRequest): Response<Unit>
 
     @POST("api/route/discard")
     suspend fun discardRoute(@Body body: RequestBody = EMPTY_JSON_BODY): Response<Unit>
@@ -196,6 +203,9 @@ interface ApiService {
 
     @POST("api/auth/sessions/revoke-others")
     suspend fun revokeOtherSessions(@Body body: RequestBody = EMPTY_JSON_BODY): Response<RevokeOthersResponse>
+
+    @POST("api/nodes/suggest-name-parts")
+    suspend fun suggestNameParts(@Body body: SuggestNamePartsRequest): Response<SuggestNamePartsResponse>
 
     @POST("api/nodes/rename")
     suspend fun renameNode(@Body body: NodeRenameRequest): Response<Unit>
