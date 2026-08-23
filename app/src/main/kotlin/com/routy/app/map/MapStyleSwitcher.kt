@@ -2,8 +2,10 @@ package com.routy.app.map
 
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuAnchorType
@@ -20,7 +22,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.routy.app.R
 
@@ -36,40 +40,59 @@ fun MapStyleSwitcher(
 ) {
     var expanded by remember { mutableStateOf(false) }
     val waymarkedLabel = stringResource(R.string.map_style_waymarked)
-    val anchorText = buildString {
-        append(stringResource(selected.labelRes()))
-        if (waymarkedOverlay) append(stringResource(R.string.map_style_waymarked_suffix))
-    }
 
     Surface(modifier = modifier, color = MaterialTheme.colorScheme.surface.copy(alpha = 0.92f), shape = MaterialTheme.shapes.small) {
-        ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = it }, modifier = Modifier.padding(6.dp)) {
-            Row(
-                modifier = Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable).padding(horizontal = 4.dp, vertical = 2.dp),
-                verticalAlignment = Alignment.CenterVertically,
+        Row(
+            modifier = Modifier.width(240.dp).padding(horizontal = 6.dp, vertical = 2.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            ExposedDropdownMenuBox(
+                expanded = expanded,
+                onExpandedChange = { expanded = it },
+                modifier = Modifier.weight(1f),
             ) {
-                Text(text = anchorText, style = MaterialTheme.typography.labelMedium)
-                ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded)
-            }
-            ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-                BaseMapStyle.entries.forEach { style ->
-                    DropdownMenuItem(
-                        text = { Text(stringResource(style.labelRes())) },
-                        onClick = {
-                            onSelect(style)
-                            expanded = false
-                        },
-                        contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding,
+                Row(
+                    modifier = Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable).padding(end = 2.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = stringResource(selected.labelRes()),
+                        style = MaterialTheme.typography.labelMedium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false),
                     )
+                    ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded)
                 }
-                DropdownMenuItem(
-                    text = { Text(waymarkedLabel) },
-                    onClick = { onWaymarkedOverlayChange(!waymarkedOverlay) },
-                    trailingIcon = {
-                        if (waymarkedOverlay) {
-                            Icon(Icons.Filled.Check, contentDescription = null)
-                        }
-                    },
-                    contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding,
+                ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                    BaseMapStyle.entries.forEach { style ->
+                        DropdownMenuItem(
+                            text = { Text(stringResource(style.labelRes())) },
+                            onClick = {
+                                onSelect(style)
+                                expanded = false
+                            },
+                            trailingIcon = {
+                                if (style == selected) {
+                                    Icon(Icons.Filled.Check, contentDescription = null)
+                                }
+                            },
+                            contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding,
+                        )
+                    }
+                }
+            }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Checkbox(
+                    checked = waymarkedOverlay,
+                    onCheckedChange = onWaymarkedOverlayChange,
+                    modifier = Modifier.scale(0.75f),
+                )
+                Text(
+                    text = waymarkedLabel,
+                    style = MaterialTheme.typography.labelSmall,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
             }
         }

@@ -4,11 +4,9 @@ import com.routy.app.logic.api.RouteStation
 import com.routy.app.logic.geo.LatLng
 import com.routy.app.logic.geo.haversineMeters
 
-private const val WAYPOINT_RADIUS_M = 50.0
-
 /**
- * Tracks sequential waypoint completion while walking an active route. Mirrors [VoiceCueTracker]'s
- * radius logic but exposes progress state for UI overlays and route-proof gating.
+ * Tracks sequential waypoint completion while walking an active route with Track on.
+ * Uses the same adaptive radius as voice announcements (K2).
  */
 class WaypointProgressTracker(private val stations: List<RouteStation>) {
     private var nextIndex = 0
@@ -19,11 +17,16 @@ class WaypointProgressTracker(private val stations: List<RouteStation>) {
     val totalCount: Int get() = stations.size
     val completedCount: Int get() = nextIndex.coerceAtMost(stations.size)
 
+    private fun radiusForNextStation(): Double {
+        if (nextIndex >= stations.size) return voiceAnnounceRadiusM(stations.lastIndex, stations)
+        return voiceAnnounceRadiusM(nextIndex, stations)
+    }
+
     fun onLocationUpdate(location: LatLng): Int? {
         if (nextIndex >= stations.size) return null
         val station = stations[nextIndex]
         val distance = haversineMeters(location, LatLng(station.lat, station.lng))
-        if (distance > WAYPOINT_RADIUS_M) return null
+        if (distance > radiusForNextStation()) return null
         val completed = nextIndex
         nextIndex++
         return completed
@@ -36,4 +39,17 @@ class WaypointProgressTracker(private val stations: List<RouteStation>) {
     fun reset() {
         nextIndex = 0
     }
+}
+
+/** True when all stations are completed and the walker is near the final node (K2). */
+fun shouldAutoCompleteRoute(
+    progressTracker: WaypointProgressTracker,
+    stations: List<RouteStation>,
+    location: LatLng,
+): Boolean {
+    if (!progressTracker.isFinalCompleted || stations.isEmpty()) return false
+    val lastIdx = stations.lastIndex
+    val radiusM = voiceAnnounceRadiusM(lastIdx, stations)
+    val last = stations.last()
+    return haversineMeters(location, LatLng(last.lat, last.lng)) <= radiusM
 }

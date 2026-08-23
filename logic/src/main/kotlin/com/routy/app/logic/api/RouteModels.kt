@@ -9,7 +9,16 @@ import kotlinx.serialization.encoding.Decoder
 import kotlinx.serialization.encoding.Encoder
 
 @Serializable
-data class RouteStation(val nodeId: Int, val name: String? = null, val lat: Double, val lng: Double)
+data class RouteStation(
+    val nodeId: Int,
+    val name: String? = null,
+    val lat: Double,
+    val lng: Double,
+    /** Full unabbreviated label for TTS — falls back to [name]. */
+    val speakName: String? = null,
+    /** Disambiguation segment when siblings connect the same two nodes. */
+    val viaSegmentName: String? = null,
+)
 
 @Serializable
 data class ShortStationGroup(val text: String, val viaSegmentName: String? = null)
@@ -60,16 +69,20 @@ data class GenerateRouteResponse(
     val pointPreview: PointPreviewBreakdown? = null,
     val goldenHits: Int? = null,
     val goldenHitIds: List<Int> = emptyList(),
+    val lengthRelaxed: Boolean = false,
+    val lengthKm: Double? = null,
+    val usingNetworkFallback: Boolean? = null,
 )
 
 @Serializable
 data class GenerateRouteRequest(
     val startNodeId: Int? = null,
     val destinationNodeId: Int? = null,
-    val waypointNodeId: Int? = null,
+    val mustVisitNodeIds: List<Int> = emptyList(),
+    val requiredSegmentIds: List<Int> = emptyList(),
+    val excludedSegmentIds: List<Int> = emptyList(),
     val explorerMode: Boolean = false,
-    val surpriseMode: Boolean = false,
-    /** "short" | "long" | "surprise" — biases the search toward the lower/upper half of the configured length range. */
+    /** "short" | "normal" | "long" | "surprise" */
     val preset: String? = null,
     val forceGolden: Boolean = false,
 )
@@ -110,10 +123,16 @@ data class ShareFavoriteRequest(val enable: Boolean)
 @Serializable
 data class ShareFavoriteResponse(val ok: Boolean, val shareToken: String? = null)
 
+@Serializable
+data class CompleteRouteRequest(
+    val trackPoints: List<com.routy.app.logic.route.RouteWalkTrackPoint> = emptyList(),
+)
+
 /** POST /api/route/complete — walk delta points for the completion dialog. */
 @Serializable
 data class CompleteRouteResponse(
     val success: Boolean = true,
+    val walkId: Int = 0,
     val pointsEarned: Int = 0,
     val streakMultiplier: Double = 1.0,
     val currentStreak: Int = 0,
@@ -122,6 +141,9 @@ data class CompleteRouteResponse(
     /** "normal" | "golden" | "streak" | "achievement" */
     val celebrationTier: String = "normal",
 )
+
+@Serializable
+data class RateWalkRequest(val walkId: Int, val rating: Int)
 
 /** GET /api/route/state — mirrors the props the web's /route RSC computes server-side (src/app/(app)/route/page.tsx). */
 @Serializable
