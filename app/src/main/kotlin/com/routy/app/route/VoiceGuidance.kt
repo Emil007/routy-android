@@ -17,15 +17,6 @@ import com.routy.app.logic.geo.CompassPoint
 import com.routy.app.logic.route.VoiceCue
 import java.util.Locale
 
-/**
- * TextToSpeech + audio-focus wrapper, the one piece of M5 that couldn't live in :logic (it's
- * pure Android framework, no meaningful pure-Kotlin logic to extract — the actual cue *decision*
- * logic is VoiceCueTracker, already ported and tested). Requests transient, duckable focus
- * (AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK) with USAGE_ASSISTANCE_NAVIGATION_GUIDANCE audio
- * attributes — the same pattern turn-by-turn nav apps use to duck Spotify/music automatically
- * rather than pausing it outright, and releases focus itself once each utterance finishes so
- * ducked audio recovers immediately after each cue instead of staying quiet for the whole walk.
- */
 class VoiceGuidanceController(context: Context, private val ttsLocale: Locale) {
     private val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
     private val audioAttributes = AudioAttributes.Builder()
@@ -38,6 +29,7 @@ class VoiceGuidanceController(context: Context, private val ttsLocale: Locale) {
 
     private var tts: TextToSpeech? = null
     private var ready = false
+    private var speaking = false
 
     init {
         tts = TextToSpeech(context) { status ->
@@ -48,11 +40,13 @@ class VoiceGuidanceController(context: Context, private val ttsLocale: Locale) {
                 tts?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
                     override fun onStart(utteranceId: String?) {}
                     override fun onDone(utteranceId: String?) {
+                        speaking = false
                         audioManager.abandonAudioFocusRequest(focusRequest)
                     }
 
-                    @Deprecated("Deprecated in TextToSpeech, but still the callback invoked pre-API 21")
+                    @Deprecated("Deprecated in TextToSpeech")
                     override fun onError(utteranceId: String?) {
+                        speaking = false
                         audioManager.abandonAudioFocusRequest(focusRequest)
                     }
                 })
@@ -61,7 +55,8 @@ class VoiceGuidanceController(context: Context, private val ttsLocale: Locale) {
     }
 
     fun speak(text: String) {
-        if (!ready) return
+        if (!ready || speaking) return
+        speaking = true
         audioManager.requestAudioFocus(focusRequest)
         tts?.speak(text, TextToSpeech.QUEUE_ADD, null, "routy-voice-cue")
     }
@@ -70,6 +65,7 @@ class VoiceGuidanceController(context: Context, private val ttsLocale: Locale) {
         tts?.stop()
         tts?.shutdown()
         tts = null
+        speaking = false
     }
 }
 
@@ -92,19 +88,31 @@ private fun Context.stringForAccountLocale(localeTag: String, resId: Int, vararg
     return createConfigurationContext(config).getString(resId, *formatArgs)
 }
 
-/** Mirrors RouteGenerator.tsx voice templates — uses account locale for both TTS and cue text. */
+private fun Context.formatStationLabel(
+    localeTag: String,
+    name: String?,
+    viaSegmentName: String?,
+): String {
+    val base = name ?: stringForAccountLocale(localeTag, R.string.route_station_fallback)
+    return if (viaSegmentName.isNullOrBlank()) {
+        base
+    } else {
+        stringForAccountLocale(localeTag, R.string.route_via, base, viaSegmentName)
+    }
+}
+
 fun VoiceCue.toSpokenText(context: Context, accountLocaleTag: String): String = when (this) {
     is VoiceCue.ArrivingAtNext -> context.stringForAccountLocale(
         accountLocaleTag,
         R.string.route_voice_arrived_next,
-        hereName ?: context.stringForAccountLocale(accountLocaleTag, R.string.route_station_fallback),
-        nextName ?: context.stringForAccountLocale(accountLocaleTag, R.string.route_station_fallback),
+        context.formatStationLabel(accountLocaleTag, hereName, hereViaSegmentName),
+        context.formatStationLabel(accountLocaleTag, nextName, nextViaSegmentName),
         direction.toSpokenLabel(context, accountLocaleTag),
     )
     is VoiceCue.ArrivingAtFinal -> context.stringForAccountLocale(
         accountLocaleTag,
         R.string.route_voice_arrived_final,
-        hereName ?: context.stringForAccountLocale(accountLocaleTag, R.string.route_station_fallback),
+        context.formatStationLabel(accountLocaleTag, hereName, hereViaSegmentName),
     )
 }
 
