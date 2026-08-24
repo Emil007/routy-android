@@ -8,3 +8,11 @@ data class CrashReportRequest(
     val stack: String? = null,
     val appVersion: String? = null,
 )
+
+@Serializable
+data class PendingCrashReport(
+    val message: String,
+    val stack: String? = null,
+    val appVersion: String? = null,
+    val savedAtMs: Long = 0L,
+)

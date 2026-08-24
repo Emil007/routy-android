@@ -127,3 +127,18 @@ class GoldenHopCueTest {
         )
     }
 }
+
+class RouteWalkTrackSnapshotSerializationTest {
+    @Test
+    fun `round-trips track snapshot json`() {
+        val json = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
+        val original = RouteWalkTrackSnapshot(
+            routeKey = "1-2-3",
+            points = listOf(RouteWalkTrackPoint(lat = 52.0, lng = 13.0, accuracy = 4.0)),
+            goldenHitSegmentIds = listOf(10),
+        )
+        val encoded = json.encodeToString(RouteWalkTrackSnapshot.serializer(), original)
+        val decoded = json.decodeFromString(RouteWalkTrackSnapshot.serializer(), encoded)
+        assertEquals(original, decoded)
+    }
+}
