@@ -14,3 +14,11 @@ data class RouteWalkTrackPoint(
     val speed: Double? = null,
     val bearing: Double? = null,
 )
+
+/** In-progress GPX track for an active walk, persisted until Complete or Discard. */
+@Serializable
+data class RouteWalkTrackSnapshot(
+    val routeKey: String,
+    val points: List<RouteWalkTrackPoint>,
+    val goldenHitSegmentIds: List<Int> = emptyList(),
+)
