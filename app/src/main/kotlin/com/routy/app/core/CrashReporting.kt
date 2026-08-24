@@ -3,8 +3,8 @@ package com.routy.app.core
 import android.app.Application
 import com.routy.app.BuildConfig
 import com.routy.app.core.storage.CrashReportStore
-import com.routy.app.core.storage.PendingCrashReport
 import com.routy.app.core.storage.SecureStorage
+import com.routy.app.logic.api.PendingCrashReport
 
 /** Self-hosted crash capture (consent-gated); optional Sentry via release-only SentryBootstrap (reflection). */
 object CrashReporting {
@@ -37,6 +37,7 @@ object CrashReporting {
                         message = throwable.message ?: throwable.javaClass.simpleName,
                         stack = throwable.stackTraceToString(),
                         appVersion = BuildConfig.VERSION_NAME,
+                        savedAtMs = System.currentTimeMillis(),
                     ),
                 )
             }
