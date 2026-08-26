@@ -587,8 +587,8 @@ private fun RouteWithMapLayout(
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
-    val mapStyle = BaseMapStyle.STREETS
-    val waymarkedOverlay = false
+    var mapStyle by remember { mutableStateOf(BaseMapStyle.STREETS) }
+    var waymarkedOverlay by remember { mutableStateOf(false) }
     var dockLevel by remember { mutableStateOf(DockLevel.EXPANDED) }
     var hasLocationPermission by remember {
         mutableStateOf(ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED)
@@ -896,6 +896,12 @@ private fun RouteWithMapLayout(
                 }
             },
             expandedContent = {
+                MapStyleSwitcher(
+                    selected = mapStyle,
+                    onSelect = { mapStyle = it },
+                    waymarkedOverlay = waymarkedOverlay,
+                    onWaymarkedOverlayChange = { waymarkedOverlay = it },
+                )
                 when {
                     uiState.mode == RouteMode.SUGGESTING && uiState.pendingShareToken == null -> {
                         RoutePresetButtons(uiState, viewModel)
