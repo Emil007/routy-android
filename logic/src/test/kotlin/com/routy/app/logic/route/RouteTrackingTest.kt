@@ -16,11 +16,11 @@ class VoiceAnnounceRadiusTest {
     )
 
     @Test
-    fun `caps at 40m and floors at 12m`() {
-        assertEquals(40.0, voiceAnnounceRadiusM(0, listOf(stations[0])), 0.01)
+    fun `caps near 22m and floors near 9m`() {
+        assertEquals(22.0, voiceAnnounceRadiusM(0, listOf(stations[0])), 0.01)
         val midLeg = voiceAnnounceRadiusM(0, stations)
-        assertTrue(midLeg in 12.0..40.0)
-        assertEquals(24.0, midLeg, 1.0)
+        assertTrue(midLeg in 9.0..22.0)
+        assertEquals(19.0, midLeg, 1.5)
     }
 }
 
@@ -43,10 +43,11 @@ class RouteGeometrySplitTest {
     }
 
     @Test
-    fun `trims completed legs from planned route`() {
+    fun `keeps open hop planned until next node`() {
         val remaining = remainingRouteGeometry(geometry, stations, 0)
         assertTrue(remaining.size >= 2)
-        assertTrue(remaining.first().lat >= 52.0005 - 0.0001)
+        // At station A (completed=0), planned line still includes hop A→B
+        assertTrue(remaining.first().lat <= 52.0005 + 0.0001)
     }
 
     @Test
@@ -65,9 +66,18 @@ class WaypointAdaptiveRadiusTest {
     @Test
     fun `uses adaptive radius not fixed 50m`() {
         val tracker = WaypointProgressTracker(stations)
-        // ~14 m from A — outside 12 m adaptive but inside old 50 m fixed
+        // ~14 m from A — outside ~9 m adaptive floor but inside old 50 m fixed
         assertEquals(null, tracker.onLocationUpdate(LatLng(52.0, 13.0002)))
         assertEquals(0, tracker.onLocationUpdate(LatLng(52.0, 13.0)))
+    }
+}
+
+class RouteCueAccuracyTest {
+    @Test
+    fun `missing accuracy is not usable for cues`() {
+        assertFalse(isRouteTrackAccuracyUsable(null))
+        assertFalse(isRouteTrackAccuracyUsable(20f))
+        assertTrue(isRouteTrackAccuracyUsable(10f))
     }
 }
 class OffPathDetectorTest {

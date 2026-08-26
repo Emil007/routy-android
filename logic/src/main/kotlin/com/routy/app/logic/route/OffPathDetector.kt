@@ -3,11 +3,11 @@ package com.routy.app.logic.route
 import com.routy.app.logic.geo.LatLng
 import com.routy.app.logic.geo.closestPointOnPath
 
-private const val OFF_PATH_DISTANCE_M = 40.0
+private const val OFF_PATH_DISTANCE_M = 100.0
 private const val CONSECUTIVE_SAMPLES = 3
 
 /**
- * Fires at most once per walk when the walker stays farther than ~40 m from the planned polyline
+ * Fires at most once per walk when the walker stays farther than ~100 m from the planned polyline
  * for several consecutive location updates while Track is on.
  */
 class OffPathDetector(private val routePolyline: List<LatLng>) {

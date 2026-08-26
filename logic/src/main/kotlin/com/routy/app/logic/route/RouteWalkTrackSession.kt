@@ -7,12 +7,15 @@ import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 
 private const val MIN_POINT_DISTANCE_M = 3.0
-/** Ignore accuracy worse than this for geometry tagging only — all points kept for GPX. */
+/** Ignore accuracy worse than this for on-map traced geometry — all points kept for GPX. */
 const val ROUTE_TRACK_GEOMETRY_ACCURACY_MAX_M = 30.0
 
-/** True when a fix is accurate enough for off-path / waypoint / on-map geometry (K4). */
+/** Cue / progress / off-path require a reported accuracy at least this good (null ≠ usable). */
+const val ROUTE_CUE_ACCURACY_MAX_M = 15.0
+
+/** True when a fix is accurate enough for off-path / waypoint / voice cues. Missing accuracy is not usable. */
 fun isRouteTrackAccuracyUsable(accuracy: Float?): Boolean =
-    accuracy == null || accuracy <= ROUTE_TRACK_GEOMETRY_ACCURACY_MAX_M
+    accuracy != null && accuracy <= ROUTE_CUE_ACCURACY_MAX_M
 
 class RouteWalkTrackSession {
     private val _points = mutableListOf<RouteWalkTrackPoint>()
