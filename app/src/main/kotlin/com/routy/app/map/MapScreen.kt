@@ -147,16 +147,8 @@ fun MapScreen(onStartRecording: () -> Unit, modifier: Modifier = Modifier) {
             modifier = Modifier.fillMaxSize(),
         )
 
-        MapStyleSwitcher(
-            selected = mapStyle,
-            onSelect = { mapStyle = it },
-            waymarkedOverlay = waymarkedOverlay,
-            onWaymarkedOverlayChange = { waymarkedOverlay = it },
-            modifier = Modifier.align(Alignment.TopStart).padding(8.dp),
-        )
-
         if (uiState.offlineCached) {
-            OfflineBanner(modifier = Modifier.align(Alignment.TopStart).padding(start = 8.dp, top = 56.dp))
+            OfflineBanner(modifier = Modifier.align(Alignment.TopStart).padding(8.dp))
         }
 
         if (uiState.mode == MapMode.View) {
@@ -192,7 +184,15 @@ fun MapScreen(onStartRecording: () -> Unit, modifier: Modifier = Modifier) {
                     uiState.selectedNode?.let { MapNodePanel(it, uiState, viewModel) }
                     uiState.selectedSegment?.let { MapSegmentPanel(it, uiState, viewModel) }
                     MapViewToolbar(uiState, onStartRecording, { viewModel.setMode(MapMode.Draw) }, { gpxPicker.launch("*/*") })
-                    MapExtrasContent(uiState, viewModel, visible = showExtras)
+                    MapExtrasContent(
+                        uiState,
+                        viewModel,
+                        visible = showExtras,
+                        mapStyle = mapStyle,
+                        onMapStyle = { mapStyle = it },
+                        waymarkedOverlay = waymarkedOverlay,
+                        onWaymarkedOverlay = { waymarkedOverlay = it },
+                    )
                 }
                 MapMode.Draw -> MapDrawPanel(uiState, viewModel)
                 MapMode.Gpx -> MapGpxPanel(uiState, viewModel)
@@ -300,9 +300,26 @@ private fun MapNodePanel(node: NodeDto, state: MapUiState, viewModel: MapViewMod
 }
 
 @Composable
-private fun MapExtrasContent(state: MapUiState, viewModel: MapViewModel, visible: Boolean) {
+private fun MapExtrasContent(
+    state: MapUiState,
+    viewModel: MapViewModel,
+    visible: Boolean,
+    mapStyle: BaseMapStyle,
+    onMapStyle: (BaseMapStyle) -> Unit,
+    waymarkedOverlay: Boolean,
+    onWaymarkedOverlay: (Boolean) -> Unit,
+) {
     AnimatedVisibility(visible = visible) {
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Surface(color = MaterialTheme.colorScheme.surface.copy(alpha = 0.94f), shape = MaterialTheme.shapes.medium) {
+                MapStyleSwitcher(
+                    selected = mapStyle,
+                    onSelect = onMapStyle,
+                    waymarkedOverlay = waymarkedOverlay,
+                    onWaymarkedOverlayChange = onWaymarkedOverlay,
+                    modifier = Modifier.padding(8.dp),
+                )
+            }
             if (state.proposals.isNotEmpty()) {
                 ProposalsPanel(state, viewModel)
             }
