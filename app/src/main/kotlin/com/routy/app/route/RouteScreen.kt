@@ -202,9 +202,7 @@ private enum class DockLevel { COLLAPSED, EXPANDED }
 private fun RouteMapChrome(
     uiState: RouteUiState,
     mapStyle: BaseMapStyle,
-    onMapStyle: (BaseMapStyle) -> Unit,
     waymarkedOverlay: Boolean,
-    onWaymarkedOverlay: (Boolean) -> Unit,
     routeGeometry: List<GeoPoint>,
     stations: List<com.routy.app.logic.api.RouteStation>,
     goldenSegmentIds: Set<Int>,
@@ -266,12 +264,6 @@ private fun RouteMapChrome(
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             if (uiState.offlineCached) OfflineBanner()
-            MapStyleSwitcher(
-                selected = mapStyle,
-                onSelect = onMapStyle,
-                waymarkedOverlay = waymarkedOverlay,
-                onWaymarkedOverlayChange = onWaymarkedOverlay,
-            )
             if (onCompassClick != null && followEnabled) {
                 CompactOutlinedButton(onClick = onCompassClick) {
                     Text(
@@ -368,9 +360,7 @@ private fun SuggestingMapLayout(
         RouteMapChrome(
             uiState = uiState,
             mapStyle = mapStyle,
-            onMapStyle = { mapStyle = it },
             waymarkedOverlay = waymarkedOverlay,
-            onWaymarkedOverlay = { waymarkedOverlay = it },
             routeGeometry = emptyList(),
             stations = emptyList(),
             goldenSegmentIds = uiState.todayGoldenSegmentIds,
@@ -437,6 +427,12 @@ private fun SuggestingMapLayout(
                     CompactCheck(uiState.explorerMode, viewModel::setExplorerMode, stringResource(R.string.route_explorer_mode))
                     CompactCheck(uiState.forceGolden, viewModel::setForceGolden, stringResource(R.string.route_force_golden))
                 }
+                MapStyleSwitcher(
+                    selected = mapStyle,
+                    onSelect = { mapStyle = it },
+                    waymarkedOverlay = waymarkedOverlay,
+                    onWaymarkedOverlayChange = { waymarkedOverlay = it },
+                )
                 if (uiState.usingNetworkFallback != null) {
                     Text(
                         stringResource(
@@ -591,8 +587,8 @@ private fun RouteWithMapLayout(
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
-    var mapStyle by remember { mutableStateOf(BaseMapStyle.STREETS) }
-    var waymarkedOverlay by remember { mutableStateOf(false) }
+    val mapStyle = BaseMapStyle.STREETS
+    val waymarkedOverlay = false
     var dockLevel by remember { mutableStateOf(DockLevel.EXPANDED) }
     var hasLocationPermission by remember {
         mutableStateOf(ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED)
@@ -688,9 +684,7 @@ private fun RouteWithMapLayout(
         RouteMapChrome(
             uiState = uiState,
             mapStyle = mapStyle,
-            onMapStyle = { mapStyle = it },
             waymarkedOverlay = waymarkedOverlay,
-            onWaymarkedOverlay = { waymarkedOverlay = it },
             routeGeometry = displayRouteGeometry,
             stations = route.stations,
             goldenSegmentIds = uiState.todayGoldenSegmentIds,
@@ -1188,12 +1182,17 @@ private fun FavoritesLoadDeleteButton(
     loading: Boolean,
     viewModel: RouteViewModel,
 ) {
-    if (favorites.isEmpty()) return
     var open by remember { mutableStateOf(false) }
     var pendingDelete by remember { mutableStateOf<FavoriteEntry?>(null) }
 
     CompactOutlinedButton(onClick = { open = true }) {
-        Text(stringResource(R.string.route_favorites_title) + " (${favorites.size})")
+        Text(
+            if (favorites.isEmpty()) {
+                stringResource(R.string.route_favorites_title)
+            } else {
+                stringResource(R.string.route_favorites_title) + " (${favorites.size})"
+            },
+        )
     }
 
     if (open) {
@@ -1201,28 +1200,32 @@ private fun FavoritesLoadDeleteButton(
             onDismissRequest = { open = false },
             title = { Text(stringResource(R.string.route_favorites_title)) },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    favorites.forEach { fav ->
-                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Text(
-                                "${fav.name} · ${"%.1f".format(fav.display.lengthM / 1000.0)} km",
-                                style = MaterialTheme.typography.labelMedium,
-                            )
-                            FlowRow(
-                                horizontalArrangement = Arrangement.spacedBy(4.dp),
-                                verticalArrangement = Arrangement.spacedBy(4.dp),
-                            ) {
-                                CompactButton(
-                                    onClick = {
-                                        viewModel.takeFavorite(fav)
-                                        open = false
-                                    },
-                                    enabled = !loading,
+                if (favorites.isEmpty()) {
+                    Text(stringResource(R.string.route_favorites_empty))
+                } else {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        favorites.forEach { fav ->
+                            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Text(
+                                    "${fav.name} · ${"%.1f".format(fav.display.lengthM / 1000.0)} km",
+                                    style = MaterialTheme.typography.labelMedium,
+                                )
+                                FlowRow(
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                    verticalArrangement = Arrangement.spacedBy(4.dp),
                                 ) {
-                                    Text(stringResource(R.string.route_favorite_take))
-                                }
-                                CompactOutlinedButton(onClick = { pendingDelete = fav }) {
-                                    Text(stringResource(R.string.route_favorite_delete))
+                                    CompactButton(
+                                        onClick = {
+                                            viewModel.takeFavorite(fav)
+                                            open = false
+                                        },
+                                        enabled = !loading,
+                                    ) {
+                                        Text(stringResource(R.string.route_favorite_take))
+                                    }
+                                    CompactOutlinedButton(onClick = { pendingDelete = fav }) {
+                                        Text(stringResource(R.string.route_favorite_delete))
+                                    }
                                 }
                             }
                         }
