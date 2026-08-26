@@ -101,6 +101,7 @@
     <string name="route_save_name">Speichern</string>
     <string name="route_nickname_saved">Name gespeichert.</string>
     <string name="route_favorites_title">Lieblingsrouten</string>
+    <string name="route_favorites_empty">Noch keine Favoriten</string>
     <string name="route_favorite_take">Diese Route nehmen</string>
     <string name="route_favorite_unshare">Teilen beenden</string>
     <string name="route_favorite_share">Teilen</string>
