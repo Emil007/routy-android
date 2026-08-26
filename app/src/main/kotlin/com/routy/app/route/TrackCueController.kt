@@ -38,7 +38,7 @@ class TrackCueController(context: Context) {
     }
 
     fun goldenHit() {
-        playRaw(R.raw.gold, 0.4f)
+        playRaw(R.raw.gold, 0.65f)
         vibrate(80)
     }
 

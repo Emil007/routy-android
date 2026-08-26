@@ -48,6 +48,7 @@ data class SegmentDto(
     val lockedUntil: String? = null,
     val submittedBy: Int? = null,
     val deletedAt: String? = null,
+    val oneWay: Boolean = false,
 )
 
 @Serializable

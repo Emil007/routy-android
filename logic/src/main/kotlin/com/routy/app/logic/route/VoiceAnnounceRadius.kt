@@ -3,11 +3,11 @@ package com.routy.app.logic.route
 import com.routy.app.logic.geo.LatLng
 import com.routy.app.logic.geo.haversineMeters
 
-private const val MAX_ANNOUNCE_RADIUS_M = 40.0
-private const val MIN_ANNOUNCE_RADIUS_M = 12.0
-private const val DISTANCE_FRACTION = 0.35
+private const val MAX_ANNOUNCE_RADIUS_M = 22.0
+private const val MIN_ANNOUNCE_RADIUS_M = 9.0
+private const val DISTANCE_FRACTION = 0.28
 
-/** Spec D4/D5: min(40 m, 0.35 × distance to next station), floor 12 m. Last station uses 40 m. */
+/** Adaptive announce/waypoint radius — tighter while Track is on (react closer to the node). */
 fun voiceAnnounceRadiusM(stationIndex: Int, stations: List<com.routy.app.logic.api.RouteStation>): Double {
     val next = stations.getOrNull(stationIndex + 1)
     if (next == null) return MAX_ANNOUNCE_RADIUS_M
