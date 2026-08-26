@@ -6,8 +6,8 @@ import com.routy.app.logic.geo.LatLng
 import com.routy.app.logic.geo.closestPointOnPath
 
 /**
- * Planned route polyline from the next uncompleted station onward (K1).
- * Completed legs are shown via [trackedGeometry] only.
+ * Planned route polyline from the last reached station onward.
+ * The open hop stays planned until the next node is reached; finished hops use [trackedGeometry].
  */
 fun remainingRouteGeometry(
     routeGeometry: List<GeoPoint>,
@@ -19,8 +19,8 @@ fun remainingRouteGeometry(
     if (completedWaypointIndex >= stations.lastIndex) return emptyList()
 
     val path = routeGeometry.map { LatLng(it.lat, it.lng) }
-    val nextStation = stations[completedWaypointIndex + 1]
-    val closest = closestPointOnPath(path, LatLng(nextStation.lat, nextStation.lng)) ?: return routeGeometry
+    val anchorStation = stations[completedWaypointIndex]
+    val closest = closestPointOnPath(path, LatLng(anchorStation.lat, anchorStation.lng)) ?: return routeGeometry
 
     val result = mutableListOf(GeoPoint(closest.point.lat, closest.point.lng))
     for (i in (closest.index + 1) until routeGeometry.size) {

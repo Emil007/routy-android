@@ -125,6 +125,7 @@
     <string name="route_explorer_mode">Explorer mode</string>
     <string name="route_explorer_mode_hint">Prefers path segments that have never been walked.</string>
     <string name="route_generating">Searching for a matching route …</string>
+    <string name="route_generate">Generate</string>
     <string name="route_suggest">Suggest a route</string>
     <string name="route_preset_short">Short loop</string>
     <string name="route_preset_normal">Normal loop</string>

@@ -295,6 +295,8 @@ private fun RouteBottomDock(
     summary: @Composable RowScope.() -> Unit,
     primary: @Composable () -> Unit,
     expandedContent: @Composable () -> Unit,
+    /** Always-visible action beside the expand arrow (e.g. Generate). */
+    trailingAction: (@Composable () -> Unit)? = null,
 ) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
@@ -318,6 +320,7 @@ private fun RouteBottomDock(
                     verticalAlignment = Alignment.CenterVertically,
                     content = summary,
                 )
+                trailingAction?.invoke()
                 IconButton(onClick = onToggleCollapse, modifier = Modifier.size(32.dp)) {
                     Icon(
                         imageVector = if (level == DockLevel.COLLAPSED) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
@@ -395,6 +398,20 @@ private fun SuggestingMapLayout(
                     modifier = Modifier.weight(1f, fill = false),
                 )
             },
+            trailingAction = {
+                val loading = uiState.status == RouteStatus.LOADING
+                val hasStart = uiState.startNodeId != null || uiState.homeNodeId != null
+                val canGenerate = !loading && hasStart && !uiState.offlineCached
+                CompactButton(
+                    onClick = {
+                        viewModel.suggest("normal")
+                        dockLevel = DockLevel.EXPANDED
+                    },
+                    enabled = canGenerate,
+                ) {
+                    Text(stringResource(if (loading) R.string.route_generating else R.string.route_generate))
+                }
+            },
             primary = {
                 Text(
                     stringResource(R.string.route_planning_tap_hint),
@@ -420,7 +437,6 @@ private fun SuggestingMapLayout(
                     CompactCheck(uiState.explorerMode, viewModel::setExplorerMode, stringResource(R.string.route_explorer_mode))
                     CompactCheck(uiState.forceGolden, viewModel::setForceGolden, stringResource(R.string.route_force_golden))
                 }
-                RoutePresetButtons(uiState, viewModel)
                 if (uiState.usingNetworkFallback != null) {
                     Text(
                         stringResource(
@@ -434,7 +450,6 @@ private fun SuggestingMapLayout(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-                FavoritesLoadDeleteButton(uiState.favorites, uiState.status == RouteStatus.LOADING, viewModel)
                 uiState.messageRes?.let {
                     Text(
                         routeMessageText(it, uiState.messageArgs),
@@ -443,7 +458,10 @@ private fun SuggestingMapLayout(
                     )
                 }
             },
-            expandedContent = {},
+            expandedContent = {
+                RoutePresetButtons(uiState, viewModel)
+                FavoritesLoadDeleteButton(uiState.favorites, uiState.status == RouteStatus.LOADING, viewModel)
+            },
         )
     }
 }
