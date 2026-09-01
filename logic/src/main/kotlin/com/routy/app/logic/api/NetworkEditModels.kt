@@ -10,6 +10,12 @@ data class NodeRenameRequest(val nodeId: Int, val part1: String, val part2: Stri
 data class NodeMoveRequest(val nodeId: Int, val lat: Double, val lng: Double)
 
 @Serializable
+data class RepositionNodeRequest(val nodeId: Int, val lat: Double, val lng: Double, val accuracyM: Double? = null)
+
+@Serializable
+data class RepositionNodeResponse(val ok: Boolean, val offPathWarning: Boolean = false)
+
+@Serializable
 data class NodeIdRequest(val nodeId: Int)
 
 @Serializable

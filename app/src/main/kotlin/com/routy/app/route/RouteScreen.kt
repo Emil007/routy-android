@@ -91,6 +91,7 @@ import com.routy.app.logic.api.GeoPoint
 import com.routy.app.logic.api.NodeDto
 import com.routy.app.logic.api.PointPreviewBreakdown
 import com.routy.app.logic.api.RouteDisplayPayload
+import com.routy.app.logic.api.RouteStation
 import com.routy.app.logic.geo.LatLng
 import com.routy.app.logic.route.VoiceCue
 import com.routy.app.logic.route.VoiceCueTracker
@@ -462,13 +463,37 @@ private fun SuggestingMapLayout(
             expandedContent = {
                 val loading = uiState.status == RouteStatus.LOADING
                 val hasStart = uiState.startNodeId != null || uiState.homeNodeId != null
-                val canGenerate = !loading && hasStart && !uiState.offlineCached
-                CompactOutlinedButton(onClick = viewModel::surprise, enabled = canGenerate) {
+                val canGuide = !loading && hasStart && !uiState.offlineCached
+                CompactOutlinedButton(onClick = viewModel::surprise, enabled = canGuide) {
                     Text(stringResource(R.string.route_preset_surprise))
+                }
+                CompactOutlinedButton(onClick = viewModel::startGuide, enabled = canGuide) {
+                    Text(stringResource(R.string.route_node_guide))
                 }
                 FavoritesLoadDeleteButton(uiState.favorites, loading, viewModel)
             },
         )
+    }
+}
+
+@Composable
+private fun GuideNodeList(stations: List<RouteStation>, completedIndex: Int) {
+    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        stations.forEachIndexed { index, station ->
+            val done = index <= completedIndex
+            val current = index == completedIndex + 1 || (completedIndex < 0 && index == 0)
+            val label = station.name ?: "#${station.nodeId}"
+            Text(
+                text = "${index + 1}. $label",
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = if (current) FontWeight.Bold else FontWeight.Normal,
+                color = when {
+                    done -> MaterialTheme.colorScheme.primary
+                    current -> MaterialTheme.colorScheme.onSurface
+                    else -> MaterialTheme.colorScheme.onSurfaceVariant
+                },
+            )
+        }
     }
 }
 
@@ -737,8 +762,10 @@ private fun RouteWithMapLayout(
         }
     }
 
-    val displayRouteGeometry = remember(route.geometry, route.stations, uiState.completedWaypointIndex) {
-        if (uiState.completedWaypointIndex >= 0) {
+    val displayRouteGeometry = remember(route.geometry, route.stations, uiState.completedWaypointIndex, uiState.guideMode) {
+        if (uiState.guideMode) {
+            emptyList()
+        } else if (uiState.completedWaypointIndex >= 0) {
             remainingRouteGeometry(route.geometry, route.stations, uiState.completedWaypointIndex)
         } else {
             route.geometry
@@ -808,6 +835,29 @@ private fun RouteWithMapLayout(
             )
         }
 
+        uiState.repositionCandidates.takeIf { it.isNotEmpty() }?.let { candidates ->
+            AlertDialog(
+                onDismissRequest = viewModel::dismissRepositionPicker,
+                title = { Text(stringResource(R.string.route_reposition_pick)) },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        candidates.forEach { nodeId ->
+                            val node = uiState.nodes.find { it.id == nodeId }
+                            TextButton(onClick = { viewModel.confirmReposition(nodeId) }) {
+                                Text(node?.name ?: "#$nodeId")
+                            }
+                        }
+                    }
+                },
+                confirmButton = {},
+                dismissButton = {
+                    TextButton(onClick = viewModel::dismissRepositionPicker) {
+                        Text(stringResource(R.string.common_close))
+                    }
+                },
+            )
+        }
+
         RouteBottomDock(
             level = dockLevel,
             onToggleCollapse = {
@@ -823,7 +873,17 @@ private fun RouteWithMapLayout(
                 }
             },
             primary = {
-                if (stationPath.isNotBlank()) {
+                if (uiState.guideMode) {
+                    Text(
+                        stringResource(R.string.route_guide_active_title),
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    GuideNodeList(
+                        stations = route.stations,
+                        completedIndex = uiState.completedWaypointIndex,
+                    )
+                } else if (stationPath.isNotBlank()) {
                     Text(
                         stationPath,
                         style = MaterialTheme.typography.labelSmall,
@@ -865,18 +925,20 @@ private fun RouteWithMapLayout(
                 when {
                     uiState.mode == RouteMode.SUGGESTING && uiState.pendingShareToken == null -> {
                         FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            CompactOutlinedButton(onClick = { viewModel.adjust("shorter") }, enabled = !loading) {
-                                Text(stringResource(R.string.route_shorter))
-                            }
-                            CompactOutlinedButton(onClick = viewModel::another, enabled = !loading) {
-                                Text(stringResource(R.string.route_again))
-                            }
-                            CompactOutlinedButton(onClick = { viewModel.adjust("longer") }, enabled = !loading) {
-                                Text(stringResource(R.string.route_longer))
-                            }
-                            if (uiState.token.isNotBlank()) {
-                                CompactOutlinedButton(onClick = viewModel::reverse, enabled = !loading) {
-                                    Text(stringResource(R.string.route_reverse))
+                            if (!uiState.guideMode) {
+                                CompactOutlinedButton(onClick = { viewModel.adjust("shorter") }, enabled = !loading) {
+                                    Text(stringResource(R.string.route_shorter))
+                                }
+                                CompactOutlinedButton(onClick = viewModel::another, enabled = !loading) {
+                                    Text(stringResource(R.string.route_again))
+                                }
+                                CompactOutlinedButton(onClick = { viewModel.adjust("longer") }, enabled = !loading) {
+                                    Text(stringResource(R.string.route_longer))
+                                }
+                                if (uiState.token.isNotBlank()) {
+                                    CompactOutlinedButton(onClick = viewModel::reverse, enabled = !loading) {
+                                        Text(stringResource(R.string.route_reverse))
+                                    }
                                 }
                             }
                             CompactButton(onClick = viewModel::accept, enabled = !loading) {
@@ -926,6 +988,9 @@ private fun RouteWithMapLayout(
                             CompactOutlinedButton(onClick = { pendingDiscard = true }) {
                                 Text(stringResource(R.string.route_discard_button))
                             }
+                            CompactOutlinedButton(onClick = viewModel::requestReposition) {
+                                Text(stringResource(R.string.route_reposition_node))
+                            }
                         }
                         if (uiState.trackEnabled || uiState.voiceEnabled) {
                             BatteryOptimizationPrompt(modifier = Modifier.fillMaxWidth())
@@ -944,6 +1009,13 @@ private fun RouteWithMapLayout(
             expandedContent = {
                 when {
                     uiState.mode == RouteMode.SUGGESTING && uiState.pendingShareToken == null -> {
+                        if (uiState.guideMode) {
+                            Text(
+                                stringResource(R.string.route_guide_points_hint),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
                         CompactOutlinedButton(onClick = onStartRecording, enabled = !loading) {
                             Text(stringResource(R.string.record_entry_point))
                         }
@@ -1381,6 +1453,13 @@ private fun CompletionStatsDialog(
                         uiState.completionStreakMultiplier ?: 1.0,
                     ),
                 )
+                if (uiState.completionGuideMode) {
+                    Text(
+                        stringResource(R.string.route_guide_completion_points),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
                 uiState.completionPointBreakdown?.let { breakdown ->
                     PointPreviewLines(breakdown)
                 }

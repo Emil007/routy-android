@@ -39,6 +39,7 @@ import com.routy.app.logic.ownership.canEdit
 import com.routy.app.logic.recording.EndpointDecision
 import com.routy.app.logic.recording.findNodeCandidates
 import com.routy.app.logic.recording.initialEndpointDecision
+import com.routy.app.logic.graph.disconnectedCanonicalSegmentIds
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -102,6 +103,7 @@ data class MapUiState(
     val messageRes: Int? = null,
     val isError: Boolean = false,
     val todayGoldenSegmentIds: Set<Int> = emptySet(),
+    val disconnectedSegmentIds: Set<Int> = emptySet(),
 )
 
 class MapViewModel(
@@ -898,6 +900,8 @@ class MapViewModel(
         offline: Boolean,
         todayGoldenSegmentIds: List<Int> = emptyList(),
     ) {
+        val homeId = user.homeNodeId ?: nodes.firstOrNull { it.isHome }?.id
+        val disconnected = disconnectedCanonicalSegmentIds(segments.filter { it.isCanonical() }, homeId)
         val prev = _uiState.value
         _uiState.value = prev.copy(
             loading = false,
@@ -910,6 +914,7 @@ class MapViewModel(
             avoidSegmentIds = avoidSegmentIds,
             lockProposals = lockProposals,
             todayGoldenSegmentIds = todayGoldenSegmentIds.toSet(),
+            disconnectedSegmentIds = disconnected,
             selectedNode = prev.selectedNode?.let { sel -> nodes.find { it.id == sel.id } },
             selectedSegment = prev.selectedSegment?.let { sel -> segments.find { it.id == sel.id && it.isCanonical() } },
         )

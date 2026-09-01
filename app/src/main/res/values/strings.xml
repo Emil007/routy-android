@@ -157,6 +157,10 @@
     <string name="route_follow_check">Folgen</string>
     <string name="route_retag_title">Station umbenennen</string>
     <string name="route_retag_move_offer">Mehrere präzise GPS-Punkte weichen ab — Position wird mit gespeichert.</string>
+    <string name="route_reposition_node">Knoten verorten</string>
+    <string name="route_reposition_pick">Knoten zum Verorten wählen</string>
+    <string name="route_reposition_success">Knoten verortet.</string>
+    <string name="route_reposition_off_path">Knoten weit vom Weg verschoben — Karte prüfen.</string>
     <string name="route_track_check">Track</string>
     <string name="route_export_gpx">GPX exportieren</string>
     <string name="route_off_path_warning">Du bist deutlich neben der geplanten Route.</string>
@@ -361,16 +365,17 @@
     <string name="settings_crash_consent_subtitle">Anonyme Absturzberichte an den Server senden (nur mit Einwilligung).</string>
     <string name="common_remove">Entfernen</string>
 
-    <string name="map_restrict_button">Einschränken</string>
+    <string name="map_restrict_button">Persönlich einschränken</string>
     <string name="map_restrict_scope">Geltungsbereich</string>
-    <string name="map_restrict_scope_personal">Persönlich meiden</string>
+    <string name="map_restrict_scope_personal">Ausgeschlossen (persönlich)</string>
     <string name="map_restrict_scope_global">Für alle sperren</string>
-    <string name="map_restrict_scope_recommend">Sperre vorschlagen</string>
+    <string name="map_restrict_scope_lock_proposal">Sperrvorschlag</string>
+    <string name="map_restrict_scope_recommend">Sperrvorschlag</string>
     <string name="map_restrict_submit">Anwenden</string>
     <string name="map_restrict_clear">Aufheben</string>
     <string name="map_restrict_proposal_sent">Sperrvorschlag gesendet.</string>
     <string name="map_restrict_cleared">Einschränkung aufgehoben.</string>
-    <string name="map_personal_avoid_chip">Persönlich gemieden</string>
+    <string name="map_personal_avoid_chip">Ausgeschlossen</string>
     <string name="map_locked_chip">Gesperrt</string>
     <string name="map_lock_proposals_title">Sperrvorschläge (%1$d)</string>
     <string name="map_lock_proposal_days">%1$d Tage</string>
@@ -413,6 +418,19 @@
     <string name="route_celebration_golden">Goldene Route!</string>
     <string name="route_celebration_streak">Serien-Bonus!</string>
     <string name="route_celebration_achievement">Starker Lauf!</string>
+
+    <string name="route_node_guide">Knotenführung</string>
+    <string name="route_guide_need_nodes">Mindestens Start und einen weiteren Knoten als Muss-besucht wählen.</string>
+    <string name="route_guide_too_many">Maximal 12 Knoten in der Führung.</string>
+    <string name="route_guide_active_title">Knotenführung</string>
+    <string name="route_guide_points_hint">70 % der üblichen Punkte bei Abschluss.</string>
+    <string name="route_guide_completion_points">Knotenführung — 70 % der Punkte.</string>
+
+    <string name="stats_hero_balance">Punktestand</string>
+    <string name="stats_hero_streak">Serie: %1$d Tage</string>
+    <string name="stats_achievement_no_tier">Noch kein Rang</string>
+    <string name="stats_leaderboard_chip">%1$s — %2$s</string>
+    <string name="stats_points_leaderboard_empty">Noch keine Punkte.</string>
 
     <string name="stats_game_hub_title">Spiel</string>
     <string name="stats_game_point_balance">%1$d Punkte</string>

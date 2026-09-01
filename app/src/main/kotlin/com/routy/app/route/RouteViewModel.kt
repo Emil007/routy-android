@@ -20,6 +20,8 @@ import com.routy.app.logic.api.CompleteRouteRequest
 import com.routy.app.logic.api.ApiErrorBody
 import com.routy.app.logic.api.FavoriteEntry
 import com.routy.app.logic.api.GenerateRouteRequest
+import com.routy.app.logic.api.GuideStartRequest
+import com.routy.app.logic.api.RepositionNodeRequest
 import com.routy.app.logic.api.GameSummaryDto
 import com.routy.app.logic.api.GeoPoint
 import com.routy.app.logic.api.NicknameRequest
@@ -138,6 +140,14 @@ data class RouteUiState(
     val goldenHitIds: Set<Int> = emptySet(),
     /** null = unknown; true = network suggest min/max; false = personal taste. */
     val usingNetworkFallback: Boolean? = null,
+
+    /** Routeless node guide — no fixed polyline; stations from ordered nodes. */
+    val guideMode: Boolean = false,
+    val pointsMultiplier: Double? = null,
+    val completionGuideMode: Boolean = false,
+
+    val repositionCandidates: List<Int> = emptyList(),
+    val repositionAccuracyM: Double = 35.0,
 )
 
 class RouteViewModel(
@@ -313,6 +323,7 @@ class RouteViewModel(
             destinationNodeId = _uiState.value.destinationNodeId ?: resolvedHome,
             mode = if (state?.activeRoute != null) RouteMode.ACTIVE else RouteMode.SUGGESTING,
             route = state?.activeRoute,
+            guideMode = state?.walkMode == "guide",
             nickname = state?.nickname ?: "",
             followEnabled = state?.activeRoute != null,
             totalPoints = game.totalPoints,
@@ -545,6 +556,7 @@ class RouteViewModel(
             completionPointBreakdown = null,
             completionGoldenHits = 0,
             completionCelebrationTier = "normal",
+            completionGuideMode = false,
         )
     }
 
@@ -760,6 +772,66 @@ class RouteViewModel(
         suggest(preset = "surprise")
     }
 
+    private fun guideOrderedNodeIds(): List<Int> {
+        val state = _uiState.value
+        val start = state.startNodeId ?: state.homeNodeId ?: return emptyList()
+        val rest = state.mustVisitNodeIds.filter { it != start }
+        return listOf(start) + rest
+    }
+
+    fun startGuide() {
+        val orderedNodeIds = guideOrderedNodeIds()
+        if (orderedNodeIds.size < 2) {
+            _uiState.value = _uiState.value.copy(
+                messageRes = R.string.route_guide_need_nodes,
+                messageArgs = emptyList(),
+            )
+            return
+        }
+        if (_uiState.value.offlineCached) {
+            _uiState.value = _uiState.value.copy(
+                status = RouteStatus.ERROR,
+                messageRes = R.string.route_connection_failed,
+                messageArgs = emptyList(),
+            )
+            return
+        }
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(
+                status = RouteStatus.LOADING,
+                messageRes = null,
+                messageArgs = emptyList(),
+                selectedNodeId = null,
+                selectedSegmentId = null,
+            )
+            val response = try {
+                apiClientProvider.service.startGuide(GuideStartRequest(orderedNodeIds))
+            } catch (_: IOException) {
+                _uiState.value = _uiState.value.copy(
+                    status = RouteStatus.ERROR,
+                    messageRes = R.string.route_connection_failed,
+                    messageArgs = emptyList(),
+                )
+                return@launch
+            }
+            if (response.isSuccessful) {
+                applyGeneratedRoute(response.body(), response.body()?.token.orEmpty(), guideMode = true)
+            } else {
+                val code = parseErrorCode(response.errorBody()?.string())
+                val messageRes = when (code) {
+                    "constraints_impossible" -> R.string.route_constraints_impossible
+                    "too_many_nodes" -> R.string.route_guide_too_many
+                    else -> R.string.route_no_route_found
+                }
+                _uiState.value = _uiState.value.copy(
+                    status = RouteStatus.ERROR,
+                    messageRes = messageRes,
+                    messageArgs = emptyList(),
+                )
+            }
+        }
+    }
+
     fun suggest(preset: String? = null) {
         val state = _uiState.value
         val startNodeId = state.startNodeId ?: state.homeNodeId
@@ -816,6 +888,8 @@ class RouteViewModel(
                     pointPreview = body?.pointPreview,
                     goldenHitIds = hitIds,
                     usingNetworkFallback = body?.usingNetworkFallback,
+                    guideMode = false,
+                    pointsMultiplier = null,
                     messageRes = if (lengthRelaxed && lengthKm != null) R.string.route_length_relaxed else null,
                     messageArgs = if (lengthRelaxed && lengthKm != null) listOf(String.format("%.2f", lengthKm)) else emptyList(),
                 )
@@ -871,7 +945,7 @@ class RouteViewModel(
         }
     }
 
-    private fun applyGeneratedRoute(body: com.routy.app.logic.api.GenerateRouteResponse?, token: String) {
+    private fun applyGeneratedRoute(body: com.routy.app.logic.api.GenerateRouteResponse?, token: String, guideMode: Boolean = body?.guideMode == true) {
         val hitIds = body?.goldenHitIds?.toSet()
             ?: body?.route?.let {
                 goldenHitsOnRoute(it.segmentIds, _uiState.value.todayGoldenSegmentIds, _uiState.value.segments)
@@ -885,6 +959,8 @@ class RouteViewModel(
             route = body?.route,
             pointPreview = body?.pointPreview,
             goldenHitIds = hitIds,
+            guideMode = guideMode,
+            pointsMultiplier = body?.pointsMultiplier,
             messageRes = if (lengthRelaxed && lengthKm != null) R.string.route_length_relaxed else null,
             messageArgs = if (lengthRelaxed && lengthKm != null) listOf(String.format("%.2f", lengthKm)) else emptyList(),
         )
@@ -892,9 +968,16 @@ class RouteViewModel(
 
     fun accept() {
         val token = _uiState.value.token
+        val guide = _uiState.value.guideMode
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(status = RouteStatus.LOADING)
-            val response = try { apiClientProvider.service.acceptRoute(RouteTokenRequest(token)) } catch (_: IOException) {
+            val response = try {
+                if (guide) {
+                    apiClientProvider.service.acceptGuide(RouteTokenRequest(token))
+                } else {
+                    apiClientProvider.service.acceptRoute(RouteTokenRequest(token))
+                }
+            } catch (_: IOException) {
                 _uiState.value = _uiState.value.copy(status = RouteStatus.IDLE, messageRes = R.string.route_session_expired)
                 return@launch
             }
@@ -925,12 +1008,108 @@ class RouteViewModel(
         }
     }
 
+    fun dismissRepositionPicker() {
+        _uiState.value = _uiState.value.copy(repositionCandidates = emptyList())
+    }
+
+    fun requestReposition() {
+        val state = _uiState.value
+        val loc = state.myLocation
+        if (loc == null) {
+            _uiState.value = state.copy(messageRes = R.string.record_location_error, messageArgs = emptyList())
+            return
+        }
+        val accuracy = state.repositionAccuracyM
+        val maxDist = accuracy + 30.0
+        val nearby = state.nodes
+            .map { it to haversineM(it.lat, it.lng, loc.lat, loc.lng) }
+            .filter { (_, d) -> d <= maxDist }
+            .sortedBy { (_, d) -> d }
+            .map { (n, _) -> n.id }
+        if (nearby.isEmpty()) {
+            _uiState.value = state.copy(messageRes = R.string.common_error, messageArgs = emptyList())
+            return
+        }
+        if (nearby.size == 1) {
+            confirmReposition(nearby.first())
+            return
+        }
+        _uiState.value = state.copy(repositionCandidates = nearby)
+    }
+
+    fun confirmReposition(nodeId: Int) {
+        val state = _uiState.value
+        val loc = state.myLocation ?: return
+        viewModelScope.launch {
+            _uiState.value = state.copy(status = RouteStatus.LOADING, repositionCandidates = emptyList())
+            val response = try {
+                apiClientProvider.service.repositionNode(
+                    RepositionNodeRequest(nodeId, loc.lat, loc.lng, state.repositionAccuracyM),
+                )
+            } catch (_: IOException) {
+                _uiState.value = _uiState.value.copy(status = RouteStatus.IDLE, messageRes = R.string.common_error)
+                return@launch
+            }
+            if (response.isSuccessful) {
+                val offPath = response.body()?.offPathWarning == true
+                when (val result = bootstrapLoader.load()) {
+                    is BootstrapResult.Fresh -> applyNetworkState(
+                        result.body.nodes,
+                        result.body.segments,
+                        result.body.routeState,
+                        result.body.game,
+                        result.body.todayGoldenSegmentIds,
+                        offlineCached = false,
+                        homeNodeId = result.body.user.homeNodeId,
+                    )
+                    is BootstrapResult.NotModified, is BootstrapResult.CachedOnly -> {
+                        val cached = when (result) {
+                            is BootstrapResult.NotModified -> result.cached
+                            is BootstrapResult.CachedOnly -> result.cached
+                            else -> null
+                        }
+                        if (cached != null) {
+                            applyNetworkState(
+                                cached.nodes,
+                                cached.segments,
+                                cached.routeState,
+                                cached.game,
+                                cached.todayGoldenSegmentIds,
+                                offlineCached = true,
+                                homeNodeId = cached.user.homeNodeId,
+                            )
+                        }
+                    }
+                    BootstrapResult.Unauthorized, BootstrapResult.Failed -> Unit
+                }
+                _uiState.value = _uiState.value.copy(
+                    status = RouteStatus.IDLE,
+                    messageRes = if (offPath) R.string.route_reposition_off_path else R.string.route_reposition_success,
+                    messageArgs = emptyList(),
+                )
+            } else {
+                _uiState.value = _uiState.value.copy(status = RouteStatus.IDLE, messageRes = R.string.common_error)
+            }
+        }
+    }
+
+    private fun haversineM(lat1: Double, lng1: Double, lat2: Double, lng2: Double): Double {
+        val r = 6371000.0
+        val p1 = Math.toRadians(lat1)
+        val p2 = Math.toRadians(lat2)
+        val dP = Math.toRadians(lat2 - lat1)
+        val dL = Math.toRadians(lng2 - lng1)
+        val a = Math.sin(dP / 2) * Math.sin(dP / 2) +
+            Math.cos(p1) * Math.cos(p2) * Math.sin(dL / 2) * Math.sin(dL / 2)
+        return r * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+    }
+
     fun cancel() {
         val token = _uiState.value.token
         if (_uiState.value.route == null) return
         viewModelScope.launch {
             try { apiClientProvider.service.cancelRoute(RouteTokenRequest(token)) } catch (_: IOException) {}
-            _uiState.value = _uiState.value.copy(route = null, token = "", status = RouteStatus.IDLE, messageRes = null, pointPreview = null, goldenHitIds = emptySet())
+            _uiState.value = _uiState.value.copy(route = null, token = "", status = RouteStatus.IDLE, messageRes = null, pointPreview = null, goldenHitIds = emptySet(), guideMode = false, pointsMultiplier = null)
         }
     }
 
@@ -995,6 +1174,9 @@ class RouteViewModel(
                     completionPointBreakdown = body?.pointBreakdown,
                     completionGoldenHits = body?.goldenHits ?: 0,
                     completionCelebrationTier = body?.celebrationTier ?: "normal",
+                    completionGuideMode = body?.guideMode == true || _uiState.value.guideMode,
+                    guideMode = false,
+                    pointsMultiplier = null,
                 )
             } else {
                 _uiState.value = _uiState.value.copy(status = RouteStatus.IDLE, messageRes = R.string.common_error, messageArgs = emptyList())
@@ -1066,6 +1248,8 @@ class RouteViewModel(
                 voiceAnnouncedIndex = 0,
                 pointPreview = null,
                 goldenHitIds = emptySet(),
+                guideMode = false,
+                pointsMultiplier = null,
             )
         }
     }

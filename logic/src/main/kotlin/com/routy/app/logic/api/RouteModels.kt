@@ -72,7 +72,12 @@ data class GenerateRouteResponse(
     val lengthRelaxed: Boolean = false,
     val lengthKm: Double? = null,
     val usingNetworkFallback: Boolean? = null,
+    val guideMode: Boolean = false,
+    val pointsMultiplier: Double? = null,
 )
+
+@Serializable
+data class GuideStartRequest(val orderedNodeIds: List<Int>)
 
 @Serializable
 data class GenerateRouteRequest(
@@ -140,6 +145,8 @@ data class CompleteRouteResponse(
     val goldenHits: Int = 0,
     /** "normal" | "golden" | "streak" | "achievement" */
     val celebrationTier: String = "normal",
+    val guideMode: Boolean = false,
+    val pointsMultiplier: Double? = null,
 )
 
 @Serializable
@@ -151,4 +158,6 @@ data class RouteStateResponse(
     val activeRoute: RouteDisplayPayload? = null,
     val nickname: String? = null,
     val favorites: List<FavoriteEntry> = emptyList(),
+    /** "route" | "guide" */
+    val walkMode: String = "route",
 )

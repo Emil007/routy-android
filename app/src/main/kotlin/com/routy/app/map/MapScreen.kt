@@ -142,6 +142,7 @@ fun MapScreen(onStartRecording: () -> Unit, modifier: Modifier = Modifier) {
             editVertices = if (uiState.mode == MapMode.EditSegment) uiState.editSegmentPoints else null,
             selectedEditVertexIndex = uiState.selectedEditVertexIndex,
             goldenSegmentIds = uiState.todayGoldenSegmentIds,
+            disconnectedSegmentIds = uiState.disconnectedSegmentIds,
             onMapClick = viewModel::onMapClick,
             modifier = Modifier.fillMaxSize(),
         )
@@ -187,10 +188,6 @@ fun MapScreen(onStartRecording: () -> Unit, modifier: Modifier = Modifier) {
                         uiState,
                         viewModel,
                         visible = showExtras,
-                        mapStyle = mapPrefs.baseMapStyle,
-                        onMapStyle = mapPrefs.setBaseMapStyle,
-                        waymarkedOverlay = mapPrefs.waymarkedOverlay,
-                        onWaymarkedOverlay = mapPrefs.setWaymarkedOverlay,
                     )
                 }
                 MapMode.Draw -> MapDrawPanel(uiState, viewModel)
@@ -303,22 +300,9 @@ private fun MapExtrasContent(
     state: MapUiState,
     viewModel: MapViewModel,
     visible: Boolean,
-    mapStyle: BaseMapStyle,
-    onMapStyle: (BaseMapStyle) -> Unit,
-    waymarkedOverlay: Boolean,
-    onWaymarkedOverlay: (Boolean) -> Unit,
 ) {
     AnimatedVisibility(visible = visible) {
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Surface(color = MaterialTheme.colorScheme.surface.copy(alpha = 0.94f), shape = MaterialTheme.shapes.medium) {
-                MapStyleSwitcher(
-                    selected = mapStyle,
-                    onSelect = onMapStyle,
-                    waymarkedOverlay = waymarkedOverlay,
-                    onWaymarkedOverlayChange = onWaymarkedOverlay,
-                    modifier = Modifier.padding(8.dp),
-                )
-            }
             if (state.proposals.isNotEmpty()) {
                 ProposalsPanel(state, viewModel)
             }
@@ -445,7 +429,7 @@ private fun MapSegmentPanel(segment: SegmentDto, state: MapUiState, viewModel: M
             }
             FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 if (personalAvoided) {
-                    AssistChip(onClick = {}, enabled = false, label = { Text(stringResource(R.string.map_personal_avoid_chip), style = MaterialTheme.typography.labelSmall) })
+                    AssistChip(onClick = {}, enabled = false, label = { Text(stringResource(R.string.route_segment_menu_excluded), style = MaterialTheme.typography.labelSmall) })
                 }
                 if (locked) {
                     AssistChip(onClick = {}, enabled = false, label = { Text(stringResource(R.string.map_locked_chip), style = MaterialTheme.typography.labelSmall) })
@@ -630,7 +614,7 @@ private fun RestrictScopePicker(selected: String, canEditGlobal: Boolean, onSele
     var expanded by remember { mutableStateOf(false) }
     val label = when (selected) {
         "global" -> if (canEditGlobal) stringResource(R.string.map_restrict_scope_global)
-        else stringResource(R.string.map_restrict_scope_recommend)
+        else stringResource(R.string.map_restrict_scope_lock_proposal)
         else -> stringResource(R.string.map_restrict_scope_personal)
     }
     ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = it }) {
@@ -651,7 +635,7 @@ private fun RestrictScopePicker(selected: String, canEditGlobal: Boolean, onSele
                 text = {
                     Text(
                         if (canEditGlobal) stringResource(R.string.map_restrict_scope_global)
-                        else stringResource(R.string.map_restrict_scope_recommend),
+                        else stringResource(R.string.map_restrict_scope_lock_proposal),
                     )
                 },
                 onClick = { expanded = false; onSelect("global") },
