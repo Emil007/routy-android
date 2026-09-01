@@ -15,6 +15,7 @@ import com.routy.app.logic.api.GpxPoint
 import com.routy.app.logic.api.GpxTrack
 import com.routy.app.logic.api.NodeDto
 import com.routy.app.logic.api.NodeIdRequest
+import com.routy.app.logic.api.NodeOpeningHoursRequest
 import com.routy.app.logic.api.NodeMoveRequest
 import com.routy.app.logic.api.NodeRenameRequest
 import com.routy.app.logic.api.LockProposalDetailDto
@@ -39,6 +40,7 @@ import com.routy.app.logic.ownership.canEdit
 import com.routy.app.logic.recording.EndpointDecision
 import com.routy.app.logic.recording.findNodeCandidates
 import com.routy.app.logic.recording.initialEndpointDecision
+import com.routy.app.logic.graph.disconnectedCanonicalSegmentIds
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -82,6 +84,9 @@ data class MapUiState(
     val renamingNode: Boolean = false,
     val renamePart1: String = "",
     val renamePart2: String = "",
+    val editingOpeningHours: Boolean = false,
+    val openingHoursFrom: String = "08:00",
+    val openingHoursUntil: String = "18:00",
     val renamingSegment: Boolean = false,
     val renameSegmentName: String = "",
     val drawPoints: List<LatLng> = emptyList(),
@@ -102,6 +107,7 @@ data class MapUiState(
     val messageRes: Int? = null,
     val isError: Boolean = false,
     val todayGoldenSegmentIds: Set<Int> = emptySet(),
+    val disconnectedSegmentIds: Set<Int> = emptySet(),
 )
 
 class MapViewModel(
@@ -256,6 +262,66 @@ class MapViewModel(
         runMutation(R.string.map_deleted) {
             apiClientProvider.service.deleteNode(NodeIdRequest(node.id))
         }
+    }
+
+    fun startEditOpeningHours() {
+        val node = _uiState.value.selectedNode ?: return
+        if (!canEditNode(node)) return
+        _uiState.value = _uiState.value.copy(
+            editingOpeningHours = true,
+            openingHoursFrom = minutesToTime(node.openFromMinutes) ?: "08:00",
+            openingHoursUntil = minutesToTime(node.openUntilMinutes) ?: "18:00",
+        )
+    }
+
+    fun updateOpeningHoursFrom(value: String) {
+        _uiState.value = _uiState.value.copy(openingHoursFrom = value)
+    }
+
+    fun updateOpeningHoursUntil(value: String) {
+        _uiState.value = _uiState.value.copy(openingHoursUntil = value)
+    }
+
+    fun cancelOpeningHoursEdit() {
+        _uiState.value = _uiState.value.copy(editingOpeningHours = false)
+    }
+
+    fun saveOpeningHours(clear: Boolean = false) {
+        val node = _uiState.value.selectedNode ?: return
+        if (!canEditNode(node)) return denyNotAllowed()
+        val fromMinutes = if (clear) null else parseTimeMinutes(_uiState.value.openingHoursFrom)
+        val untilMinutes = if (clear) null else parseTimeMinutes(_uiState.value.openingHoursUntil)
+        if (!clear && (fromMinutes == null || untilMinutes == null)) {
+            _uiState.value = _uiState.value.copy(messageRes = R.string.common_error, isError = true)
+            return
+        }
+        runMutation(R.string.map_saved) {
+            apiClientProvider.service.setNodeOpeningHours(
+                NodeOpeningHoursRequest(
+                    nodeId = node.id,
+                    openFromMinutes = fromMinutes,
+                    openUntilMinutes = untilMinutes,
+                    clear = clear,
+                ),
+            )
+        }
+        _uiState.value = _uiState.value.copy(editingOpeningHours = false)
+    }
+
+    private fun minutesToTime(minutes: Int?): String? {
+        if (minutes == null) return null
+        val h = minutes / 60
+        val m = minutes % 60
+        return "%02d:%02d".format(h, m)
+    }
+
+    private fun parseTimeMinutes(value: String): Int? {
+        val parts = value.split(":")
+        if (parts.size != 2) return null
+        val h = parts[0].toIntOrNull() ?: return null
+        val m = parts[1].toIntOrNull() ?: return null
+        if (h !in 0..23 || m !in 0..59) return null
+        return h * 60 + m
     }
 
     private fun moveNodeTo(nodeId: Int, lat: Double, lng: Double) {
@@ -898,6 +964,8 @@ class MapViewModel(
         offline: Boolean,
         todayGoldenSegmentIds: List<Int> = emptyList(),
     ) {
+        val homeId = user.homeNodeId ?: nodes.firstOrNull { it.isHome }?.id
+        val disconnected = disconnectedCanonicalSegmentIds(segments.filter { it.isCanonical() }, homeId)
         val prev = _uiState.value
         _uiState.value = prev.copy(
             loading = false,
@@ -910,6 +978,7 @@ class MapViewModel(
             avoidSegmentIds = avoidSegmentIds,
             lockProposals = lockProposals,
             todayGoldenSegmentIds = todayGoldenSegmentIds.toSet(),
+            disconnectedSegmentIds = disconnected,
             selectedNode = prev.selectedNode?.let { sel -> nodes.find { it.id == sel.id } },
             selectedSegment = prev.selectedSegment?.let { sel -> segments.find { it.id == sel.id && it.isCanonical() } },
         )

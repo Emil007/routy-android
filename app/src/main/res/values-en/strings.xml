@@ -128,7 +128,17 @@
     <string name="route_generating">Searching for a matching route …</string>
     <string name="route_generate">Generate</string>
     <string name="route_suggest">Suggest a route</string>
+    <string name="route_preset_short_btn">Short</string>
+    <string name="route_preset_normal_btn">Normal</string>
+    <string name="route_preset_long_btn">Long</string>
+    <string name="route_generate_arrow">↑</string>
     <string name="route_preset_short">Short loop</string>
+    <string name="route_again">Again</string>
+    <string name="route_reverse">Reverse</string>
+    <string name="route_track_abort_confirm">Stop tracking? Your GPS trace so far is kept.</string>
+    <string name="route_back_active_confirm">Discard the active route or stay on it?</string>
+    <string name="route_stay_on_route">Stay</string>
+    <string name="settings_map_layers_title">Map layers</string>
     <string name="route_preset_normal">Normal loop</string>
     <string name="route_preset_long">Long loop</string>
     <string name="route_preset_surprise">Surprise me</string>
@@ -147,6 +157,10 @@
     <string name="route_follow_check">Follow</string>
     <string name="route_retag_title">Rename station</string>
     <string name="route_retag_move_offer">Several accurate GPS samples cluster away — position will be updated too.</string>
+    <string name="route_reposition_node">Reposition node</string>
+    <string name="route_reposition_pick">Choose node to reposition</string>
+    <string name="route_reposition_success">Node repositioned.</string>
+    <string name="route_reposition_off_path">Node moved far from the path — check the map.</string>
     <string name="route_track_check">Track</string>
     <string name="route_export_gpx">Export GPX</string>
     <string name="route_off_path_warning">You are noticeably off the planned route.</string>
@@ -285,6 +299,11 @@
     <string name="map_draw_path">Draw path</string>
     <string name="map_import_gpx">Import GPX</string>
     <string name="map_rename">Rename</string>
+    <string name="map_opening_hours">Opening hours</string>
+    <string name="map_opening_hours_from">Open from (HH:MM)</string>
+    <string name="map_opening_hours_until">Open until (HH:MM)</string>
+    <string name="map_opening_hours_clear">Clear hours</string>
+    <string name="map_opening_hours_closed_chip">Closed now</string>
     <string name="map_set_home">Set home</string>
     <string name="map_move">Move</string>
     <string name="map_move_active">Tap new location</string>
@@ -351,16 +370,17 @@
     <string name="settings_crash_consent_subtitle">Send anonymous crash reports to the server (only with consent).</string>
     <string name="common_remove">Remove</string>
 
-    <string name="map_restrict_button">Restrict</string>
+    <string name="map_restrict_button">Personal restrict</string>
     <string name="map_restrict_scope">Scope</string>
-    <string name="map_restrict_scope_personal">Avoid personally</string>
+    <string name="map_restrict_scope_personal">Excluded (personal)</string>
     <string name="map_restrict_scope_global">Lock for everyone</string>
-    <string name="map_restrict_scope_recommend">Recommend lock</string>
+    <string name="map_restrict_scope_lock_proposal">Lock proposal</string>
+    <string name="map_restrict_scope_recommend">Lock proposal</string>
     <string name="map_restrict_submit">Apply</string>
     <string name="map_restrict_clear">Clear</string>
     <string name="map_restrict_proposal_sent">Lock proposal sent.</string>
     <string name="map_restrict_cleared">Restriction cleared.</string>
-    <string name="map_personal_avoid_chip">Personally avoided</string>
+    <string name="map_personal_avoid_chip">Excluded</string>
     <string name="map_locked_chip">Locked</string>
     <string name="map_lock_proposals_title">Lock proposals (%1$d)</string>
     <string name="map_lock_proposal_days">%1$d days</string>
@@ -403,6 +423,21 @@
     <string name="route_celebration_golden">Golden route!</string>
     <string name="route_celebration_streak">Streak bonus!</string>
     <string name="route_celebration_achievement">Great walk!</string>
+
+    <string name="route_node_guide">Node guide</string>
+    <string name="route_guide_need_nodes">Pick a start and at least one must-visit node.</string>
+    <string name="route_guide_too_many">At most 12 nodes in a guide.</string>
+    <string name="route_unreachable_guide_leg">Cannot reach the next guide stop on the network.</string>
+    <string name="route_closed_nodes_warning">Some stops may be closed right now.</string>
+    <string name="route_guide_active_title">Node guide</string>
+    <string name="route_guide_points_hint">70% of usual points on complete.</string>
+    <string name="route_guide_completion_points">Node guide — 70% points.</string>
+
+    <string name="stats_hero_balance">Point balance</string>
+    <string name="stats_hero_streak">Streak: %1$d days</string>
+    <string name="stats_achievement_no_tier">No tier yet</string>
+    <string name="stats_leaderboard_chip">%1$s — %2$s</string>
+    <string name="stats_points_leaderboard_empty">No points yet.</string>
 
     <string name="stats_game_hub_title">Game</string>
     <string name="stats_game_point_balance">%1$d points</string>

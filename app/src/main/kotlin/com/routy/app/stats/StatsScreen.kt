@@ -2,6 +2,7 @@ package com.routy.app.stats
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -11,11 +12,14 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -28,6 +32,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -40,6 +46,7 @@ import com.routy.app.RoutyApplication
 import com.routy.app.ui.OfflineBanner
 import com.routy.app.logic.api.GeoPoint
 import com.routy.app.logic.api.GoldenSegmentDto
+import com.routy.app.logic.api.ScalableAchievementDto
 import com.routy.app.logic.api.SegmentUsageStat
 import com.routy.app.logic.api.WalkLogEntryDto
 import com.routy.app.logic.geo.walkPathPoints
@@ -48,6 +55,27 @@ import com.routy.app.logic.time.parseServerInstant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+
+private val ACHIEVEMENT_TIERS = listOf("stein", "blech", "bronze", "silber", "gold", "platin", "diamant")
+
+private val TIER_COLORS = mapOf(
+    "stein" to Color(0xFF8A8A8A),
+    "blech" to Color(0xFF9FA8B0),
+    "bronze" to Color(0xFFA5711C),
+    "silber" to Color(0xFFB0B6BD),
+    "gold" to Color(0xFFC99A2E),
+    "platin" to Color(0xFF7FD3C9),
+    "diamant" to Color(0xFF5B9BD5),
+)
+
+private fun tierColor(tierIndex: Int): Color {
+    val key = tierIndex.takeIf { it >= 0 }?.let { ACHIEVEMENT_TIERS.getOrNull(it) }
+    return if (key != null) {
+        TIER_COLORS[key] ?: Color(0xFF8A8A8A)
+    } else {
+        Color(0xFF8A8A8A).copy(alpha = 0.3f)
+    }
+}
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -112,6 +140,10 @@ fun StatsScreen(modifier: Modifier = Modifier) {
     val stats = uiState.stats!!
     val streak = uiState.streak
     val achievements = uiState.achievements
+    val pointBalance = uiState.gameDaily?.pointBalance ?: uiState.points?.totalPoints ?: 0
+    val streakMultiplier = uiState.gameDaily?.streakMultiplier ?: uiState.points?.streakMultiplier ?: 1.0
+    val weeklyPoints = uiState.points?.weeklyPoints ?: 0
+    val currentStreak = streak?.currentStreak ?: 0
 
     LazyColumn(
         modifier = modifier
@@ -146,10 +178,11 @@ fun StatsScreen(modifier: Modifier = Modifier) {
             }
         }
         item {
-            GameHubSection(
-                pointBalance = uiState.gameDaily?.pointBalance ?: uiState.points?.totalPoints ?: 0,
-                streakMultiplier = uiState.gameDaily?.streakMultiplier ?: uiState.points?.streakMultiplier ?: 1.0,
-                weeklyPoints = uiState.points?.weeklyPoints ?: 0,
+            StatsHeroCard(
+                pointBalance = pointBalance,
+                streakDays = currentStreak,
+                streakMultiplier = streakMultiplier,
+                weeklyPoints = weeklyPoints,
                 dailyChallenge = uiState.gameDaily?.dailyChallenge,
                 goldenSegments = uiState.goldenSegments,
             )
@@ -178,53 +211,21 @@ fun StatsScreen(modifier: Modifier = Modifier) {
             }
         }
 
-        if (uiState.pointsLeaderboard.isNotEmpty()) {
+        if (uiState.pointsLeaderboard.isNotEmpty() || uiState.leaderboard.isNotEmpty()) {
             item {
-                StatsSection(title = stringResource(R.string.stats_points_leaderboard)) {
-                    uiState.pointsLeaderboard.forEachIndexed { index, entry ->
-                        Text(
-                            text = "${index + 1}. ${entry.displayName} — ${entry.totalPoints}",
-                            style = MaterialTheme.typography.bodyMedium,
-                            modifier = Modifier.padding(vertical = 2.dp),
-                        )
-                    }
-                }
-            }
-        }
-
-        item {
-            StatsSection(title = stringResource(R.string.stats_leaderboard)) {
-                if (uiState.leaderboard.isEmpty()) {
-                    Text(stringResource(R.string.stats_leaderboard_empty), style = MaterialTheme.typography.bodySmall)
-                } else {
-                    uiState.leaderboard.forEachIndexed { index, entry ->
-                        val highlight = entry.userId == uiState.currentUserId
-                        Text(
-                            text = "${index + 1}. ${entry.displayName} — ${formatKm(entry.totalLengthM)} ${stringResource(R.string.common_km)} (${entry.walkCount})",
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = if (highlight) FontWeight.Bold else FontWeight.Normal,
-                            modifier = Modifier.padding(vertical = 2.dp),
-                        )
-                    }
-                }
+                LeaderboardsSection(
+                    pointsLeaderboard = uiState.pointsLeaderboard,
+                    weeklyLeaderboard = uiState.leaderboard,
+                    currentUserId = uiState.currentUserId,
+                )
             }
         }
 
         if (achievements != null) {
             item {
                 StatsSection(title = stringResource(R.string.stats_achievements)) {
-                    achievements.scalable.forEach { a ->
-                        Text(
-                            text = "${a.categoryLabel}: ${a.tierLabel ?: "—"}",
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.SemiBold,
-                        )
-                        Text(
-                            text = a.progressLabel,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(bottom = 6.dp),
-                        )
+                    achievements.scalable.forEach { achievement ->
+                        AchievementRow(achievement)
                     }
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         achievements.special.forEach { s ->
@@ -237,6 +238,9 @@ fun StatsScreen(modifier: Modifier = Modifier) {
                                         style = MaterialTheme.typography.labelSmall,
                                     )
                                 },
+                                modifier = Modifier.then(
+                                    if (!s.earned) Modifier else Modifier,
+                                ),
                             )
                         }
                     }
@@ -267,40 +271,149 @@ fun StatsScreen(modifier: Modifier = Modifier) {
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun GameHubSection(
+private fun StatsHeroCard(
     pointBalance: Int,
+    streakDays: Int,
     streakMultiplier: Double,
     weeklyPoints: Int,
     dailyChallenge: String?,
     goldenSegments: List<GoldenSegmentDto>,
 ) {
-    StatsSection(title = stringResource(R.string.stats_game_hub_title)) {
-        Text(
-            text = stringResource(R.string.stats_game_point_balance, pointBalance),
-            style = MaterialTheme.typography.headlineMedium,
-            fontWeight = FontWeight.Bold,
-        )
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            StatChip(stringResource(R.string.stats_game_streak_multiplier, streakMultiplier))
-            StatChip(stringResource(R.string.stats_weekly_points) + ": $weeklyPoints")
-        }
-        dailyChallenge?.takeIf { it.isNotBlank() }?.let { challenge ->
-            Text(challenge, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-        if (goldenSegments.isNotEmpty()) {
-            Text(stringResource(R.string.stats_golden_today_title), style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(top = 4.dp))
-            goldenSegments.forEach { golden ->
-                Text(
-                    text = golden.name?.let { "$it (×${golden.multiplier})" }
-                        ?: stringResource(R.string.map_proposal_segment, golden.segmentId) + " (×${golden.multiplier})",
-                    style = MaterialTheme.typography.bodySmall,
-                    modifier = Modifier.padding(vertical = 2.dp),
-                )
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f)),
+    ) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(
+                stringResource(R.string.stats_game_hub_title),
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.onPrimaryContainer,
+            )
+            Text(
+                text = "$pointBalance",
+                style = MaterialTheme.typography.displaySmall,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onPrimaryContainer,
+            )
+            Text(
+                stringResource(R.string.stats_hero_balance),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f),
+            )
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                StatChip(stringResource(R.string.stats_hero_streak, streakDays))
+                StatChip(stringResource(R.string.stats_game_streak_multiplier, streakMultiplier))
+                StatChip(stringResource(R.string.stats_weekly_points) + ": $weeklyPoints")
             }
-        } else {
-            Text(stringResource(R.string.stats_golden_today_empty), style = MaterialTheme.typography.bodySmall)
+            dailyChallenge?.takeIf { it.isNotBlank() }?.let { challenge ->
+                Text(challenge, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f))
+            }
+            Text(stringResource(R.string.stats_golden_today_title), style = MaterialTheme.typography.labelMedium)
+            if (goldenSegments.isEmpty()) {
+                Text(stringResource(R.string.stats_golden_today_empty), style = MaterialTheme.typography.bodySmall)
+            } else {
+                goldenSegments.forEach { golden ->
+                    Text(
+                        text = golden.name?.let { "$it (×${golden.multiplier})" }
+                            ?: stringResource(R.string.map_proposal_segment, golden.segmentId) + " (×${golden.multiplier})",
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.padding(vertical = 2.dp),
+                    )
+                }
+            }
         }
     }
+}
+
+@Composable
+private fun AchievementRow(achievement: ScalableAchievementDto) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalAlignment = Alignment.Top,
+    ) {
+        Box(
+            modifier = Modifier
+                .padding(top = 4.dp)
+                .size(14.dp)
+                .clip(CircleShape)
+                .background(tierColor(achievement.tierIndex)),
+        )
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = "${achievement.categoryLabel} — ${achievement.tierLabel ?: stringResource(R.string.stats_achievement_no_tier)}",
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Text(
+                text = achievement.progressLabel,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun LeaderboardsSection(
+    pointsLeaderboard: List<com.routy.app.logic.api.PointsLeaderboardEntryDto>,
+    weeklyLeaderboard: List<com.routy.app.logic.api.LeaderboardEntryDto>,
+    currentUserId: Int?,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (pointsLeaderboard.isNotEmpty()) {
+            StatsSection(title = stringResource(R.string.stats_points_leaderboard)) {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    pointsLeaderboard.forEachIndexed { index, entry ->
+                        LeaderboardChip(
+                            label = stringResource(
+                                R.string.stats_leaderboard_chip,
+                                "${index + 1}. ${entry.displayName}",
+                                "${entry.totalPoints} ${stringResource(R.string.stats_points)}",
+                            ),
+                            highlight = entry.userId == currentUserId,
+                        )
+                    }
+                }
+            }
+        }
+        StatsSection(title = stringResource(R.string.stats_leaderboard)) {
+            if (weeklyLeaderboard.isEmpty()) {
+                Text(stringResource(R.string.stats_leaderboard_empty), style = MaterialTheme.typography.bodySmall)
+            } else {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    weeklyLeaderboard.forEachIndexed { index, entry ->
+                        LeaderboardChip(
+                            label = stringResource(
+                                R.string.stats_leaderboard_chip,
+                                "${index + 1}. ${entry.displayName}",
+                                "${formatKm(entry.totalLengthM)} ${stringResource(R.string.common_km)} (${entry.walkCount})",
+                            ),
+                            highlight = entry.userId == currentUserId,
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun LeaderboardChip(label: String, highlight: Boolean) {
+    AssistChip(
+        onClick = {},
+        enabled = false,
+        label = {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = if (highlight) FontWeight.Bold else FontWeight.Normal,
+            )
+        },
+    )
 }
 
 @Composable

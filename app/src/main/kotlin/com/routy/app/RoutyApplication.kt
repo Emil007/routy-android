@@ -8,6 +8,7 @@ import com.routy.app.core.network.ApiClientProvider
 import com.routy.app.core.storage.SecureStorage
 import com.routy.app.core.BootstrapLoader
 import com.routy.app.core.storage.NetworkCache
+import com.routy.app.core.storage.MapPreferencesStore
 import com.routy.app.core.GpxQueueNotifier
 import com.routy.app.core.StatsInvalidation
 import com.routy.app.widget.WidgetUpdater
@@ -45,6 +46,8 @@ class RoutyApplication : Application() {
         private set
     lateinit var crashReportStore: com.routy.app.core.storage.CrashReportStore
         private set
+    lateinit var mapPreferencesStore: MapPreferencesStore
+        private set
 
     private val appScope = CoroutineScope(SupervisorJob())
 
@@ -64,6 +67,7 @@ class RoutyApplication : Application() {
         gpxCommitQueueStore = com.routy.app.core.storage.GpxCommitQueueStore(this)
         gpxCommitScheduler = com.routy.app.recording.GpxCommitScheduler(this, gpxCommitQueueStore)
         bootstrapLoader = BootstrapLoader(apiClientProvider, networkCache)
+        mapPreferencesStore = MapPreferencesStore(this)
         mapTilePrefetchScheduler = MapTilePrefetchScheduler(this)
         networkCache.loadBootstrap()?.user?.locale?.let { AccountLocale.apply(it) }
         networkCache.loadBootstrap()?.user?.theme?.let { AccountTheme.apply(it) }
