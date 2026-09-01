@@ -67,10 +67,9 @@ import com.routy.app.logic.api.GeoPoint
 import com.routy.app.logic.recording.EndpointDecision
 import com.routy.app.logic.recording.NodeCandidate
 import com.routy.app.logic.recording.RecordingPhase
-import com.routy.app.map.BaseMapStyle
-import com.routy.app.map.MapStyleSwitcher
-import com.routy.app.map.NamePartsInput
 import com.routy.app.map.RoutyMapView
+import com.routy.app.map.rememberMapPreferences
+import com.routy.app.map.NamePartsInput
 import com.routy.app.ui.OfflineBanner
 
 private val CompactPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
@@ -222,16 +221,15 @@ private fun ConfirmFullscreen(
     onDiscard: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    var mapStyle by remember { mutableStateOf(BaseMapStyle.STREETS) }
-    var waymarkedOverlay by remember { mutableStateOf(false) }
+    val mapPrefs = rememberMapPreferences()
     val trackGeometry = remember(uiState.points) {
         uiState.points.map { GeoPoint(it.lat, it.lng) }
     }
 
     Box(modifier = modifier) {
         RoutyMapView(
-            style = mapStyle,
-            waymarkedOverlay = waymarkedOverlay,
+            style = mapPrefs.baseMapStyle,
+            waymarkedOverlay = mapPrefs.waymarkedOverlay,
             nodes = uiState.nodes,
             segments = emptyList(),
             routeGeometry = trackGeometry,
@@ -258,10 +256,6 @@ private fun ConfirmFullscreen(
                 uiState = uiState,
                 viewModel = viewModel,
                 onDiscard = onDiscard,
-                mapStyle = mapStyle,
-                onMapStyle = { mapStyle = it },
-                waymarkedOverlay = waymarkedOverlay,
-                onWaymarkedOverlay = { waymarkedOverlay = it },
                 modifier = Modifier.padding(8.dp),
             )
         }
@@ -280,13 +274,12 @@ private fun ActiveRecordingFullscreen(
     onDiscard: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    var mapStyle by remember { mutableStateOf(BaseMapStyle.STREETS) }
-    var waymarkedOverlay by remember { mutableStateOf(false) }
+    val mapPrefs = rememberMapPreferences()
 
     Box(modifier = modifier) {
         RoutyMapView(
-            style = mapStyle,
-            waymarkedOverlay = waymarkedOverlay,
+            style = mapPrefs.baseMapStyle,
+            waymarkedOverlay = mapPrefs.waymarkedOverlay,
             nodes = uiState.nodes,
             segments = emptyList(),
             routeGeometry = serviceState.trackGeometry,
@@ -328,13 +321,6 @@ private fun ActiveRecordingFullscreen(
                     })
                 }
 
-                MapStyleSwitcher(
-                    selected = mapStyle,
-                    onSelect = { mapStyle = it },
-                    waymarkedOverlay = waymarkedOverlay,
-                    onWaymarkedOverlayChange = { waymarkedOverlay = it },
-                )
-
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     if (serviceState.phase == RecordingPhase.RECORDING) {
                         CompactOutlined(onPause) { Text(stringResource(R.string.record_pause), style = MaterialTheme.typography.labelMedium) }
@@ -373,10 +359,6 @@ private fun ConfirmSection(
     uiState: RecordingUiState,
     viewModel: RecordingViewModel,
     onDiscard: () -> Unit,
-    mapStyle: BaseMapStyle,
-    onMapStyle: (BaseMapStyle) -> Unit,
-    waymarkedOverlay: Boolean,
-    onWaymarkedOverlay: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val start = uiState.points.firstOrNull()
@@ -414,13 +396,6 @@ private fun ConfirmSection(
             Checkbox(checked = uiState.markStartAsHome, onCheckedChange = viewModel::setMarkStartAsHome)
             Text(stringResource(R.string.record_mark_as_home), style = MaterialTheme.typography.labelSmall)
         }
-
-        MapStyleSwitcher(
-            selected = mapStyle,
-            onSelect = onMapStyle,
-            waymarkedOverlay = waymarkedOverlay,
-            onWaymarkedOverlayChange = onWaymarkedOverlay,
-        )
 
         uiState.messageRes?.let { res ->
             Text(

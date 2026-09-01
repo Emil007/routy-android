@@ -80,8 +80,7 @@ fun MapScreen(onStartRecording: () -> Unit, modifier: Modifier = Modifier) {
         },
     )
     val uiState by viewModel.uiState.collectAsState()
-    var mapStyle by remember { mutableStateOf(BaseMapStyle.STREETS) }
-    var waymarkedOverlay by remember { mutableStateOf(false) }
+    val mapPrefs = rememberMapPreferences()
     var showExtras by remember { mutableStateOf(false) }
 
     val gpxPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
@@ -125,8 +124,8 @@ fun MapScreen(onStartRecording: () -> Unit, modifier: Modifier = Modifier) {
 
     Box(modifier = modifier.fillMaxSize()) {
         RoutyMapView(
-            style = mapStyle,
-            waymarkedOverlay = waymarkedOverlay,
+            style = mapPrefs.baseMapStyle,
+            waymarkedOverlay = mapPrefs.waymarkedOverlay,
             nodes = uiState.nodes,
             segments = uiState.segments,
             routeGeometry = emptyList(),
@@ -143,6 +142,7 @@ fun MapScreen(onStartRecording: () -> Unit, modifier: Modifier = Modifier) {
             editVertices = if (uiState.mode == MapMode.EditSegment) uiState.editSegmentPoints else null,
             selectedEditVertexIndex = uiState.selectedEditVertexIndex,
             goldenSegmentIds = uiState.todayGoldenSegmentIds,
+            disconnectedSegmentIds = uiState.disconnectedSegmentIds,
             onMapClick = viewModel::onMapClick,
             modifier = Modifier.fillMaxSize(),
         )
@@ -188,10 +188,6 @@ fun MapScreen(onStartRecording: () -> Unit, modifier: Modifier = Modifier) {
                         uiState,
                         viewModel,
                         visible = showExtras,
-                        mapStyle = mapStyle,
-                        onMapStyle = { mapStyle = it },
-                        waymarkedOverlay = waymarkedOverlay,
-                        onWaymarkedOverlay = { waymarkedOverlay = it },
                     )
                 }
                 MapMode.Draw -> MapDrawPanel(uiState, viewModel)
@@ -270,8 +266,36 @@ private fun MapNodePanel(node: NodeDto, state: MapUiState, viewModel: MapViewMod
                 CompactOutlinedButton(viewModel::clearSelection) { Text(stringResource(R.string.common_close), style = MaterialTheme.typography.labelSmall) }
             }
             if (node.id == state.user?.homeNodeId) Text(stringResource(R.string.map_node_home), style = MaterialTheme.typography.labelSmall)
+            val hasHours = node.openFromMinutes != null && node.openUntilMinutes != null
+            if (hasHours && !isNodeOpenNow(node.openFromMinutes, node.openUntilMinutes)) {
+                Text(stringResource(R.string.map_opening_hours_closed_chip), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error)
+            }
             if (canEdit) {
-                if (state.renamingNode) {
+                if (state.editingOpeningHours) {
+                    OutlinedTextField(
+                        value = state.openingHoursFrom,
+                        onValueChange = viewModel::updateOpeningHoursFrom,
+                        label = { Text(stringResource(R.string.map_opening_hours_from)) },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    OutlinedTextField(
+                        value = state.openingHoursUntil,
+                        onValueChange = viewModel::updateOpeningHoursUntil,
+                        label = { Text(stringResource(R.string.map_opening_hours_until)) },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        CompactButton({ viewModel.saveOpeningHours(false) }) { Text(stringResource(R.string.common_save)) }
+                        if (hasHours) {
+                            CompactOutlinedButton({ viewModel.saveOpeningHours(true) }) {
+                                Text(stringResource(R.string.map_opening_hours_clear))
+                            }
+                        }
+                        CompactOutlinedButton(viewModel::cancelOpeningHoursEdit) { Text(stringResource(R.string.common_cancel)) }
+                    }
+                } else if (state.renamingNode) {
                     NamePartsInput(
                         lat = node.lat,
                         lng = node.lng,
@@ -289,6 +313,9 @@ private fun MapNodePanel(node: NodeDto, state: MapUiState, viewModel: MapViewMod
                         CompactOutlinedButton(viewModel::toggleMoveNode) {
                             Text(if (state.moveNodeId == node.id) stringResource(R.string.map_move_active) else stringResource(R.string.map_move))
                         }
+                        CompactOutlinedButton(viewModel::startEditOpeningHours) {
+                            Text(stringResource(R.string.map_opening_hours))
+                        }
                         CompactOutlinedButton(viewModel::deleteSelectedNode) { Text(stringResource(R.string.map_delete)) }
                     }
                 }
@@ -304,22 +331,9 @@ private fun MapExtrasContent(
     state: MapUiState,
     viewModel: MapViewModel,
     visible: Boolean,
-    mapStyle: BaseMapStyle,
-    onMapStyle: (BaseMapStyle) -> Unit,
-    waymarkedOverlay: Boolean,
-    onWaymarkedOverlay: (Boolean) -> Unit,
 ) {
     AnimatedVisibility(visible = visible) {
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Surface(color = MaterialTheme.colorScheme.surface.copy(alpha = 0.94f), shape = MaterialTheme.shapes.medium) {
-                MapStyleSwitcher(
-                    selected = mapStyle,
-                    onSelect = onMapStyle,
-                    waymarkedOverlay = waymarkedOverlay,
-                    onWaymarkedOverlayChange = onWaymarkedOverlay,
-                    modifier = Modifier.padding(8.dp),
-                )
-            }
             if (state.proposals.isNotEmpty()) {
                 ProposalsPanel(state, viewModel)
             }
@@ -446,7 +460,7 @@ private fun MapSegmentPanel(segment: SegmentDto, state: MapUiState, viewModel: M
             }
             FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 if (personalAvoided) {
-                    AssistChip(onClick = {}, enabled = false, label = { Text(stringResource(R.string.map_personal_avoid_chip), style = MaterialTheme.typography.labelSmall) })
+                    AssistChip(onClick = {}, enabled = false, label = { Text(stringResource(R.string.route_segment_menu_excluded), style = MaterialTheme.typography.labelSmall) })
                 }
                 if (locked) {
                     AssistChip(onClick = {}, enabled = false, label = { Text(stringResource(R.string.map_locked_chip), style = MaterialTheme.typography.labelSmall) })
@@ -631,7 +645,7 @@ private fun RestrictScopePicker(selected: String, canEditGlobal: Boolean, onSele
     var expanded by remember { mutableStateOf(false) }
     val label = when (selected) {
         "global" -> if (canEditGlobal) stringResource(R.string.map_restrict_scope_global)
-        else stringResource(R.string.map_restrict_scope_recommend)
+        else stringResource(R.string.map_restrict_scope_lock_proposal)
         else -> stringResource(R.string.map_restrict_scope_personal)
     }
     ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = it }) {
@@ -652,7 +666,7 @@ private fun RestrictScopePicker(selected: String, canEditGlobal: Boolean, onSele
                 text = {
                     Text(
                         if (canEditGlobal) stringResource(R.string.map_restrict_scope_global)
-                        else stringResource(R.string.map_restrict_scope_recommend),
+                        else stringResource(R.string.map_restrict_scope_lock_proposal),
                     )
                 },
                 onClick = { expanded = false; onSelect("global") },
@@ -849,4 +863,15 @@ private fun CompactOutlinedButton(
     content: @Composable RowScope.() -> Unit,
 ) {
     OutlinedButton(onClick, modifier, enabled = enabled, contentPadding = contentPadding, content = content)
+}
+
+private fun isNodeOpenNow(openFromMinutes: Int?, openUntilMinutes: Int?): Boolean {
+    if (openFromMinutes == null || openUntilMinutes == null) return true
+    val now = java.time.LocalTime.now()
+    val minutes = now.hour * 60 + now.minute
+    return if (openFromMinutes <= openUntilMinutes) {
+        minutes in openFromMinutes..openUntilMinutes
+    } else {
+        minutes >= openFromMinutes || minutes <= openUntilMinutes
+    }
 }

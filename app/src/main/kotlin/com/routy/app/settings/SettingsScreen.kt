@@ -46,6 +46,8 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.routy.app.R
 import com.routy.app.RoutyApplication
+import com.routy.app.map.MapStyleSwitcher
+import com.routy.app.map.rememberMapPreferences
 import com.routy.app.webview.AuthenticatedWebSheet
 import com.routy.app.ui.OfflineBanner
 import com.routy.app.logic.api.SessionListEntry
@@ -159,6 +161,18 @@ fun SettingsScreen(
                     current = uiState.user?.locale ?: "de",
                     enabled = !uiState.saving,
                     onSelect = viewModel::setLocale,
+                )
+            }
+        }
+
+        item {
+            SettingsSection(title = stringResource(R.string.settings_map_layers_title)) {
+                val mapPrefs = rememberMapPreferences()
+                MapStyleSwitcher(
+                    selected = mapPrefs.baseMapStyle,
+                    onSelect = mapPrefs.setBaseMapStyle,
+                    waymarkedOverlay = mapPrefs.waymarkedOverlay,
+                    onWaymarkedOverlayChange = mapPrefs.setWaymarkedOverlay,
                 )
             }
         }

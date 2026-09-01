@@ -6,7 +6,7 @@ import com.routy.app.logic.geo.haversineMeters
 
 /**
  * Tracks sequential waypoint completion while walking an active route with Track on.
- * Uses the same adaptive radius as voice announcements (K2).
+ * Uses a generous fixed reach radius — separate from the tighter voice announce radius.
  */
 class WaypointProgressTracker(private val stations: List<RouteStation>) {
     private var nextIndex = 0
@@ -17,10 +17,7 @@ class WaypointProgressTracker(private val stations: List<RouteStation>) {
     val totalCount: Int get() = stations.size
     val completedCount: Int get() = nextIndex.coerceAtMost(stations.size)
 
-    private fun radiusForNextStation(): Double {
-        if (nextIndex >= stations.size) return voiceAnnounceRadiusM(stations.lastIndex, stations)
-        return voiceAnnounceRadiusM(nextIndex, stations)
-    }
+    private fun radiusForNextStation(): Double = WAYPOINT_REACH_RADIUS_M
 
     fun onLocationUpdate(location: LatLng): Int? {
         if (nextIndex >= stations.size) return null
@@ -48,8 +45,7 @@ fun shouldAutoCompleteRoute(
     location: LatLng,
 ): Boolean {
     if (!progressTracker.isFinalCompleted || stations.isEmpty()) return false
-    val lastIdx = stations.lastIndex
-    val radiusM = voiceAnnounceRadiusM(lastIdx, stations)
+    val radiusM = WAYPOINT_REACH_RADIUS_M
     val last = stations.last()
     return haversineMeters(location, LatLng(last.lat, last.lng)) <= radiusM
 }

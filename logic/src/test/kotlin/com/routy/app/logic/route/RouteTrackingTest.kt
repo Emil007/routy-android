@@ -56,18 +56,21 @@ class RouteGeometrySplitTest {
     }
 }
 
-class WaypointAdaptiveRadiusTest {
+class WaypointReachRadiusTest {
     private val stations = listOf(
         RouteStation(1, "A", 52.0, 13.0),
-        RouteStation(2, "B", 52.0, 13.0003), // ~21 m east — adaptive radius ~12 m floor
+        RouteStation(2, "B", 52.0, 13.0003), // ~21 m east
         RouteStation(3, "C", 52.001, 13.0),
     )
 
     @Test
-    fun `uses adaptive radius not fixed 50m`() {
+    fun `uses generous reach radius separate from voice announce`() {
         val tracker = WaypointProgressTracker(stations)
-        // ~14 m from A — outside ~9 m adaptive floor but inside old 50 m fixed
-        assertEquals(null, tracker.onLocationUpdate(LatLng(52.0, 13.0002)))
+        // ~14 m from A — inside 30 m reach but outside ~9 m voice announce floor
+        assertEquals(0, tracker.onLocationUpdate(LatLng(52.0, 13.0002)))
+        // ~35 m from A — outside reach radius
+        tracker.reset()
+        assertEquals(null, tracker.onLocationUpdate(LatLng(52.0, 13.0005)))
         assertEquals(0, tracker.onLocationUpdate(LatLng(52.0, 13.0)))
     }
 }

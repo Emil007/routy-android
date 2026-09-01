@@ -108,6 +108,8 @@ fun RoutyMapView(
     goldenSegmentIds: Set<Int> = emptySet(),
     /** Subset of [goldenSegmentIds] that are on the active/suggested route — drawn thicker. */
     goldenHitIds: Set<Int> = emptySet(),
+    /** Canonical segments not reachable from home — drawn red on route map. */
+    disconnectedSegmentIds: Set<Int> = emptySet(),
     /** GPS trace recorded while Track is on (completed hops). */
     trackedGeometry: List<GeoPoint> = emptyList(),
     followEnabled: Boolean = false,
@@ -190,10 +192,10 @@ fun RoutyMapView(
         map.setStyle(Style.Builder().fromUri(style.assetUri)) { newStyle -> loadedStyle = newStyle }
     }
 
-    LaunchedEffect(loadedStyle, nodes, segments, routeGeometry, stations, myLocation, trackedGeometry, routeColor, completedWaypointIndex, goldenSegmentIds, goldenHitIds, selectedNodeId, moveNodeId, homeNodeId, startNodeId, endNodeId, mustVisitNodeIds, isLoop, requiredSegmentIds, excludedSegmentIds, nodeBadges, segmentBadges, selectedSegmentId, overlayLine, editVertices, selectedEditVertexIndex, emphasizeNetworkSegments, waymarkedOverlay) {
+    LaunchedEffect(loadedStyle, nodes, segments, routeGeometry, stations, myLocation, trackedGeometry, routeColor, completedWaypointIndex, goldenSegmentIds, goldenHitIds, disconnectedSegmentIds, selectedNodeId, moveNodeId, homeNodeId, startNodeId, endNodeId, mustVisitNodeIds, isLoop, requiredSegmentIds, excludedSegmentIds, nodeBadges, segmentBadges, selectedSegmentId, overlayLine, editVertices, selectedEditVertexIndex, emphasizeNetworkSegments, waymarkedOverlay) {
         val currentStyle = loadedStyle ?: return@LaunchedEffect
         updateWaymarkedOverlay(currentStyle, waymarkedOverlay)
-        updateSegmentsLayer(currentStyle, segments, emphasizeNetworkSegments, requiredSegmentIds, excludedSegmentIds, goldenSegmentIds)
+        updateSegmentsLayer(currentStyle, segments, emphasizeNetworkSegments, requiredSegmentIds, excludedSegmentIds, goldenSegmentIds, disconnectedSegmentIds)
         updateGoldenSegmentsLayer(currentStyle, segments, goldenSegmentIds, goldenHitIds)
         updateSelectedSegmentLayer(currentStyle, segments, selectedSegmentId)
         updateOverlayLayer(currentStyle, overlayLine)
@@ -296,12 +298,14 @@ private fun updateSegmentsLayer(
     requiredIds: Set<Int> = emptySet(),
     excludedIds: Set<Int> = emptySet(),
     goldenIds: Set<Int> = emptySet(),
+    disconnectedIds: Set<Int> = emptySet(),
 ) {
     val canonical = segments.filter { it.isCanonical() }
     val unlocked = canonical.filter { !it.isLocked() }
     val locked = canonical.filter { it.isLocked() }
 
     fun segmentColor(id: Int): String = when {
+        disconnectedIds.contains(id) -> "#c53030"
         excludedIds.contains(id) -> "#c53030"
         requiredIds.contains(id) -> "#2b6cb0"
         goldenIds.contains(id) -> "#c99a2e"

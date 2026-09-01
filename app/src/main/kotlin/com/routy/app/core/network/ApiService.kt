@@ -9,6 +9,7 @@ import com.routy.app.logic.api.CrashReportRequest
 import com.routy.app.logic.api.GameDailyResponse
 import com.routy.app.logic.api.GenerateRouteRequest
 import com.routy.app.logic.api.GenerateRouteResponse
+import com.routy.app.logic.api.GuideStartRequest
 import com.routy.app.logic.api.GpxCommitRequest
 import com.routy.app.logic.api.GpxConfigResponse
 import com.routy.app.logic.api.HealthResponse
@@ -48,6 +49,9 @@ import com.routy.app.logic.api.ProfilePatchResponse
 import com.routy.app.logic.api.GpxParseResponse
 import com.routy.app.logic.api.NodeIdRequest
 import com.routy.app.logic.api.NodeMoveRequest
+import com.routy.app.logic.api.NodeOpeningHoursRequest
+import com.routy.app.logic.api.RepositionNodeRequest
+import com.routy.app.logic.api.RepositionNodeResponse
 import com.routy.app.logic.api.NodeRenameRequest
 import com.routy.app.logic.api.SuggestNamePartsRequest
 import com.routy.app.logic.api.SuggestNamePartsResponse
@@ -147,11 +151,23 @@ interface ApiService {
     @POST("api/route/generate")
     suspend fun generateRoute(@Body body: GenerateRouteRequest): Response<GenerateRouteResponse>
 
+    @POST("api/route/guide/start")
+    suspend fun startGuide(@Body body: GuideStartRequest): Response<GenerateRouteResponse>
+
+    @POST("api/route/guide/accept")
+    suspend fun acceptGuide(@Body body: RouteTokenRequest): Response<Unit>
+
+    @POST("api/route/reposition-node")
+    suspend fun repositionNode(@Body body: RepositionNodeRequest): Response<RepositionNodeResponse>
+
     @POST("api/route/widen")
     suspend fun widenRoute(@Body body: RouteTokenRequest): Response<GenerateRouteResponse>
 
     @POST("api/route/adjust")
     suspend fun adjustRoute(@Body body: AdjustRouteRequest): Response<GenerateRouteResponse>
+
+    @POST("api/route/reverse")
+    suspend fun reverseRoute(@Body body: RouteTokenRequest): Response<GenerateRouteResponse>
 
     @POST("api/route/accept")
     suspend fun acceptRoute(@Body body: RouteTokenRequest): Response<Unit>
@@ -212,6 +228,9 @@ interface ApiService {
 
     @POST("api/nodes/move")
     suspend fun moveNode(@Body body: NodeMoveRequest): Response<Unit>
+
+    @POST("api/nodes/opening-hours")
+    suspend fun setNodeOpeningHours(@Body body: NodeOpeningHoursRequest): Response<Unit>
 
     @POST("api/nodes/home")
     suspend fun setHomeNode(@Body body: NodeIdRequest): Response<Unit>
