@@ -299,6 +299,11 @@
     <string name="map_draw_path">Weg zeichnen</string>
     <string name="map_import_gpx">GPX importieren</string>
     <string name="map_rename">Umbenennen</string>
+    <string name="map_opening_hours">Öffnungszeiten</string>
+    <string name="map_opening_hours_from">Geöffnet ab (HH:MM)</string>
+    <string name="map_opening_hours_until">Geöffnet bis (HH:MM)</string>
+    <string name="map_opening_hours_clear">Zeiten löschen</string>
+    <string name="map_opening_hours_closed_chip">Gerade geschlossen</string>
     <string name="map_set_home">Als Start</string>
     <string name="map_move">Verschieben</string>
     <string name="map_move_active">Neue Position tippen</string>
@@ -422,6 +427,8 @@
     <string name="route_node_guide">Knotenführung</string>
     <string name="route_guide_need_nodes">Mindestens Start und einen weiteren Knoten als Muss-besucht wählen.</string>
     <string name="route_guide_too_many">Maximal 12 Knoten in der Führung.</string>
+    <string name="route_unreachable_guide_leg">Nächster Guide-Stopp ist im Netz nicht erreichbar.</string>
+    <string name="route_closed_nodes_warning">Einige Stopps sind gerade geschlossen.</string>
     <string name="route_guide_active_title">Knotenführung</string>
     <string name="route_guide_points_hint">70 % der üblichen Punkte bei Abschluss.</string>
     <string name="route_guide_completion_points">Knotenführung — 70 % der Punkte.</string>

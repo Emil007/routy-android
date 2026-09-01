@@ -266,8 +266,36 @@ private fun MapNodePanel(node: NodeDto, state: MapUiState, viewModel: MapViewMod
                 CompactOutlinedButton(viewModel::clearSelection) { Text(stringResource(R.string.common_close), style = MaterialTheme.typography.labelSmall) }
             }
             if (node.id == state.user?.homeNodeId) Text(stringResource(R.string.map_node_home), style = MaterialTheme.typography.labelSmall)
+            val hasHours = node.openFromMinutes != null && node.openUntilMinutes != null
+            if (hasHours && !isNodeOpenNow(node.openFromMinutes, node.openUntilMinutes)) {
+                Text(stringResource(R.string.map_opening_hours_closed_chip), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error)
+            }
             if (canEdit) {
-                if (state.renamingNode) {
+                if (state.editingOpeningHours) {
+                    OutlinedTextField(
+                        value = state.openingHoursFrom,
+                        onValueChange = viewModel::updateOpeningHoursFrom,
+                        label = { Text(stringResource(R.string.map_opening_hours_from)) },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    OutlinedTextField(
+                        value = state.openingHoursUntil,
+                        onValueChange = viewModel::updateOpeningHoursUntil,
+                        label = { Text(stringResource(R.string.map_opening_hours_until)) },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        CompactButton({ viewModel.saveOpeningHours(false) }) { Text(stringResource(R.string.common_save)) }
+                        if (hasHours) {
+                            CompactOutlinedButton({ viewModel.saveOpeningHours(true) }) {
+                                Text(stringResource(R.string.map_opening_hours_clear))
+                            }
+                        }
+                        CompactOutlinedButton(viewModel::cancelOpeningHoursEdit) { Text(stringResource(R.string.common_cancel)) }
+                    }
+                } else if (state.renamingNode) {
                     NamePartsInput(
                         lat = node.lat,
                         lng = node.lng,
@@ -284,6 +312,9 @@ private fun MapNodePanel(node: NodeDto, state: MapUiState, viewModel: MapViewMod
                         if (node.id != state.user?.homeNodeId) CompactOutlinedButton(viewModel::setHomeNode) { Text(stringResource(R.string.map_set_home)) }
                         CompactOutlinedButton(viewModel::toggleMoveNode) {
                             Text(if (state.moveNodeId == node.id) stringResource(R.string.map_move_active) else stringResource(R.string.map_move))
+                        }
+                        CompactOutlinedButton(viewModel::startEditOpeningHours) {
+                            Text(stringResource(R.string.map_opening_hours))
                         }
                         CompactOutlinedButton(viewModel::deleteSelectedNode) { Text(stringResource(R.string.map_delete)) }
                     }
@@ -832,4 +863,15 @@ private fun CompactOutlinedButton(
     content: @Composable RowScope.() -> Unit,
 ) {
     OutlinedButton(onClick, modifier, enabled = enabled, contentPadding = contentPadding, content = content)
+}
+
+private fun isNodeOpenNow(openFromMinutes: Int?, openUntilMinutes: Int?): Boolean {
+    if (openFromMinutes == null || openUntilMinutes == null) return true
+    val now = java.time.LocalTime.now()
+    val minutes = now.hour * 60 + now.minute
+    return if (openFromMinutes <= openUntilMinutes) {
+        minutes in openFromMinutes..openUntilMinutes
+    } else {
+        minutes >= openFromMinutes || minutes <= openUntilMinutes
+    }
 }

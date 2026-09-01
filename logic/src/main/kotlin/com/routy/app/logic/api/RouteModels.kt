@@ -74,10 +74,11 @@ data class GenerateRouteResponse(
     val usingNetworkFallback: Boolean? = null,
     val guideMode: Boolean = false,
     val pointsMultiplier: Double? = null,
+    val closedNodeWarnings: List<Int> = emptyList(),
 )
 
 @Serializable
-data class GuideStartRequest(val orderedNodeIds: List<Int>)
+data class GuideStartRequest(val orderedNodeIds: List<Int>, val loopBack: Boolean = true)
 
 @Serializable
 data class GenerateRouteRequest(

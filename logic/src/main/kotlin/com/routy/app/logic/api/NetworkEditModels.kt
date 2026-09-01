@@ -7,6 +7,14 @@ import kotlinx.serialization.json.JsonElement
 data class NodeRenameRequest(val nodeId: Int, val part1: String, val part2: String = "")
 
 @Serializable
+data class NodeOpeningHoursRequest(
+    val nodeId: Int,
+    val openFromMinutes: Int? = null,
+    val openUntilMinutes: Int? = null,
+    val clear: Boolean = false,
+)
+
+@Serializable
 data class NodeMoveRequest(val nodeId: Int, val lat: Double, val lng: Double)
 
 @Serializable

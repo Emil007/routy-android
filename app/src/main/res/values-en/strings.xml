@@ -299,6 +299,11 @@
     <string name="map_draw_path">Draw path</string>
     <string name="map_import_gpx">Import GPX</string>
     <string name="map_rename">Rename</string>
+    <string name="map_opening_hours">Opening hours</string>
+    <string name="map_opening_hours_from">Open from (HH:MM)</string>
+    <string name="map_opening_hours_until">Open until (HH:MM)</string>
+    <string name="map_opening_hours_clear">Clear hours</string>
+    <string name="map_opening_hours_closed_chip">Closed now</string>
     <string name="map_set_home">Set home</string>
     <string name="map_move">Move</string>
     <string name="map_move_active">Tap new location</string>
@@ -422,6 +427,8 @@
     <string name="route_node_guide">Node guide</string>
     <string name="route_guide_need_nodes">Pick a start and at least one must-visit node.</string>
     <string name="route_guide_too_many">At most 12 nodes in a guide.</string>
+    <string name="route_unreachable_guide_leg">Cannot reach the next guide stop on the network.</string>
+    <string name="route_closed_nodes_warning">Some stops may be closed right now.</string>
     <string name="route_guide_active_title">Node guide</string>
     <string name="route_guide_points_hint">70% of usual points on complete.</string>
     <string name="route_guide_completion_points">Node guide — 70% points.</string>

@@ -1105,7 +1105,10 @@ private fun ActiveRouteLocationEffect(uiState: RouteUiState, locationActive: Boo
         val callback = object : LocationCallback() {
             override fun onLocationResult(result: LocationResult) {
                 result.lastLocation?.let { loc ->
-                    viewModel.setMyLocation(GeoPoint(loc.latitude, loc.longitude))
+                    viewModel.setMyLocation(
+                        GeoPoint(loc.latitude, loc.longitude),
+                        if (loc.hasAccuracy()) loc.accuracy else null,
+                    )
                     viewModel.addRetagLocationSample(
                         loc.latitude,
                         loc.longitude,

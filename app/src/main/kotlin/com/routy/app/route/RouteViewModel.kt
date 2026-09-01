@@ -456,7 +456,12 @@ class RouteViewModel(
     fun clearPlanningSelection() {
         _uiState.value = _uiState.value.copy(selectedNodeId = null, selectedSegmentId = null)
     }
-    fun setMyLocation(point: GeoPoint?) { _uiState.value = _uiState.value.copy(myLocation = point) }
+    fun setMyLocation(point: GeoPoint?, accuracyM: Float? = null) {
+        _uiState.value = _uiState.value.copy(
+            myLocation = point,
+            repositionAccuracyM = accuracyM?.toDouble()?.coerceAtLeast(1.0) ?: _uiState.value.repositionAccuracyM,
+        )
+    }
     fun addRetagLocationSample(lat: Double, lng: Double, accuracyM: Float?) {
         retagLocationBuffer.addSample(lat, lng, accuracyM)
     }
@@ -805,7 +810,7 @@ class RouteViewModel(
                 selectedSegmentId = null,
             )
             val response = try {
-                apiClientProvider.service.startGuide(GuideStartRequest(orderedNodeIds))
+                apiClientProvider.service.startGuide(GuideStartRequest(orderedNodeIds, loopBack = _uiState.value.isLoop))
             } catch (_: IOException) {
                 _uiState.value = _uiState.value.copy(
                     status = RouteStatus.ERROR,
@@ -821,6 +826,7 @@ class RouteViewModel(
                 val messageRes = when (code) {
                     "constraints_impossible" -> R.string.route_constraints_impossible
                     "too_many_nodes" -> R.string.route_guide_too_many
+                    "unreachable_guide_leg" -> R.string.route_unreachable_guide_leg
                     else -> R.string.route_no_route_found
                 }
                 _uiState.value = _uiState.value.copy(
@@ -881,6 +887,7 @@ class RouteViewModel(
                     ?: emptySet()
                 val lengthRelaxed = body?.lengthRelaxed == true
                 val lengthKm = body?.lengthKm ?: body?.route?.lengthM?.let { it / 1000.0 }
+                val closedWarn = body?.closedNodeWarnings?.isNotEmpty() == true
                 _uiState.value = _uiState.value.copy(
                     status = RouteStatus.IDLE,
                     token = body?.token ?: "",
@@ -890,8 +897,16 @@ class RouteViewModel(
                     usingNetworkFallback = body?.usingNetworkFallback,
                     guideMode = false,
                     pointsMultiplier = null,
-                    messageRes = if (lengthRelaxed && lengthKm != null) R.string.route_length_relaxed else null,
-                    messageArgs = if (lengthRelaxed && lengthKm != null) listOf(String.format("%.2f", lengthKm)) else emptyList(),
+                    messageRes = when {
+                        closedWarn -> R.string.route_closed_nodes_warning
+                        lengthRelaxed && lengthKm != null -> R.string.route_length_relaxed
+                        else -> null
+                    },
+                    messageArgs = if (lengthRelaxed && lengthKm != null && !closedWarn) {
+                        listOf(String.format("%.2f", lengthKm))
+                    } else {
+                        emptyList()
+                    },
                 )
             } else {
                 val errorBody = response.errorBody()?.string()
@@ -1115,8 +1130,11 @@ class RouteViewModel(
 
     fun complete() {
         viewModelScope.launch {
-            val completedRoute = _uiState.value.route
-            _uiState.value = _uiState.value.copy(status = RouteStatus.LOADING, trackEnabled = false, voiceEnabled = false)
+            val stateBefore = _uiState.value
+            val completedRoute = stateBefore.route
+            val prevTrack = stateBefore.trackEnabled
+            val prevVoice = stateBefore.voiceEnabled
+            _uiState.value = stateBefore.copy(status = RouteStatus.LOADING, trackEnabled = false, voiceEnabled = false)
             val beforeAchievements = runCatching {
                 apiClientProvider.service.appStatsMe()
                     .takeIf { it.isSuccessful }
@@ -1128,7 +1146,13 @@ class RouteViewModel(
             val response = try {
                 apiClientProvider.service.completeRoute(CompleteRouteRequest(trackPoints = trackPoints))
             } catch (_: IOException) {
-                _uiState.value = _uiState.value.copy(status = RouteStatus.IDLE, messageRes = R.string.common_error, messageArgs = emptyList())
+                _uiState.value = stateBefore.copy(
+                    status = RouteStatus.IDLE,
+                    trackEnabled = prevTrack,
+                    voiceEnabled = prevVoice,
+                    messageRes = R.string.common_error,
+                    messageArgs = emptyList(),
+                )
                 return@launch
             }
             if (response.isSuccessful) {
@@ -1179,7 +1203,13 @@ class RouteViewModel(
                     pointsMultiplier = null,
                 )
             } else {
-                _uiState.value = _uiState.value.copy(status = RouteStatus.IDLE, messageRes = R.string.common_error, messageArgs = emptyList())
+                _uiState.value = stateBefore.copy(
+                    status = RouteStatus.IDLE,
+                    trackEnabled = prevTrack,
+                    voiceEnabled = prevVoice,
+                    messageRes = R.string.common_error,
+                    messageArgs = emptyList(),
+                )
             }
         }
     }

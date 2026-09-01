@@ -49,6 +49,7 @@ import com.routy.app.logic.api.ProfilePatchResponse
 import com.routy.app.logic.api.GpxParseResponse
 import com.routy.app.logic.api.NodeIdRequest
 import com.routy.app.logic.api.NodeMoveRequest
+import com.routy.app.logic.api.NodeOpeningHoursRequest
 import com.routy.app.logic.api.RepositionNodeRequest
 import com.routy.app.logic.api.RepositionNodeResponse
 import com.routy.app.logic.api.NodeRenameRequest
@@ -227,6 +228,9 @@ interface ApiService {
 
     @POST("api/nodes/move")
     suspend fun moveNode(@Body body: NodeMoveRequest): Response<Unit>
+
+    @POST("api/nodes/opening-hours")
+    suspend fun setNodeOpeningHours(@Body body: NodeOpeningHoursRequest): Response<Unit>
 
     @POST("api/nodes/home")
     suspend fun setHomeNode(@Body body: NodeIdRequest): Response<Unit>

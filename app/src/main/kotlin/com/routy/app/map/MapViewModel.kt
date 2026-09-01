@@ -15,6 +15,7 @@ import com.routy.app.logic.api.GpxPoint
 import com.routy.app.logic.api.GpxTrack
 import com.routy.app.logic.api.NodeDto
 import com.routy.app.logic.api.NodeIdRequest
+import com.routy.app.logic.api.NodeOpeningHoursRequest
 import com.routy.app.logic.api.NodeMoveRequest
 import com.routy.app.logic.api.NodeRenameRequest
 import com.routy.app.logic.api.LockProposalDetailDto
@@ -83,6 +84,9 @@ data class MapUiState(
     val renamingNode: Boolean = false,
     val renamePart1: String = "",
     val renamePart2: String = "",
+    val editingOpeningHours: Boolean = false,
+    val openingHoursFrom: String = "08:00",
+    val openingHoursUntil: String = "18:00",
     val renamingSegment: Boolean = false,
     val renameSegmentName: String = "",
     val drawPoints: List<LatLng> = emptyList(),
@@ -258,6 +262,66 @@ class MapViewModel(
         runMutation(R.string.map_deleted) {
             apiClientProvider.service.deleteNode(NodeIdRequest(node.id))
         }
+    }
+
+    fun startEditOpeningHours() {
+        val node = _uiState.value.selectedNode ?: return
+        if (!canEditNode(node)) return
+        _uiState.value = _uiState.value.copy(
+            editingOpeningHours = true,
+            openingHoursFrom = minutesToTime(node.openFromMinutes) ?: "08:00",
+            openingHoursUntil = minutesToTime(node.openUntilMinutes) ?: "18:00",
+        )
+    }
+
+    fun updateOpeningHoursFrom(value: String) {
+        _uiState.value = _uiState.value.copy(openingHoursFrom = value)
+    }
+
+    fun updateOpeningHoursUntil(value: String) {
+        _uiState.value = _uiState.value.copy(openingHoursUntil = value)
+    }
+
+    fun cancelOpeningHoursEdit() {
+        _uiState.value = _uiState.value.copy(editingOpeningHours = false)
+    }
+
+    fun saveOpeningHours(clear: Boolean = false) {
+        val node = _uiState.value.selectedNode ?: return
+        if (!canEditNode(node)) return denyNotAllowed()
+        val fromMinutes = if (clear) null else parseTimeMinutes(_uiState.value.openingHoursFrom)
+        val untilMinutes = if (clear) null else parseTimeMinutes(_uiState.value.openingHoursUntil)
+        if (!clear && (fromMinutes == null || untilMinutes == null)) {
+            _uiState.value = _uiState.value.copy(messageRes = R.string.common_error, isError = true)
+            return
+        }
+        runMutation(R.string.map_saved) {
+            apiClientProvider.service.setNodeOpeningHours(
+                NodeOpeningHoursRequest(
+                    nodeId = node.id,
+                    openFromMinutes = fromMinutes,
+                    openUntilMinutes = untilMinutes,
+                    clear = clear,
+                ),
+            )
+        }
+        _uiState.value = _uiState.value.copy(editingOpeningHours = false)
+    }
+
+    private fun minutesToTime(minutes: Int?): String? {
+        if (minutes == null) return null
+        val h = minutes / 60
+        val m = minutes % 60
+        return "%02d:%02d".format(h, m)
+    }
+
+    private fun parseTimeMinutes(value: String): Int? {
+        val parts = value.split(":")
+        if (parts.size != 2) return null
+        val h = parts[0].toIntOrNull() ?: return null
+        val m = parts[1].toIntOrNull() ?: return null
+        if (h !in 0..23 || m !in 0..59) return null
+        return h * 60 + m
     }
 
     private fun moveNodeTo(nodeId: Int, lat: Double, lng: Double) {

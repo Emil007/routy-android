@@ -20,6 +20,8 @@ data class NodeDto(
     val namePart1Text: String? = null,
     val namePart2Text: String? = null,
     val deletedAt: String? = null,
+    val openFromMinutes: Int? = null,
+    val openUntilMinutes: Int? = null,
 ) : MatchableNode
 
 @Serializable
