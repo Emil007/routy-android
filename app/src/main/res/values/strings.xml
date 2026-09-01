@@ -128,7 +128,17 @@
     <string name="route_generating">Suche passende Route …</string>
     <string name="route_generate">Generieren</string>
     <string name="route_suggest">Route vorschlagen</string>
+    <string name="route_preset_short_btn">Kurz</string>
+    <string name="route_preset_normal_btn">Normal</string>
+    <string name="route_preset_long_btn">Lang</string>
+    <string name="route_generate_arrow">↑</string>
     <string name="route_preset_short">Kurze Runde</string>
+    <string name="route_again">Nochmal</string>
+    <string name="route_reverse">Umkehren</string>
+    <string name="route_track_abort_confirm">Tracking beenden? Der bisherige GPS-Verlauf bleibt erhalten.</string>
+    <string name="route_back_active_confirm">Aktive Route verwerfen oder auf der Route bleiben?</string>
+    <string name="route_stay_on_route">Bleiben</string>
+    <string name="settings_map_layers_title">Kartenlayer</string>
     <string name="route_preset_normal">Normale Runde</string>
     <string name="route_preset_long">Lange Runde</string>
     <string name="route_preset_surprise">Überrasch mich</string>

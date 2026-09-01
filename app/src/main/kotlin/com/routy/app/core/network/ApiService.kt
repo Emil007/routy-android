@@ -153,6 +153,9 @@ interface ApiService {
     @POST("api/route/adjust")
     suspend fun adjustRoute(@Body body: AdjustRouteRequest): Response<GenerateRouteResponse>
 
+    @POST("api/route/reverse")
+    suspend fun reverseRoute(@Body body: RouteTokenRequest): Response<GenerateRouteResponse>
+
     @POST("api/route/accept")
     suspend fun acceptRoute(@Body body: RouteTokenRequest): Response<Unit>
 

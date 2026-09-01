@@ -80,8 +80,7 @@ fun MapScreen(onStartRecording: () -> Unit, modifier: Modifier = Modifier) {
         },
     )
     val uiState by viewModel.uiState.collectAsState()
-    var mapStyle by remember { mutableStateOf(BaseMapStyle.STREETS) }
-    var waymarkedOverlay by remember { mutableStateOf(false) }
+    val mapPrefs = rememberMapPreferences()
     var showExtras by remember { mutableStateOf(false) }
 
     val gpxPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
@@ -125,8 +124,8 @@ fun MapScreen(onStartRecording: () -> Unit, modifier: Modifier = Modifier) {
 
     Box(modifier = modifier.fillMaxSize()) {
         RoutyMapView(
-            style = mapStyle,
-            waymarkedOverlay = waymarkedOverlay,
+            style = mapPrefs.baseMapStyle,
+            waymarkedOverlay = mapPrefs.waymarkedOverlay,
             nodes = uiState.nodes,
             segments = uiState.segments,
             routeGeometry = emptyList(),
@@ -188,10 +187,10 @@ fun MapScreen(onStartRecording: () -> Unit, modifier: Modifier = Modifier) {
                         uiState,
                         viewModel,
                         visible = showExtras,
-                        mapStyle = mapStyle,
-                        onMapStyle = { mapStyle = it },
-                        waymarkedOverlay = waymarkedOverlay,
-                        onWaymarkedOverlay = { waymarkedOverlay = it },
+                        mapStyle = mapPrefs.baseMapStyle,
+                        onMapStyle = mapPrefs.setBaseMapStyle,
+                        waymarkedOverlay = mapPrefs.waymarkedOverlay,
+                        onWaymarkedOverlay = mapPrefs.setWaymarkedOverlay,
                     )
                 }
                 MapMode.Draw -> MapDrawPanel(uiState, viewModel)
