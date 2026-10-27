@@ -170,6 +170,11 @@ fun MapScreen(onStartRecording: () -> Unit, modifier: Modifier = Modifier, chrom
         }
 
         Column(
+            // Erkunden-Layout: ALLE Panels PLUS der Hinweistext sind Kinder DERSELBEN
+            // BottomCenter-Column. So bleibt der Hinweis garantiert das letzte Element
+            // unterhalb der Panels — nie überlappt er Menü-Einträge, egal wie hoch die
+            // Panels wachsen (vorher: zwei getrennte BottomCenter-Elemente überlappten
+            // sich bei offenem Menü). bottom = 140 hält alles über der DockBar.
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
@@ -209,25 +214,23 @@ fun MapScreen(onStartRecording: () -> Unit, modifier: Modifier = Modifier, chrom
                 MapMode.EditSegment -> MapEditShapePanel(uiState, viewModel)
                 MapMode.SplitSegment -> MapSplitPanel(uiState, viewModel)
             }
-        }
 
-        // Hinweistext am allerunteren Rand über der DockBar (bottom 100) — UNTER den
-        // Erkunden-Panels (die bei bottom 140 enden). So liegt er nie über den
-        // Menü-Enträgen, sondern bleibt als schmaler Banner darunter lesbar.
-        if (uiState.messageRes == null) {
-            Surface(
-                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.82f),
-                shape = MaterialTheme.shapes.small,
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(bottom = if (chromeHosted) 100.dp else 8.dp),
-            ) {
-                Text(
-                    mapHint(uiState),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
-                )
+            // Hinweistext als LETZTES Kind der Panel-Column: darum liegt er immer
+            // UNTER den Panels (nicht über dem Menü) — wenn das Menü offen und hoch
+            // ist, rutscht der Hinweis mit nach oben, statt dazwischen zu kleben.
+            if (uiState.messageRes == null) {
+                Surface(
+                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.82f),
+                    shape = MaterialTheme.shapes.small,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(
+                        mapHint(uiState),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                    )
+                }
             }
         }
     }

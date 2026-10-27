@@ -400,7 +400,11 @@ private fun SuggestingMapLayout(
 ) {
     val mapPrefs = rememberMapPreferences()
     var selectedPreset by remember { mutableStateOf("normal") }
-    var dockLevel by remember { mutableStateOf(DockLevel.COLLAPSED) }
+    // Frei-Tab (GO, nichts aktiv): Dock direkt aufgeklappt, damit man den
+    // Free-Roam-Start sofort sieht statt hinter einem Chevron zu suchen.
+    var dockLevel by remember {
+        mutableStateOf(if (section == RouteSection.GO) DockLevel.EXPANDED else DockLevel.COLLAPSED)
+    }
     // Bestätigung bevor man freies Gehen abbricht (Nr. 4b / Emil: zu leicht abzubrechen).
     var pendingFreeRoamStop by remember { mutableStateOf(false) }
 
@@ -457,15 +461,13 @@ private fun SuggestingMapLayout(
                             )
                         }
                     } else if (section == RouteSection.GO) {
-                        // Frei-Tab ohne aktive Route: kein Rundweg-Formular, nur die
-                        // Free-Roam-Erklärung (was man hier tut). Kurz/Normal/Lang + Go
-                        // gehören zu Route (Punkt 4 / Emil).
+                        // Frei-Tab ohne aktive Route: kompakter Zustand — die volle
+                        // Erklärung + Start-Button liegen im darunter liegenden primary.
                         Text(
-                            stringResource(R.string.free_roam_start_hint),
-                            style = MaterialTheme.typography.labelSmall,
-                            maxLines = 3,
-                            overflow = TextOverflow.Ellipsis,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            stringResource(R.string.free_roam_title),
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurface,
                         )
                     } else {
                         Text(
