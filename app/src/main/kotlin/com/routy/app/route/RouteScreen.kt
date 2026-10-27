@@ -94,7 +94,7 @@ import com.routy.app.ui.OfflineBanner
 import java.text.Collator
 
 @Composable
-fun RouteScreen(onStartRecording: () -> Unit, accountLocaleTag: String, modifier: Modifier = Modifier, chromeHosted: Boolean = false) {
+fun RouteScreen(onStartRecording: () -> Unit, accountLocaleTag: String, modifier: Modifier = Modifier, chromeHosted: Boolean = false, section: RouteSection = RouteSection.FULL) {
     val app = LocalContext.current.applicationContext as RoutyApplication
     val activity = LocalContext.current as? android.app.Activity
     val viewModel: RouteViewModel = viewModel(
@@ -128,23 +128,33 @@ fun RouteScreen(onStartRecording: () -> Unit, accountLocaleTag: String, modifier
     }
 
     val route = uiState.route
-    if (route == null) {
-        SuggestingMapLayout(
-            uiState = uiState,
-            viewModel = viewModel,
-            modifier = modifier,
-            chromeHosted = chromeHosted,
-        )
-    } else {
-        RouteWithMapLayout(
-            uiState = uiState,
-            route = route,
-            viewModel = viewModel,
-            accountLocaleTag = accountLocaleTag,
-            onStartRecording = onStartRecording,
-            modifier = modifier,
-            chromeHosted = chromeHosted,
-        )
+    val isLive = uiState.mode == RouteMode.ACTIVE || uiState.freeRoamActive
+    when {
+        // Plan-Sheet: sobald eine Live-Session läuft, gehört sie zu Gehen (J3) — nichts zeigen.
+        chromeHosted && section == RouteSection.PLAN && isLive -> Unit
+        // Go-Sheet: nichts aktiv, aber Vorschau-Route → der Zustand ist im Plan-Sheet (J2-Übergang).
+        chromeHosted && section == RouteSection.GO && !isLive && route != null -> Unit
+        route == null -> {
+            SuggestingMapLayout(
+                uiState = uiState,
+                viewModel = viewModel,
+                modifier = modifier,
+                chromeHosted = chromeHosted,
+                section = section,
+            )
+        }
+        else -> {
+            RouteWithMapLayout(
+                uiState = uiState,
+                route = route,
+                viewModel = viewModel,
+                accountLocaleTag = accountLocaleTag,
+                onStartRecording = onStartRecording,
+                modifier = modifier,
+                chromeHosted = chromeHosted,
+                section = section,
+            )
+        }
     }
 
     uiState.completionPointsEarned?.let {
@@ -186,6 +196,9 @@ private fun LengthPresetSelector(selected: String, onSelect: (String) -> Unit, e
     }
 }
 private enum class DockLevel { COLLAPSED, EXPANDED }
+
+/** In welcher Sheet-Stufe die Route-Fläche läuft (J3): Planen, Gehen, oder komplex (alt). */
+enum class RouteSection { FULL, PLAN, GO }
 
 @Composable
 private fun RouteMapChrome(
@@ -342,6 +355,7 @@ private fun SuggestingMapLayout(
     viewModel: RouteViewModel,
     modifier: Modifier = Modifier,
     chromeHosted: Boolean = false,
+    section: RouteSection = RouteSection.FULL,
 ) {
     val mapPrefs = rememberMapPreferences()
     var selectedPreset by remember { mutableStateOf("normal") }
@@ -436,8 +450,8 @@ private fun SuggestingMapLayout(
             primary = {
                 // Free roam is its own state, NOT a guided route: no start/must-visit
                 // planning, no station list — just your position as start and free
-                // walking until you stop.
-                if (uiState.freeRoamActive) {
+                // walking until you stop. Ab J3 nur im Gehen (GO/FULL), nie im Plan-Sheet.
+                if (uiState.freeRoamActive && section != RouteSection.PLAN) {
                     Text(
                         stringResource(R.string.free_roam_active),
                         style = MaterialTheme.typography.labelMedium,
@@ -458,6 +472,17 @@ private fun SuggestingMapLayout(
                                 color = MaterialTheme.colorScheme.primary,
                             )
                         }
+                    }
+                } else if (section == RouteSection.GO) {
+                    val canStart = uiState.status != RouteStatus.LOADING
+                    // GoSheet, nichts aktiv: Freies Gehen prominent starten.
+                    Text(
+                        stringResource(R.string.free_roam_start_hint),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    CompactButton(onClick = viewModel::startFreeRoam, enabled = canStart) {
+                        Text(stringResource(R.string.free_roam_start))
                     }
                 } else {
                     Text(
@@ -508,13 +533,16 @@ private fun SuggestingMapLayout(
             },
             expandedContent = {
                 val loading = uiState.status == RouteStatus.LOADING
-                if (uiState.freeRoamActive) {
+                if (uiState.freeRoamActive && section != RouteSection.PLAN) {
                     CompactButton(onClick = viewModel::finishFreeRoam, enabled = !loading) {
                         Text(stringResource(R.string.free_roam_finish))
                     }
                     CompactOutlinedButton(onClick = viewModel::cancelFreeRoam, enabled = !loading) {
                         Text(stringResource(R.string.free_roam_stop))
                     }
+                } else if (section == RouteSection.GO) {
+                    // Gehen-Sheet: kein Planungs-Formular im erweiterten Bereich,
+                    // wenn nichts aktiv ist.
                 } else {
                     val hasStart = uiState.startNodeId != null || uiState.homeNodeId != null
                     val canGuide = !loading && hasStart && !uiState.offlineCached
@@ -530,13 +558,15 @@ private fun SuggestingMapLayout(
                             Text(stringResource(R.string.route_node_menu_clear_all))
                         }
                     }
-                    Text(
-                        stringResource(R.string.free_roam_start_hint),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    CompactButton(onClick = viewModel::startFreeRoam, enabled = !loading) {
-                        Text(stringResource(R.string.free_roam_start))
+                    if (section != RouteSection.PLAN) {
+                        Text(
+                            stringResource(R.string.free_roam_start_hint),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        CompactButton(onClick = viewModel::startFreeRoam, enabled = !loading) {
+                            Text(stringResource(R.string.free_roam_start))
+                        }
                     }
                 }
             },
@@ -723,6 +753,7 @@ private fun RouteWithMapLayout(
     onStartRecording: () -> Unit,
     modifier: Modifier = Modifier,
     chromeHosted: Boolean = false,
+    section: RouteSection = RouteSection.FULL,
 ) {
     val context = LocalContext.current
     val mapPrefs = rememberMapPreferences()
@@ -1057,7 +1088,7 @@ private fun RouteWithMapLayout(
                     }
 
                     when {
-                        uiState.mode == RouteMode.SUGGESTING && uiState.pendingShareToken == null -> {
+                        uiState.mode == RouteMode.SUGGESTING && uiState.pendingShareToken == null && section != RouteSection.GO -> {
                             FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                                 if (!uiState.guideMode) {
                                     CompactOutlinedButton(onClick = { viewModel.adjust("shorter") }, enabled = !loading) {
@@ -1164,7 +1195,7 @@ private fun RouteWithMapLayout(
                             Text(stringResource(R.string.free_roam_stop))
                         }
                     }
-                    uiState.mode == RouteMode.SUGGESTING && uiState.pendingShareToken == null -> {
+                    uiState.mode == RouteMode.SUGGESTING && uiState.pendingShareToken == null && section != RouteSection.GO -> {
                         if (uiState.guideMode) {
                             Text(
                                 stringResource(R.string.route_guide_points_hint),

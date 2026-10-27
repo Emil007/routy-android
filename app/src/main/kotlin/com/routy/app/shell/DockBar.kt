@@ -43,8 +43,8 @@ private data class DockChip(
 /**
  * Dock als Label-Chips (Erkunden · Planen · Gehen · Aufnahme) — Web-Parität (W4/W6).
  * Profil ist ein runder Knopf, kein 5. Chip. Bleibt bei laufender Tour sichtbar.
- * J2: Gehen disabled (`shell_coming_next` als title); Aufnahme aktiv und ruft die
- * alte RecordingScreen (MapChrome übersetzt RECORD → onStartRecording).
+ * J3: Gehen aktiv; Annehmen bzw. Free-Roam-Start wechselt die Hülle automatisch auf
+ * Gehen (MapChrome-LaunchedEffect), Aufnahme ruft die alte RecordingScreen.
  */
 @Composable
 fun DockBar(
@@ -57,7 +57,7 @@ fun DockBar(
     val chips = listOf(
         DockChip(ShellMode.EXPLORE, R.string.shell_mode_explore, Icons.Filled.Explore, disabled = false),
         DockChip(ShellMode.PLAN, R.string.shell_mode_plan, Icons.Filled.Map, disabled = false),
-        DockChip(ShellMode.GO, R.string.shell_mode_go, Icons.AutoMirrored.Filled.DirectionsWalk, disabled = true, comingNext = true),
+        DockChip(ShellMode.GO, R.string.shell_mode_go, Icons.AutoMirrored.Filled.DirectionsWalk, disabled = false),
         DockChip(ShellMode.RECORD, R.string.shell_mode_record, Icons.Filled.FiberManualRecord, disabled = false),
     )
 

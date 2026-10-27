@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -206,6 +207,14 @@ fun MapChrome(
         }
     }
 
+    // §7.1: Sobald eine Live-Session läuft (ACTIVE oder freies Gehen), wechselt die Hülle
+    // automatisch auf Gehen — Annehmen aus Planen kippt den Dock, Discard fällt zurück.
+    LaunchedEffect(routeActive, freeRoamActive) {
+        if ((routeActive || freeRoamActive) && mode != ShellMode.GO && mode != ShellMode.RECORD) {
+            chrome = chrome.copy(mode = ShellMode.GO, stage = SheetStage.Peek)
+        }
+    }
+
     Box(modifier = modifier.fillMaxSize()) {
         RoutyMapView(
             style = mapPrefs.baseMapStyle,
@@ -231,7 +240,11 @@ fun MapChrome(
             goldenSegmentIds = routeState.goldenHitIds,
             disconnectedSegmentIds = routeState.disconnectedSegmentIds,
             homeNodeId = routeState.homeNodeId,
-            startNodeId = if (binding.kind == MapBindingKind.ROUTE && mode == ShellMode.PLAN) routeState.startNodeId else null,
+            startNodeId = when {
+                routeState.freeRoamActive -> routeState.freeRoamStartNodeId
+                binding.kind == MapBindingKind.ROUTE && mode == ShellMode.PLAN -> routeState.startNodeId
+                else -> null
+            },
             endNodeId = if (binding.kind == MapBindingKind.ROUTE && mode == ShellMode.PLAN) routeState.destinationNodeId else null,
             mustVisitNodeIds = if (binding.kind == MapBindingKind.ROUTE && mode == ShellMode.PLAN) routeState.mustVisitNodeIds else emptyList(),
             isLoop = routeState.isLoop,
@@ -272,6 +285,14 @@ fun MapChrome(
                 .alpha(if (mode == ShellMode.PLAN) 1f else 0f)
                 .zIndex(if (mode == ShellMode.PLAN) 2f else 0f),
         )
+        GoSheet(
+            onStartRecording = onStartRecording,
+            accountLocaleTag = accountLocaleTag,
+            modifier = Modifier
+                .fillMaxSize()
+                .alpha(if (mode == ShellMode.GO) 1f else 0f)
+                .zIndex(if (mode == ShellMode.GO) 2f else 0f),
+        )
 
         // Dock + Profil
         val dockModifier = if (isTablet) {
@@ -290,15 +311,7 @@ fun MapChrome(
                 val decision = requestModeChange(mode, next, live, recordContinuesInBackground = true)
                 if (decision is ModeChangeResult.Allow) {
                     when (next) {
-                        ShellMode.RECORD -> {
-                            // J2-Lücke (Review-Notiz): Aufnahme öffnet die alte Destination.
-                            if (routeActive || freeRoamActive) {
-                                if (routeActive) routeViewModel.discardActive()
-                                onStartRecording()
-                            } else {
-                                onStartRecording()
-                            }
-                        }
+                        ShellMode.RECORD -> onStartRecording()
                         else -> chrome = ChromeState(next, SheetStage.Half, null)
                     }
                 } else if (decision is ModeChangeResult.Confirm) {
