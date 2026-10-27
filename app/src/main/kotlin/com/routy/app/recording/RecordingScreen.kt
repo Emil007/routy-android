@@ -1,13 +1,10 @@
 package com.routy.app.recording
 
 import android.Manifest
-import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
-import android.content.ServiceConnection
 import android.content.pm.PackageManager
 import android.os.Build
-import android.os.IBinder
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -45,8 +42,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -84,45 +79,9 @@ fun RecordingScreen(onDone: () -> Unit, modifier: Modifier = Modifier) {
     )
     val uiState by viewModel.uiState.collectAsState()
 
-    var service by remember { mutableStateOf<RecordingForegroundService?>(null) }
-    var serviceState by remember { mutableStateOf(RecordingServiceState()) }
-
-    val serviceConnection = remember {
-        object : ServiceConnection {
-            override fun onServiceConnected(name: ComponentName?, binder: IBinder?) {
-                service = (binder as RecordingForegroundService.LocalBinder).getService()
-            }
-
-            override fun onServiceDisconnected(name: ComponentName?) {
-                service = null
-            }
-        }
-    }
-
-    DisposableEffect(Unit) {
-        context.bindService(Intent(context, RecordingForegroundService::class.java), serviceConnection, Context.BIND_AUTO_CREATE)
-        onDispose { context.unbindService(serviceConnection) }
-    }
-
-    LaunchedEffect(service) {
-        service?.state?.collect { serviceState = it }
-    }
-
-    LaunchedEffect(service, serviceState.phase) {
-        if (serviceState.phase == RecordingPhase.CONFIRM) {
-            service?.recordedPoints()?.let { points ->
-                if (points.size >= 2) viewModel.setRecordedPoints(points)
-            }
-        }
-    }
-
-    LaunchedEffect(uiState.saved) {
-        if (uiState.saved) {
-            service?.stopAfterCommitOrDiscard()
-            viewModel.reset()
-            onDone()
-        }
-    }
+    val binding = rememberRecordingBinding(viewModel, uiState.saved, onDone)
+    val service = binding.service
+    val serviceState = binding.serviceState
 
     fun needsNotificationPermission() =
         Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&

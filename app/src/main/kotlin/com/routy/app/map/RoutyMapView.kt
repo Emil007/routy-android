@@ -1,5 +1,6 @@
 package com.routy.app.map
 
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -11,6 +12,10 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -143,6 +148,9 @@ fun RoutyMapView(
     routeColor: String = "#2e6b49",
     /** Strong green strokes for the map overview tab; faint grey when a route is drawn on top. */
     emphasizeNetworkSegments: Boolean = false,
+    /** Inset the map's attribution/compass/zoom so overlays (right panel, half-sheet) don't
+     * cover them (§9.5). Default zero — callers keep current behaviour in J1. */
+    contentPadding: PaddingValues = PaddingValues(0.dp),
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -171,6 +179,17 @@ fun RoutyMapView(
     }
 
     AndroidView(modifier = modifier.fillMaxSize(), factory = { mapView })
+
+    val density = LocalDensity.current
+    val layoutDirection = LocalLayoutDirection.current
+    LaunchedEffect(maplibreMap, contentPadding, layoutDirection) {
+        val map = maplibreMap ?: return@LaunchedEffect
+        val left = with(density) { contentPadding.calculateLeftPadding(layoutDirection).roundToPx() }
+        val top = with(density) { contentPadding.calculateTopPadding().roundToPx() }
+        val right = with(density) { contentPadding.calculateRightPadding(layoutDirection).roundToPx() }
+        val bottom = with(density) { contentPadding.calculateBottomPadding().roundToPx() }
+        map.setPadding(left, top, right, bottom)
+    }
 
     LaunchedEffect(mapView) {
         mapView.getMapAsync { map ->
