@@ -94,7 +94,7 @@ import com.routy.app.ui.OfflineBanner
 import java.text.Collator
 
 @Composable
-fun RouteScreen(onStartRecording: () -> Unit, accountLocaleTag: String, modifier: Modifier = Modifier) {
+fun RouteScreen(onStartRecording: () -> Unit, accountLocaleTag: String, modifier: Modifier = Modifier, chromeHosted: Boolean = false) {
     val app = LocalContext.current.applicationContext as RoutyApplication
     val activity = LocalContext.current as? android.app.Activity
     val viewModel: RouteViewModel = viewModel(
@@ -133,6 +133,7 @@ fun RouteScreen(onStartRecording: () -> Unit, accountLocaleTag: String, modifier
             uiState = uiState,
             viewModel = viewModel,
             modifier = modifier,
+            chromeHosted = chromeHosted,
         )
     } else {
         RouteWithMapLayout(
@@ -142,6 +143,7 @@ fun RouteScreen(onStartRecording: () -> Unit, accountLocaleTag: String, modifier
             accountLocaleTag = accountLocaleTag,
             onStartRecording = onStartRecording,
             modifier = modifier,
+            chromeHosted = chromeHosted,
         )
     }
 
@@ -211,9 +213,11 @@ private fun RouteMapChrome(
     onMapClick: ((Double, Double) -> Unit)? = null,
     onMapLongClick: ((Double, Double) -> Unit)? = null,
     modifier: Modifier = Modifier,
+    chromeHosted: Boolean = false,
 ) {
     Box(modifier = modifier.fillMaxSize()) {
-        RoutyMapView(
+        if (!chromeHosted) {
+            RoutyMapView(
             style = mapStyle,
             waymarkedOverlay = waymarkedOverlay,
             nodes = uiState.nodes,
@@ -254,6 +258,7 @@ private fun RouteMapChrome(
             onMapLongClick = onMapLongClick,
             modifier = Modifier.fillMaxSize(),
         )
+        }
         Column(
             modifier = Modifier.align(Alignment.TopStart).padding(8.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp),
@@ -336,6 +341,7 @@ private fun SuggestingMapLayout(
     uiState: RouteUiState,
     viewModel: RouteViewModel,
     modifier: Modifier = Modifier,
+    chromeHosted: Boolean = false,
 ) {
     val mapPrefs = rememberMapPreferences()
     var selectedPreset by remember { mutableStateOf("normal") }
@@ -369,6 +375,7 @@ private fun SuggestingMapLayout(
             segmentBadges = segmentBadges,
             onMapClick = viewModel::onPlanningMapClick,
             modifier = Modifier.weight(1f),
+            chromeHosted = chromeHosted,
         )
 
         RouteBottomDock(
@@ -640,7 +647,7 @@ private fun PlanningSegmentPanel(segmentId: Int, uiState: RouteUiState, viewMode
 }
 
 @Composable
-private fun planningSummaryText(uiState: RouteUiState): String {
+internal fun planningSummaryText(uiState: RouteUiState): String {
     val startLabel = nodeLabel(uiState, uiState.startNodeId ?: uiState.homeNodeId)
     val parts = buildList {
         if (uiState.isLoop) {
@@ -674,13 +681,13 @@ private fun planningSummaryText(uiState: RouteUiState): String {
 }
 
 @Composable
-private fun nodeLabel(uiState: RouteUiState, nodeId: Int?): String {
+internal fun nodeLabel(uiState: RouteUiState, nodeId: Int?): String {
     if (nodeId == null) return "…"
     val name = uiState.nodes.firstOrNull { it.id == nodeId }?.name ?: "#$nodeId"
     return if (nodeId == uiState.homeNodeId) "$name (${stringResource(R.string.map_node_home)})" else name
 }
 
-private fun buildPlanningNodeBadges(uiState: RouteUiState): Map<Int, String> {
+internal fun buildPlanningNodeBadges(uiState: RouteUiState): Map<Int, String> {
     val badges = mutableMapOf<Int, String>()
     uiState.startNodeId?.let { badges[it] = "S" }
     if (uiState.destinationNodeId != null) {
@@ -694,7 +701,7 @@ private fun buildPlanningNodeBadges(uiState: RouteUiState): Map<Int, String> {
     return badges
 }
 
-private fun buildPlanningSegmentBadges(uiState: RouteUiState): Map<Int, String> {
+internal fun buildPlanningSegmentBadges(uiState: RouteUiState): Map<Int, String> {
     val badges = mutableMapOf<Int, String>()
     uiState.requiredSegmentIds.forEach { id ->
         val name = uiState.segments.firstOrNull { it.id == id }?.name ?: "#$id"
@@ -715,6 +722,7 @@ private fun RouteWithMapLayout(
     accountLocaleTag: String,
     onStartRecording: () -> Unit,
     modifier: Modifier = Modifier,
+    chromeHosted: Boolean = false,
 ) {
     val context = LocalContext.current
     val mapPrefs = rememberMapPreferences()
@@ -893,6 +901,7 @@ private fun RouteWithMapLayout(
             onCompassClick = if (showLocation) viewModel::cycleCompassMode else null,
             onMapLongClick = if (uiState.mode == RouteMode.ACTIVE) viewModel::onActiveMapLongPress else null,
             modifier = Modifier.weight(1f),
+            chromeHosted = chromeHosted,
         )
 
         uiState.retagNodeId?.let { _ ->

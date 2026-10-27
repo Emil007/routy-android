@@ -1,37 +1,19 @@
 package com.routy.app.webview
 
-import android.os.Bundle
-import android.webkit.WebView
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.DirectionsWalk
-import androidx.compose.material.icons.filled.AdminPanelSettings
-import androidx.compose.material.icons.filled.BarChart
-import androidx.compose.material.icons.filled.Map
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import com.routy.app.core.GpxUploadNotifier
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.zIndex
@@ -40,27 +22,16 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.routy.app.R
 import com.routy.app.RoutyApplication
-import com.routy.app.route.RouteScreen
-import com.routy.app.map.MapScreen
-import com.routy.app.settings.SettingsScreen
-import com.routy.app.stats.StatsScreen
+import com.routy.app.core.GpxUploadNotifier
+import com.routy.app.recording.RecordingActiveBanner
+import com.routy.app.shell.MapChrome
 import com.routy.app.update.UpdateBanner
 import com.routy.app.upload.PendingUploadBanner
-import com.routy.app.recording.RecordingActiveBanner
-
-private data class ShellTab(val labelRes: Int, val path: String, val icon: ImageVector, val adminOnly: Boolean = false)
-
-private val TABS = listOf(
-    ShellTab(R.string.nav_route, "route", Icons.AutoMirrored.Filled.DirectionsWalk),
-    ShellTab(R.string.nav_map, "map", Icons.Filled.Map),
-    ShellTab(R.string.nav_stats, "stats", Icons.Filled.BarChart),
-    ShellTab(R.string.nav_settings, "settings", Icons.Filled.Settings),
-    ShellTab(R.string.nav_admin, "admin", Icons.Filled.AdminPanelSettings, adminOnly = true),
-)
 
 /**
- * Bottom nav shared across the whole post-login app. Route, Map, Stats, and Settings are native
- * Compose screens; Admin stays a WebView tab for infrequent admin workflows.
+ * Post-Login-Hülle (J2): dünne Shell, die MapChrome hostet. Navigation/Moduswechsel
+ * liegen im Dock (MapChrome), Profil/Stats/Settings/Admin sind Sheet-Stufen.
+ * Die schwebenden Banner bleiben hier oben (unabhängig vom Modus).
  */
 @Composable
 fun RoutyShellScreen(onSignedOut: () -> Unit, onStartRecording: () -> Unit) {
@@ -71,7 +42,6 @@ fun RoutyShellScreen(onSignedOut: () -> Unit, onStartRecording: () -> Unit) {
         },
     )
     val uiState by viewModel.uiState.collectAsState()
-    var selectedTab by remember { mutableIntStateOf(0) }
 
     val baseUrl = app.secureStorage.serverUrl
 
@@ -91,16 +61,6 @@ fun RoutyShellScreen(onSignedOut: () -> Unit, onStartRecording: () -> Unit) {
 
     if (baseUrl == null || uiState.signedOut) return // about to navigate away via onSignedOut
 
-    val visibleTabs = TABS.filter { !it.adminOnly || uiState.user?.role == "admin" }
-    val currentTab = visibleTabs.getOrElse(selectedTab.coerceIn(0, visibleTabs.lastIndex)) { visibleTabs.first() }
-    val webTabs = remember(visibleTabs) { visibleTabs.filter { it.path == "admin" } }
-    val webViewStates = remember { mutableMapOf<String, Bundle>() }
-    val webViews = remember { mutableMapOf<String, WebView>() }
-
-    BackHandler(enabled = webViews[currentTab.path]?.canGoBack() == true) {
-        webViews[currentTab.path]?.goBack()
-    }
-
     val snackbarHostState = remember { SnackbarHostState() }
     val gpxUploadedMessage = stringResource(R.string.record_upload_completed_background)
 
@@ -118,82 +78,19 @@ fun RoutyShellScreen(onSignedOut: () -> Unit, onStartRecording: () -> Unit) {
 
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
-        bottomBar = {
-            NavigationBar {
-                visibleTabs.forEachIndexed { index, tab ->
-                    NavigationBarItem(
-                        selected = currentTab == tab,
-                        onClick = { selectedTab = index },
-                        icon = { Icon(tab.icon, contentDescription = null) },
-                        label = { Text(stringResource(tab.labelRes)) },
-                    )
-                }
-            }
-        },
     ) { padding ->
         Column(modifier = Modifier.padding(padding).fillMaxSize()) {
-            // Sideload-only distribution means no auto-update — worth surfacing regardless of
-            // which tab is open, not just on one screen. weight(1f) on the tab content below
-            // (not fillMaxSize()) so the banner keeps its own natural height and the tab content
-            // takes only what's left, rather than both fighting over the full column height.
+            // Schwebende Banner unabhängig vom Modus (Sideload-Verteilung)
             UpdateBanner()
             PendingUploadBanner()
             RecordingActiveBanner(onOpenRecording = onStartRecording)
             Box(modifier = Modifier.weight(1f).fillMaxSize()) {
-                val allowedHost = hostFromBaseUrl(baseUrl)
-                if (allowedHost != null) {
-                    webTabs.forEach { tab ->
-                        val visible = currentTab.path == tab.path
-                        RoutyWebView(
-                            url = "$baseUrl/${tab.path}",
-                            allowedHost = allowedHost,
-                            onNavigateToLogin = { viewModel.signOut() },
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .zIndex(if (visible) 1f else 0f),
-                            interactive = visible,
-                            restoredState = webViewStates[tab.path],
-                            onStateSnapshot = { bundle -> webViewStates[tab.path] = bundle },
-                            onWebViewReady = { webView -> webViews[tab.path] = webView },
-                        )
-                    }
-                }
-                when (currentTab.path) {
-                    "route" -> Surface(
-                        modifier = Modifier.fillMaxSize().zIndex(2f),
-                        color = MaterialTheme.colorScheme.background,
-                    ) {
-                        RouteScreen(
-                            onStartRecording = onStartRecording,
-                            accountLocaleTag = uiState.user?.locale.orEmpty(),
-                            modifier = Modifier.fillMaxSize(),
-                        )
-                    }
-                    "map" -> Surface(
-                        modifier = Modifier.fillMaxSize().zIndex(2f),
-                        color = MaterialTheme.colorScheme.background,
-                    ) {
-                        MapScreen(
-                            onStartRecording = onStartRecording,
-                            modifier = Modifier.fillMaxSize(),
-                        )
-                    }
-                    "stats" -> Surface(
-                        modifier = Modifier.fillMaxSize().zIndex(2f),
-                        color = MaterialTheme.colorScheme.background,
-                    ) {
-                        StatsScreen(modifier = Modifier.fillMaxSize())
-                    }
-                    "settings" -> Surface(
-                        modifier = Modifier.fillMaxSize().zIndex(2f),
-                        color = MaterialTheme.colorScheme.background,
-                    ) {
-                        SettingsScreen(
-                            onSignOut = viewModel::signOut,
-                            modifier = Modifier.fillMaxSize(),
-                        )
-                    }
-                }
+                MapChrome(
+                    shellViewModel = viewModel,
+                    onStartRecording = onStartRecording,
+                    accountLocaleTag = uiState.user?.locale.orEmpty(),
+                    modifier = Modifier.fillMaxSize().zIndex(0f),
+                )
             }
         }
     }

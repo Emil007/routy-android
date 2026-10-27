@@ -42,6 +42,42 @@ sealed interface BackResult {
     data object Pass : BackResult
 }
 
+/** Live-Session für Moduswechsel (§7.2). */
+sealed interface LiveSession {
+    data object None : LiveSession
+    data object ActiveRoute : LiveSession
+    data object FreeRoam : LiveSession
+    data object Record : LiveSession
+}
+
+sealed interface ModeChangeResult {
+    data object Allow : ModeChangeResult
+    data class Confirm(val kind: String) : ModeChangeResult // "stop-route" | "stop-roam" | "stop-record"
+}
+
+/**
+ * Regeln §7.2, in dieser Reihenfolge (pure, ohne Compose).
+ * - from === to → Allow (die Hülle toggelt nur das Sheet half↔peek).
+ * - Record und Ziel ≠ record: Android erlaubt (recordContinuesInBackground), Service läuft weiter, Pille zeigt.
+ * - ActiveRoute und Ziel ≠ go → stop-route. FreeRoam und Ziel ≠ go → stop-roam.
+ * - Sonst erlauben; ein unangenommener Vorschlag ist LiveSession.None.
+ */
+fun requestModeChange(
+    from: ShellMode,
+    to: ShellMode,
+    live: LiveSession,
+    recordContinuesInBackground: Boolean,
+): ModeChangeResult {
+    if (from == to) return ModeChangeResult.Allow
+    if (live is LiveSession.Record && to != ShellMode.RECORD) {
+        if (recordContinuesInBackground) return ModeChangeResult.Allow
+        return ModeChangeResult.Confirm("stop-record")
+    }
+    if (live is LiveSession.ActiveRoute && to != ShellMode.GO) return ModeChangeResult.Confirm("stop-route")
+    if (live is LiveSession.FreeRoam && to != ShellMode.GO) return ModeChangeResult.Confirm("stop-roam")
+    return ModeChangeResult.Allow
+}
+
 /** Android's MapMode lives in the map view-model; pass it as a plain string to keep this pure. */
 fun onHardwareBack(
     state: ChromeState,

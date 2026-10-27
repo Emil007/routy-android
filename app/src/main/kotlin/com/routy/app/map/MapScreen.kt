@@ -72,7 +72,7 @@ import java.util.Locale
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun MapScreen(onStartRecording: () -> Unit, modifier: Modifier = Modifier) {
+fun MapScreen(onStartRecording: () -> Unit, modifier: Modifier = Modifier, chromeHosted: Boolean = false) {
     val app = LocalContext.current.applicationContext as RoutyApplication
     val viewModel: MapViewModel = viewModel(
         factory = viewModelFactory {
@@ -123,29 +123,31 @@ fun MapScreen(onStartRecording: () -> Unit, modifier: Modifier = Modifier) {
     }
 
     Box(modifier = modifier.fillMaxSize()) {
-        RoutyMapView(
-            style = mapPrefs.baseMapStyle,
-            waymarkedOverlay = mapPrefs.waymarkedOverlay,
-            nodes = uiState.nodes,
-            segments = uiState.segments,
-            routeGeometry = emptyList(),
-            stations = emptyList(),
-            myLocation = null,
-            fitKey = uiState.nodes.size,
-            fitToRouteOnly = false,
-            emphasizeNetworkSegments = true,
-            selectedNodeId = uiState.selectedNode?.id ?: uiState.moveNodeId,
-            selectedSegmentId = uiState.selectedSegment?.id,
-            moveNodeId = uiState.moveNodeId,
-            homeNodeId = uiState.user?.homeNodeId,
-            overlayLine = overlayLine,
-            editVertices = if (uiState.mode == MapMode.EditSegment) uiState.editSegmentPoints else null,
-            selectedEditVertexIndex = uiState.selectedEditVertexIndex,
-            goldenSegmentIds = uiState.todayGoldenSegmentIds,
-            disconnectedSegmentIds = uiState.disconnectedSegmentIds,
-            onMapClick = viewModel::onMapClick,
-            modifier = Modifier.fillMaxSize(),
-        )
+        if (!chromeHosted) {
+            RoutyMapView(
+                style = mapPrefs.baseMapStyle,
+                waymarkedOverlay = mapPrefs.waymarkedOverlay,
+                nodes = uiState.nodes,
+                segments = uiState.segments,
+                routeGeometry = emptyList(),
+                stations = emptyList(),
+                myLocation = null,
+                fitKey = uiState.nodes.size,
+                fitToRouteOnly = false,
+                emphasizeNetworkSegments = true,
+                selectedNodeId = uiState.selectedNode?.id ?: uiState.moveNodeId,
+                selectedSegmentId = uiState.selectedSegment?.id,
+                moveNodeId = uiState.moveNodeId,
+                homeNodeId = uiState.user?.homeNodeId,
+                overlayLine = overlayLine,
+                editVertices = if (uiState.mode == MapMode.EditSegment) uiState.editSegmentPoints else null,
+                selectedEditVertexIndex = uiState.selectedEditVertexIndex,
+                goldenSegmentIds = uiState.todayGoldenSegmentIds,
+                disconnectedSegmentIds = uiState.disconnectedSegmentIds,
+                onMapClick = viewModel::onMapClick,
+                modifier = Modifier.fillMaxSize(),
+            )
+        }
 
         if (uiState.offlineCached) {
             OfflineBanner(modifier = Modifier.align(Alignment.TopStart).padding(8.dp))
