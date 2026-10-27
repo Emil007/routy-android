@@ -36,6 +36,9 @@ fun AuthenticatedWebSheet(
                 onDismiss()
                 onNavigateToLogin()
             },
+            // J6: /map und /route in der Web-Stufe schließen die Stufe (native Karte),
+            // statt den Web-Atlas in den WebView zu laden.
+            onDismiss = onDismiss,
             // J5: keine feste 560dp — Höhe übernimmt das ModalSheet (Drittel bis Vollbild).
             modifier = Modifier.fillMaxWidth(),
         )

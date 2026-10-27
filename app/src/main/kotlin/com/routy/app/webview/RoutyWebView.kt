@@ -41,6 +41,7 @@ fun RoutyWebView(
     restoredState: Bundle? = null,
     onStateSnapshot: (Bundle) -> Unit = {},
     onWebViewReady: (WebView) -> Unit = {},
+    onDismiss: () -> Unit = {},
 ) {
     val webViewRef = remember { mutableStateOf<WebView?>(null) }
 
@@ -63,12 +64,20 @@ fun RoutyWebView(
                 webViewClient = object : WebViewClient() {
                     override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
                         val target = request?.url?.toString() ?: return true
+                        if (isAtlasDismissPath(target)) {
+                            onDismiss()
+                            return true
+                        }
                         return !isAllowedWebNavigation(target, allowedHost)
                     }
 
                     @Deprecated("Deprecated in Java")
                     override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean {
                         if (url == null) return true
+                        if (isAtlasDismissPath(url)) {
+                            onDismiss()
+                            return true
+                        }
                         return !isAllowedWebNavigation(url, allowedHost)
                     }
 
@@ -104,6 +113,12 @@ fun isAllowedWebNavigation(url: String, allowedHost: String): Boolean {
     if (scheme != "https" && scheme != "http") return false
     val host = uri.host ?: return false
     return host.equals(allowedHost, ignoreCase = true)
+}
+
+/** J6: /map und /route sollen sich in der eingebetteten Shell schließen (native Karte), nicht den Atlas im WebView laden. */
+fun isAtlasDismissPath(url: String): Boolean {
+    val path = Uri.parse(url).path?.trimEnd('/') ?: return false
+    return path == "/map" || path == "/route"
 }
 
 fun hostFromBaseUrl(baseUrl: String): String? =
