@@ -1,7 +1,6 @@
 package com.routy.app.webview
 
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -37,7 +36,8 @@ fun AuthenticatedWebSheet(
                 onDismiss()
                 onNavigateToLogin()
             },
-            modifier = Modifier.fillMaxWidth().height(560.dp),
+            // J5: keine feste 560dp — Höhe übernimmt das ModalSheet (Drittel bis Vollbild).
+            modifier = Modifier.fillMaxWidth(),
         )
     }
 }

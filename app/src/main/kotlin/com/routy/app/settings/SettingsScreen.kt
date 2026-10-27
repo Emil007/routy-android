@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -46,8 +47,7 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.routy.app.R
 import com.routy.app.RoutyApplication
-import com.routy.app.map.MapStyleSwitcher
-import com.routy.app.map.rememberMapPreferences
+import com.routy.app.shell.LayersSheet
 import com.routy.app.webview.AuthenticatedWebSheet
 import com.routy.app.ui.OfflineBanner
 import com.routy.app.logic.api.SessionListEntry
@@ -167,13 +167,7 @@ fun SettingsScreen(
 
         item {
             SettingsSection(title = stringResource(R.string.settings_map_layers_title)) {
-                val mapPrefs = rememberMapPreferences()
-                MapStyleSwitcher(
-                    selected = mapPrefs.baseMapStyle,
-                    onSelect = mapPrefs.setBaseMapStyle,
-                    waymarkedOverlay = mapPrefs.waymarkedOverlay,
-                    onWaymarkedOverlayChange = mapPrefs.setWaymarkedOverlay,
-                )
+                LayersSheet()
             }
         }
 
@@ -249,12 +243,12 @@ fun SettingsScreen(
         }
 
         item {
-            CompactButton(
+            Button(
                 onClick = onSignOut,
                 enabled = !uiState.saving,
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().height(48.dp),
             ) {
-                Text(stringResource(R.string.settings_logout), style = MaterialTheme.typography.labelMedium)
+                Text(stringResource(R.string.settings_logout))
             }
         }
     }

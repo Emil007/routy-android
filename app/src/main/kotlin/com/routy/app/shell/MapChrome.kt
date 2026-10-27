@@ -191,6 +191,7 @@ fun MapChrome(
     val shellState by shellViewModel.uiState.collectAsState()
     val baseUrl = app.secureStorage.serverUrl
     val token = app.secureStorage.token ?: ""
+    var layersOpen by remember { mutableStateOf(false) }
 
     if (chrome.stage == SheetStage.Stats) {
         Box(modifier.fillMaxSize().zIndex(20f)) {
@@ -215,6 +216,21 @@ fun MapChrome(
             onDismiss = { chrome = chrome.copy(stage = SheetStage.Profile) },
             onNavigateToLogin = shellViewModel::signOut,
         )
+        return
+    }
+    if (layersOpen) {
+        Box(modifier.fillMaxSize().zIndex(20f)) {
+            ModalBottomSheet(
+                onDismissRequest = { layersOpen = false },
+            ) {
+                androidx.compose.foundation.layout.Column(
+                    modifier = Modifier.fillMaxSize().safeDrawingPadding().padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    LayersSheet()
+                }
+            }
+        }
         return
     }
 
@@ -339,6 +355,16 @@ fun MapChrome(
                 .zIndex(if (mode == ShellMode.RECORD) 2f else 0f),
         )
 
+        // Ebenen-FAB (J5): öffnet das LayersSheet als Modal über der Karte.
+        LayersFab(
+            onOpen = { layersOpen = true },
+            modifier = Modifier
+                .align(if (isTablet) Alignment.TopStart else Alignment.TopStart)
+                .safeDrawingPadding()
+                .padding(top = if (isTablet) 96.dp else 76.dp, start = 12.dp)
+                .zIndex(8f),
+        )
+
         // Dock + Profil
         val dockModifier = if (isTablet) {
             Modifier.align(Alignment.TopCenter).safeDrawingPadding().padding(top = 8.dp)
@@ -393,39 +419,21 @@ fun MapChrome(
             )
         }
 
-        // Profil-Menü als volle Stufe (Stats/Settings/Admin/Logout, §J2)
+        // Profil-Menü als volle Stufe (Stats/Settings/Admin/Logout, §J5)
         if (chrome.stage == SheetStage.Profile) {
-            androidx.compose.material3.ModalBottomSheet(
-                onDismissRequest = { chrome = chrome.copy(stage = SheetStage.Peek) },
-            ) {
-                androidx.compose.foundation.layout.Column(
-                    modifier = Modifier.fillMaxSize().safeDrawingPadding().padding(16.dp),
-                    verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp),
-                ) {
-                    androidx.compose.material3.Text(
-                        shellState.user?.displayName ?: "",
-                        style = androidx.compose.material3.MaterialTheme.typography.titleMedium,
-                    )
-                    androidx.compose.material3.Button(
-                        onClick = { chrome = chrome.copy(stage = SheetStage.Stats) },
-                        modifier = Modifier.fillMaxWidth(),
-                    ) { androidx.compose.material3.Text(stringResource(R.string.nav_stats)) }
-                    androidx.compose.material3.Button(
-                        onClick = { chrome = chrome.copy(stage = SheetStage.Settings) },
-                        modifier = Modifier.fillMaxWidth(),
-                    ) { androidx.compose.material3.Text(stringResource(R.string.nav_settings)) }
-                    if (shellState.user?.role == "admin") {
-                        androidx.compose.material3.Button(
-                            onClick = { chrome = chrome.copy(stage = SheetStage.Web("/admin")) },
-                            modifier = Modifier.fillMaxWidth(),
-                        ) { androidx.compose.material3.Text(stringResource(R.string.nav_admin)) }
-                    }
-                    androidx.compose.material3.OutlinedButton(
-                        onClick = shellViewModel::signOut,
-                        modifier = Modifier.fillMaxWidth(),
-                    ) { androidx.compose.material3.Text(stringResource(R.string.settings_logout)) }
-                }
-            }
+            ProfileMenuSheet(
+                displayName = shellState.user?.displayName ?: "",
+                isAdmin = shellState.user?.role == "admin",
+                scoreLine = rememberProfileScoreLine(),
+                onStats = { chrome = chrome.copy(stage = SheetStage.Stats) },
+                onSettings = { chrome = chrome.copy(stage = SheetStage.Settings) },
+                onAccount = {
+                    chrome = chrome.copy(stage = SheetStage.Web("/settings/account"))
+                },
+                onAdmin = { chrome = chrome.copy(stage = SheetStage.Web("/admin")) },
+                onSignOut = shellViewModel::signOut,
+                onDismiss = { chrome = chrome.copy(stage = SheetStage.Peek) },
+            )
         }
     }
 }

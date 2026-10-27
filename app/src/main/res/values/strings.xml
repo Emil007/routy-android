@@ -40,6 +40,7 @@
     <string name="nav_map">Karte</string>
     <string name="nav_stats">Statistik</string>
     <string name="nav_settings">Einstellungen</string>
+    <string name="nav_account">Konto</string>
     <string name="nav_admin">Admin</string>
 
     <string name="stats_your_stats">Deine Statistik</string>
