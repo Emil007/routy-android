@@ -265,7 +265,7 @@ fun RoutyMapView(
         }
     }
 
-    LaunchedEffect(loadedStyle, fitKey, fitToRouteOnly) {
+    LaunchedEffect(loadedStyle, fitKey, fitToRouteOnly, contentPadding, layoutDirection) {
         val map = maplibreMap ?: return@LaunchedEffect
         if (loadedStyle == null) return@LaunchedEffect
         val points = buildList {
@@ -278,10 +278,20 @@ fun RoutyMapView(
                 routeGeometry.forEach { add(LatLng(it.lat, it.lng)) }
             }
         }
+        // §2.3/ABNAHME-J0: Der Fit-Rand darf den Kartenrand nicht doppelt setzen. Sobald ein
+        // contentPadding gesetzt ist (MapChrome ruft map.setPadding bei + 416dp rechts am
+        // Tablet, + 56+96 unten am Telefon), fällt der Bounds-Inset auf 24 — sonst bleiben 64.
+        val hasInset = with(density) {
+            contentPadding.calculateTopPadding() > 0.dp ||
+                contentPadding.calculateBottomPadding() > 0.dp ||
+                contentPadding.calculateLeftPadding(layoutDirection) > 0.dp ||
+                contentPadding.calculateRightPadding(layoutDirection) > 0.dp
+        }
+        val boundsInset = if (hasInset) 24 else 64
         when {
             points.isEmpty() -> {}
             points.size == 1 -> map.moveCamera(CameraUpdateFactory.newLatLngZoom(points[0], 15.0))
-            else -> map.moveCamera(CameraUpdateFactory.newLatLngBounds(LatLngBounds.Builder().includes(points).build(), 64))
+            else -> map.moveCamera(CameraUpdateFactory.newLatLngBounds(LatLngBounds.Builder().includes(points).build(), boundsInset))
         }
     }
 }

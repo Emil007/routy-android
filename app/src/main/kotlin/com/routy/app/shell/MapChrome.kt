@@ -246,7 +246,14 @@ fun MapChrome(
             mapMode = mapState.mode.name,
         )
         when (result) {
-            is BackResult.Apply -> chrome = ChromeState(result.mode ?: chrome.mode, result.stage, chrome.tool)
+            is BackResult.Apply -> {
+                // Regel 6: Node/Segment → Half — dabei die Auswahl leeren, damit das
+                // Panel wirklich schließt (nicht nur das Sheet einklappt).
+                if (chrome.stage is SheetStage.Node || chrome.stage is SheetStage.Segment) {
+                    mapViewModel.clearSelection()
+                }
+                chrome = ChromeState(result.mode ?: chrome.mode, result.stage, chrome.tool)
+            }
             is BackResult.ClearMapMode -> {
                 mapViewModel.setMode(MapMode.View)
                 chrome = chrome.copy(stage = SheetStage.Half)
@@ -262,6 +269,32 @@ fun MapChrome(
     LaunchedEffect(routeActive, freeRoamActive) {
         if ((routeActive || freeRoamActive) && mode != ShellMode.GO && mode != ShellMode.RECORD) {
             chrome = chrome.copy(mode = ShellMode.GO, stage = SheetStage.Peek)
+        }
+    }
+
+    // §7.3/Regel 6: Die Erkunden-Knoten/-Segment-Panels sind eine Sheet-Stufe. Sobald im
+    // Erkunden eine Auswahl aktiv ist, spiegelt chrome.stage das (Node/Segment) — nur so
+    // greift onHardwareBack-Regel 6 (Back → Auswahl leeren + Half). Overlay-Stufen
+    // (Profil/Stats/Settings/Web/EditMenu) werden nie überschrieben.
+    LaunchedEffect(mode, chrome.stage, mapState.selectedNode, mapState.selectedSegment, mapState.mode) {
+        val selection = when (mode) {
+            ShellMode.EXPLORE -> when {
+                mapState.selectedNode != null -> SheetStage.Node
+                mapState.selectedSegment != null -> SheetStage.Segment
+                else -> null
+            }
+            else -> null
+        }
+        val overlayStage =
+            chrome.stage is SheetStage.Profile ||
+                chrome.stage is SheetStage.Stats ||
+                chrome.stage is SheetStage.Settings ||
+                chrome.stage is SheetStage.Web ||
+                chrome.stage is SheetStage.EditMenu
+        if (selection != null && chrome.stage != selection && !overlayStage) {
+            chrome = chrome.copy(stage = selection)
+        } else if (selection == null && (chrome.stage is SheetStage.Node || chrome.stage is SheetStage.Segment)) {
+            chrome = chrome.copy(stage = SheetStage.Half)
         }
     }
 
