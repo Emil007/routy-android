@@ -466,4 +466,18 @@
     <string name="notification_route_tracking_text_next">%1$d / %2$d → %3$s</string>
     <string name="notification_route_next_stop">Next stop: %1$s</string>
     <string name="notification_route_reannounce">Next stop</string>
+    <string name="shell_mode_explore">Explore</string>
+    <string name="shell_mode_plan">Plan</string>
+    <string name="shell_mode_go">Go</string>
+    <string name="shell_mode_record">Record</string>
+    <string name="shell_profile">Profile</string>
+    <string name="shell_destination_hint">Destination or junction</string>
+    <string name="shell_recording_pill">Recording</string>
+    <string name="shell_layers">Layers</string>
+    <string name="shell_edit_network">Edit network</string>
+    <string name="shell_back_to_map">Back to map</string>
+    <string name="shell_coming_next">Available in the next step.</string>
+    <string name="shell_collapse">Collapse</string>
+    <string name="shell_stop_live_title">Stop the live session?</string>
+    <string name="shell_stop_live_body">This ends the current outing.</string>
 </resources>

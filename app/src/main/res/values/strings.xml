@@ -473,4 +473,18 @@
     <string name="notification_route_tracking_text_next">%1$d / %2$d → %3$s</string>
     <string name="notification_route_next_stop">Nächste Station: %1$s</string>
     <string name="notification_route_reannounce">Nächste Station</string>
+    <string name="shell_mode_explore">Erkunden</string>
+    <string name="shell_mode_plan">Planen</string>
+    <string name="shell_mode_go">Gehen</string>
+    <string name="shell_mode_record">Aufnahme</string>
+    <string name="shell_profile">Profil</string>
+    <string name="shell_destination_hint">Ziel oder Knoten</string>
+    <string name="shell_recording_pill">Aufnahme läuft</string>
+    <string name="shell_layers">Ebenen</string>
+    <string name="shell_edit_network">Netz bearbeiten</string>
+    <string name="shell_back_to_map">Zurück zur Karte</string>
+    <string name="shell_coming_next">Kommt im nächsten Schritt.</string>
+    <string name="shell_collapse">Einklappen</string>
+    <string name="shell_stop_live_title">Live-Modus beenden?</string>
+    <string name="shell_stop_live_body">Die laufende Tour wird beendet.</string>
 </resources>

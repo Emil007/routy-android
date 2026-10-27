@@ -21,8 +21,8 @@ private val LightColors = lightColorScheme(
 )
 
 private val DarkColors = darkColorScheme(
-    primary = RoutyGreenLight,
-    onPrimary = RoutyBackgroundDark,
+    primary = RoutyGreenDarkAccent,
+    onPrimary = RoutyGreenOnDark,
     background = RoutyBackgroundDark,
     surface = RoutySurfaceDark,
     error = RoutyError,
