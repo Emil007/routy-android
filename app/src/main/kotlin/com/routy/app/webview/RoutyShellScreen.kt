@@ -23,7 +23,6 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import com.routy.app.R
 import com.routy.app.RoutyApplication
 import com.routy.app.core.GpxUploadNotifier
-import com.routy.app.recording.RecordingActiveBanner
 import com.routy.app.shell.MapChrome
 import com.routy.app.update.UpdateBanner
 import com.routy.app.upload.PendingUploadBanner
@@ -31,10 +30,11 @@ import com.routy.app.upload.PendingUploadBanner
 /**
  * Post-Login-Hülle (J2): dünne Shell, die MapChrome hostet. Navigation/Moduswechsel
  * liegen im Dock (MapChrome), Profil/Stats/Settings/Admin sind Sheet-Stufen.
- * Die schwebenden Banner bleiben hier oben (unabhängig vom Modus).
+ * Die schwebenden Banner bleiben hier oben (unabhängig vom Modus). Aufnahme läuft
+ * seit J4 als vierter Modus direkt in MapChrome — kein eigenes Nav-Ziel mehr.
  */
 @Composable
-fun RoutyShellScreen(onSignedOut: () -> Unit, onStartRecording: () -> Unit) {
+fun RoutyShellScreen(onSignedOut: () -> Unit) {
     val app = LocalContext.current.applicationContext as RoutyApplication
     val viewModel: ShellViewModel = viewModel(
         factory = viewModelFactory {
@@ -83,11 +83,9 @@ fun RoutyShellScreen(onSignedOut: () -> Unit, onStartRecording: () -> Unit) {
             // Schwebende Banner unabhängig vom Modus (Sideload-Verteilung)
             UpdateBanner()
             PendingUploadBanner()
-            RecordingActiveBanner(onOpenRecording = onStartRecording)
             Box(modifier = Modifier.weight(1f).fillMaxSize()) {
                 MapChrome(
                     shellViewModel = viewModel,
-                    onStartRecording = onStartRecording,
                     accountLocaleTag = uiState.user?.locale.orEmpty(),
                     modifier = Modifier.fillMaxSize().zIndex(0f),
                 )

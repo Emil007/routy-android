@@ -45,6 +45,10 @@ import com.routy.app.map.MapMode
 import com.routy.app.map.MapViewModel
 import com.routy.app.map.rememberMapPreferences
 import com.routy.app.map.RoutyMapView
+import com.routy.app.recording.RecordingBindingState
+import com.routy.app.recording.RecordingPill
+import com.routy.app.recording.RecordingViewModel
+import com.routy.app.recording.rememberRecordingBinding
 import com.routy.app.route.RouteMode
 import com.routy.app.route.RouteViewModel
 import com.routy.app.route.buildPlanningNodeBadges
@@ -56,19 +60,20 @@ import com.routy.app.webview.ShellViewModel
 
 /**
  * Atlas-Hülle auf Android (§4.2): genau EINE RoutyMapView, DockBar, Flächen, und die
- * dauerhaft komponierten Sheets (Explore/Plan hosted). Moduswechsel disposed nichts —
- * die ViewModels leben am NavBackStackEntry der Shell (§4.2) und werden von MapChrome
- * wie von den hosted Screens via viewModel() aufgelöst (gleiche Instanz, gleicher Owner).
- * Telefon: Dock unten, Sheet unten. Tablet (≥600dp): Dock oben, Panel rechts 400dp.
+ * dauerhaft komponierten Sheets (Explore/Plan/Go/Record hosted). Moduswechsel disposed
+ * nichts — die ViewModels leben am NavBackStackEntry der Shell (§4.2) und werden von
+ * MapChrome wie von den hosted Screens via viewModel() aufgelöst (gleiche Instanz,
+ * gleicher Owner). Telefon: Dock unten, Sheet unten. Tablet (≥600dp): Dock oben, Panel
+ * rechts 400dp.
  *
- * J2: Gehen-Chip disabled (DockBar), Aufnahme-Chip öffnet die alte RecordingScreen
- * (separate Destination — Review-Notiz). Die aktive Route liegt noch im Plan-Sheet.
+ * J4: Aufnahme als vierter Modus (RecordSheet + Service-Bindung am Shell-Owner),
+ * keine eigene Destination mehr. Pille zeigt während der Aufnahme über anderen Modi
+ * den Weg zurück in die Aufnahme.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MapChrome(
     shellViewModel: ShellViewModel,
-    onStartRecording: () -> Unit,
     accountLocaleTag: String,
     modifier: Modifier = Modifier,
 ) {
@@ -93,6 +98,27 @@ fun MapChrome(
         mutableStateOf(ChromeState())
     }
     val mode = chrome.mode
+
+    // --- Aufnahme: Service-Bindung + ViewModel am Shell-Owner (J4) ---
+    val recordingViewModel: RecordingViewModel = viewModel(
+        factory = viewModelFactory {
+            initializer { RecordingViewModel(app.apiClientProvider, app.gpxCommitScheduler, app.recordingConfirmStore, app.bootstrapLoader) }
+        },
+    )
+    val recordingUiState by recordingViewModel.uiState.collectAsState()
+    val recordingBinding: RecordingBindingState = rememberRecordingBinding(recordingViewModel, recordingUiState.saved) {
+        // Aufnahme abgeschlossen → zurück auf Erkunden, Sheet zu (Ankündigung §7.6).
+        chrome = chrome.copy(mode = ShellMode.EXPLORE, stage = SheetStage.Peek)
+    }
+    val service = recordingBinding.service
+    val serviceState = recordingBinding.serviceState
+    val recordingPhase = serviceState.phase
+    val recordingActive = recordingPhase == RecordingPhase.RECORDING ||
+        recordingPhase == RecordingPhase.PAUSED ||
+        recordingPhase == RecordingPhase.CONFIRM
+
+    // Vierter Modus statt eigenem Nav-Ziel: Aufnahme öffnet als Sheet im Chrome.
+    val startRecording: () -> Unit = { chrome = ChromeState(ShellMode.RECORD, SheetStage.Half, null) }
 
     // --- Eine Karten-Instanz, gefüttert von MapBinding (§7.4) ---
     val route = routeState.route
@@ -144,7 +170,15 @@ fun MapChrome(
         mapMode = mapState.mode,
         routeCtx = routeCtx,
         explore = explore,
-        recording = RecordingContext(RecordingPhase.IDLE), // J2: Aufnahme separate Destination
+        recording = RecordingContext(
+            phase = recordingPhase,
+            myLocation = serviceState.currentPosition,
+            points = if (recordingPhase == RecordingPhase.CONFIRM) {
+                recordingUiState.points.map { GeoPoint(it.lat, it.lng) }
+            } else {
+                serviceState.trackGeometry
+            },
+        ),
     )
 
     val config = LocalConfiguration.current
@@ -192,7 +226,7 @@ fun MapChrome(
             webCanGoBack = false,
             routeActive = false,
             freeRoamActive = false,
-            recordingPhase = RecordingPhase.IDLE,
+            recordingPhase = recordingPhase,
             mapMode = mapState.mode.name,
         )
         when (result) {
@@ -271,14 +305,14 @@ fun MapChrome(
 
         // Sheets: immer komponiert, das aktive sichtbar (§4.3 — ViewModels überleben den Moduswechsel)
         ExploreSheet(
-            onStartRecording = onStartRecording,
+            onStartRecording = startRecording,
             modifier = Modifier
                 .fillMaxSize()
                 .alpha(if (mode == ShellMode.EXPLORE) 1f else 0f)
                 .zIndex(if (mode == ShellMode.EXPLORE) 2f else 0f),
         )
         PlanSheet(
-            onStartRecording = onStartRecording,
+            onStartRecording = startRecording,
             accountLocaleTag = accountLocaleTag,
             modifier = Modifier
                 .fillMaxSize()
@@ -286,12 +320,23 @@ fun MapChrome(
                 .zIndex(if (mode == ShellMode.PLAN) 2f else 0f),
         )
         GoSheet(
-            onStartRecording = onStartRecording,
+            onStartRecording = startRecording,
             accountLocaleTag = accountLocaleTag,
             modifier = Modifier
                 .fillMaxSize()
                 .alpha(if (mode == ShellMode.GO) 1f else 0f)
                 .zIndex(if (mode == ShellMode.GO) 2f else 0f),
+        )
+        RecordSheet(
+            uiState = recordingUiState,
+            serviceState = serviceState,
+            service = service,
+            viewModel = recordingViewModel,
+            onDone = { chrome = chrome.copy(mode = ShellMode.EXPLORE, stage = SheetStage.Peek) },
+            modifier = Modifier
+                .fillMaxSize()
+                .alpha(if (mode == ShellMode.RECORD) 1f else 0f)
+                .zIndex(if (mode == ShellMode.RECORD) 2f else 0f),
         )
 
         // Dock + Profil
@@ -311,7 +356,7 @@ fun MapChrome(
                 val decision = requestModeChange(mode, next, live, recordContinuesInBackground = true)
                 if (decision is ModeChangeResult.Allow) {
                     when (next) {
-                        ShellMode.RECORD -> onStartRecording()
+                        ShellMode.RECORD -> startRecording()
                         else -> chrome = ChromeState(next, SheetStage.Half, null)
                     }
                 } else if (decision is ModeChangeResult.Confirm) {
@@ -324,6 +369,8 @@ fun MapChrome(
                             routeViewModel.cancelFreeRoam()
                             chrome = ChromeState(next, SheetStage.Half, null)
                         }
+                        // Aufnahme läuft im Hintergrund weiter (recordContinuesInBackground=true,
+                        // §7.2) — die Pille führt zurück in die Aufnahme, kein Abbruch.
                         else -> {}
                     }
                 }
@@ -333,6 +380,18 @@ fun MapChrome(
             },
             modifier = dockModifier.zIndex(10f),
         )
+
+        // Pille: laufende Aufnahme ist über jeden Modus erreichbar (§J4).
+        if (recordingActive && mode != ShellMode.RECORD) {
+            RecordingPill(
+                onOpen = startRecording,
+                modifier = Modifier
+                    .align(if (isTablet) Alignment.TopEnd else Alignment.BottomEnd)
+                    .navigationBarsPadding()
+                    .padding(if (isTablet) 16.dp else 8.dp)
+                    .zIndex(12f),
+            )
+        }
 
         // Profil-Menü als volle Stufe (Stats/Settings/Admin/Logout, §J2)
         if (chrome.stage == SheetStage.Profile) {

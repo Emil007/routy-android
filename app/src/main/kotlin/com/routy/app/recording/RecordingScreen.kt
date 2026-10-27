@@ -71,7 +71,11 @@ private val CompactPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun RecordingScreen(onDone: () -> Unit, modifier: Modifier = Modifier) {
+fun RecordingScreen(
+    onDone: () -> Unit,
+    modifier: Modifier = Modifier,
+    chromeHosted: Boolean = false,
+) {
     val context = LocalContext.current
     val app = context.applicationContext as RoutyApplication
     val viewModel: RecordingViewModel = viewModel(
@@ -111,7 +115,7 @@ fun RecordingScreen(onDone: () -> Unit, modifier: Modifier = Modifier) {
 
     when {
         serviceState.phase == RecordingPhase.RECORDING || serviceState.phase == RecordingPhase.PAUSED -> {
-            ActiveRecordingFullscreen(
+            ActiveRecordingPanel(
                 uiState = uiState,
                 serviceState = serviceState,
                 onBack = onDone,
@@ -127,58 +131,82 @@ fun RecordingScreen(onDone: () -> Unit, modifier: Modifier = Modifier) {
                 },
                 onDiscard = { service?.stopAfterCommitOrDiscard() },
                 modifier = modifier.fillMaxSize(),
+                chromeHosted = chromeHosted,
             )
         }
         serviceState.phase == RecordingPhase.CONFIRM -> {
-            ConfirmFullscreen(
+            ConfirmPanel(
                 uiState = uiState,
                 viewModel = viewModel,
-                onBack = onDone,
                 onDiscard = {
                     service?.stopAfterCommitOrDiscard()
                     viewModel.reset()
                 },
                 modifier = modifier.fillMaxSize(),
+                chromeHosted = chromeHosted,
             )
         }
-        else -> Scaffold(
-            topBar = {
-                TopAppBar(
-                    title = { Text(stringResource(R.string.record_title)) },
-                    navigationIcon = {
-                        IconButton(onClick = onDone) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null) }
+        else -> {
+            if (chromeHosted) {
+                IdlePanel(
+                    uiState = uiState,
+                    onStart = { requestStart() },
+                    modifier = modifier,
+                )
+            } else {
+                Scaffold(
+                    topBar = {
+                        TopAppBar(
+                            title = { Text(stringResource(R.string.record_title)) },
+                            navigationIcon = {
+                                IconButton(onClick = onDone) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null) }
+                            },
+                        )
                     },
-                )
-            },
-        ) { padding ->
-            Column(
-                modifier = modifier.fillMaxWidth().padding(padding).padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                if (uiState.offlineCached) OfflineBanner()
-                BatteryOptimizationPrompt()
-                Text(stringResource(R.string.record_instructions), style = MaterialTheme.typography.bodyMedium)
-                Text(
-                    stringResource(R.string.record_background_capability),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Button(onClick = { requestStart() }, modifier = Modifier.fillMaxWidth()) {
-                    Text(stringResource(R.string.record_start))
+                ) { padding ->
+                    IdlePanel(
+                        uiState = uiState,
+                        onStart = { requestStart() },
+                        modifier = modifier.padding(padding),
+                    )
                 }
             }
         }
     }
 }
 
+@Composable
+internal fun IdlePanel(
+    uiState: RecordingUiState,
+    onStart: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier.fillMaxWidth().padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        if (uiState.offlineCached) OfflineBanner()
+        BatteryOptimizationPrompt()
+        Text(stringResource(R.string.record_instructions), style = MaterialTheme.typography.bodyMedium)
+        Text(
+            stringResource(R.string.record_background_capability),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Button(onClick = onStart, modifier = Modifier.fillMaxWidth()) {
+            Text(stringResource(R.string.record_start))
+        }
+    }
+}
+
 @OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
 @Composable
-private fun ConfirmFullscreen(
+internal fun ConfirmPanel(
     uiState: RecordingUiState,
     viewModel: RecordingViewModel,
-    onBack: () -> Unit,
     onDiscard: () -> Unit,
     modifier: Modifier = Modifier,
+    chromeHosted: Boolean = false,
 ) {
     val mapPrefs = rememberMapPreferences()
     val trackGeometry = remember(uiState.points) {
@@ -186,22 +214,26 @@ private fun ConfirmFullscreen(
     }
 
     Box(modifier = modifier) {
-        RoutyMapView(
-            style = mapPrefs.baseMapStyle,
-            waymarkedOverlay = mapPrefs.waymarkedOverlay,
-            nodes = uiState.nodes,
-            segments = emptyList(),
-            routeGeometry = trackGeometry,
-            stations = emptyList(),
-            myLocation = null,
-            fitKey = uiState.points.size,
-            routeColor = "#9a3b29",
-            modifier = Modifier.fillMaxSize(),
-        )
+        if (!chromeHosted) {
+            RoutyMapView(
+                style = mapPrefs.baseMapStyle,
+                waymarkedOverlay = mapPrefs.waymarkedOverlay,
+                nodes = uiState.nodes,
+                segments = emptyList(),
+                routeGeometry = trackGeometry,
+                stations = emptyList(),
+                myLocation = null,
+                fitKey = uiState.points.size,
+                routeColor = "#9a3b29",
+                modifier = Modifier.fillMaxSize(),
+            )
+        }
 
-        FloatingMapChrome(onBack = onBack)
+        if (!chromeHosted) {
+            FloatingMapChrome(onBack = onDiscard)
+        }
 
-        if (uiState.offlineCached) {
+        if (uiState.offlineCached && !chromeHosted) {
             OfflineBanner(modifier = Modifier.align(Alignment.TopCenter).padding(top = 56.dp))
         }
 
@@ -223,7 +255,7 @@ private fun ConfirmFullscreen(
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun ActiveRecordingFullscreen(
+internal fun ActiveRecordingPanel(
     uiState: RecordingUiState,
     serviceState: RecordingServiceState,
     onBack: () -> Unit,
@@ -232,26 +264,31 @@ private fun ActiveRecordingFullscreen(
     onStop: () -> Unit,
     onDiscard: () -> Unit,
     modifier: Modifier = Modifier,
+    chromeHosted: Boolean = false,
 ) {
     val mapPrefs = rememberMapPreferences()
 
     Box(modifier = modifier) {
-        RoutyMapView(
-            style = mapPrefs.baseMapStyle,
-            waymarkedOverlay = mapPrefs.waymarkedOverlay,
-            nodes = uiState.nodes,
-            segments = emptyList(),
-            routeGeometry = serviceState.trackGeometry,
-            stations = emptyList(),
-            myLocation = serviceState.currentPosition,
-            fitKey = serviceState.pointCount,
-            routeColor = "#9a3b29",
-            modifier = Modifier.fillMaxSize(),
-        )
+        if (!chromeHosted) {
+            RoutyMapView(
+                style = mapPrefs.baseMapStyle,
+                waymarkedOverlay = mapPrefs.waymarkedOverlay,
+                nodes = uiState.nodes,
+                segments = emptyList(),
+                routeGeometry = serviceState.trackGeometry,
+                stations = emptyList(),
+                myLocation = serviceState.currentPosition,
+                fitKey = serviceState.pointCount,
+                routeColor = "#9a3b29",
+                modifier = Modifier.fillMaxSize(),
+            )
+        }
 
-        FloatingMapChrome(onBack = onBack)
+        if (!chromeHosted) {
+            FloatingMapChrome(onBack = onBack)
+        }
 
-        if (uiState.offlineCached) {
+        if (uiState.offlineCached && !chromeHosted) {
             OfflineBanner(modifier = Modifier.align(Alignment.TopCenter).padding(top = 56.dp))
         }
 
