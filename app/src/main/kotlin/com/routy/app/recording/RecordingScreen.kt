@@ -75,20 +75,32 @@ internal fun IdlePanel(
     onStart: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Column(
-        modifier = modifier.fillMaxWidth().padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        if (uiState.offlineCached) OfflineBanner()
-        BatteryOptimizationPrompt()
-        Text(stringResource(R.string.record_instructions), style = MaterialTheme.typography.bodyMedium)
-        Text(
-            stringResource(R.string.record_background_capability),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Button(onClick = onStart, modifier = Modifier.fillMaxWidth()) {
-            Text(stringResource(R.string.record_start))
+    Box(modifier = modifier.fillMaxSize()) {
+        Surface(
+            modifier = Modifier
+                .align(Alignment.Center)
+                .fillMaxWidth()
+                .padding(16.dp),
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(22.dp),
+            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.96f),
+            shadowElevation = 8.dp,
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                if (uiState.offlineCached) OfflineBanner()
+                BatteryOptimizationPrompt()
+                Text(stringResource(R.string.record_instructions), style = MaterialTheme.typography.bodyMedium)
+                Text(
+                    stringResource(R.string.record_background_capability),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Button(onClick = onStart, modifier = Modifier.fillMaxWidth()) {
+                    Text(stringResource(R.string.record_start))
+                }
+            }
         }
     }
 }

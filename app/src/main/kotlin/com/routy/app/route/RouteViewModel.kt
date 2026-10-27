@@ -578,6 +578,8 @@ class RouteViewModel(
                     status = RouteStatus.IDLE,
                     messageRes = null,
                     messageArgs = emptyList(),
+                    // Frei gehen zeichnet denselben Foreground-Track auf wie Routerfolgen.
+                    trackEnabled = true,
                 )
             } else {
                 _uiState.value = _uiState.value.copy(status = RouteStatus.IDLE, messageRes = R.string.common_error, messageArgs = emptyList())
@@ -592,6 +594,7 @@ class RouteViewModel(
             freeRoamStartNodeId = null,
             freeRoamReachedCount = 0,
             freeRoamAnnounce = null,
+            trackEnabled = false,
         )
         freeRoamLastCheckinLat = null
         freeRoamLastCheckinLng = null
@@ -644,6 +647,7 @@ class RouteViewModel(
                     status = RouteStatus.IDLE,
                     messageRes = R.string.free_roam_finished,
                     messageArgs = emptyList(),
+                    trackEnabled = false,
                 )
             } else {
                 _uiState.value = _uiState.value.copy(status = RouteStatus.IDLE, messageRes = R.string.common_error, messageArgs = emptyList())
@@ -1263,7 +1267,7 @@ class RouteViewModel(
                 routeProgressStore.clear()
                 routeWalkTrackStore.clear()
                 prefetchMapTiles(_uiState.value.route)
-                _uiState.value = _uiState.value.copy(mode = RouteMode.ACTIVE, status = RouteStatus.IDLE, messageRes = null, nickname = "", completedWaypointIndex = -1, voiceAnnouncedIndex = 0, followEnabled = true)
+                _uiState.value = _uiState.value.copy(mode = RouteMode.ACTIVE, status = RouteStatus.IDLE, messageRes = null, nickname = "", completedWaypointIndex = -1, voiceAnnouncedIndex = 0, followEnabled = true, trackEnabled = true)
             } else {
                 _uiState.value = _uiState.value.copy(status = RouteStatus.IDLE, messageRes = R.string.route_session_expired)
             }

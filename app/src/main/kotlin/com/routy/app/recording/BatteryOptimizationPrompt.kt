@@ -5,10 +5,12 @@ import android.net.Uri
 import android.os.PowerManager
 import android.provider.Settings
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Card
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -60,22 +62,29 @@ fun BatteryOptimizationPrompt(modifier: Modifier = Modifier) {
 
     if (ignoring || dismissed) return
 
+    // Column statt Row: der Hinweistext braucht die volle Breite (Row + weight(1f)
+    // quetschte ihn in eine schmale Spalte und ließ Wörter mittig umbrechen).
     Card(modifier = modifier.fillMaxWidth()) {
-        Row(
-            modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
-        ) {
-            Text(stringResource(R.string.battery_optimization_hint), modifier = Modifier.weight(1f))
-            TextButton(onClick = {
-                context.startActivity(
-                    Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:$packageName")),
-                )
-            }) {
-                Text(stringResource(R.string.battery_optimization_allow))
-            }
-            TextButton(onClick = { dismissed = true }) {
-                Text(stringResource(R.string.battery_optimization_dismiss))
+        Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp)) {
+            Text(
+                stringResource(R.string.battery_optimization_hint),
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End,
+            ) {
+                TextButton(onClick = {
+                    context.startActivity(
+                        Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:$packageName")),
+                    )
+                }) {
+                    Text(stringResource(R.string.battery_optimization_allow))
+                }
+                TextButton(onClick = { dismissed = true }) {
+                    Text(stringResource(R.string.battery_optimization_dismiss))
+                }
             }
         }
     }

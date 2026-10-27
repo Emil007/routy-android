@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -30,6 +31,7 @@ import androidx.compose.material3.ExposedDropdownMenuAnchorType
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -49,6 +51,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -167,7 +170,11 @@ fun MapScreen(onStartRecording: () -> Unit, modifier: Modifier = Modifier, chrom
         }
 
         Column(
-            modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(8.dp),
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .padding(8.dp)
+                .padding(bottom = if (chromeHosted) 140.dp else 0.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             uiState.messageRes?.let { res ->
@@ -185,11 +192,16 @@ fun MapScreen(onStartRecording: () -> Unit, modifier: Modifier = Modifier, chrom
                 MapMode.View -> {
                     uiState.selectedNode?.let { MapNodePanel(it, uiState, viewModel) }
                     uiState.selectedSegment?.let { MapSegmentPanel(it, uiState, viewModel) }
-                    MapViewToolbar(uiState, onStartRecording, { viewModel.setMode(MapMode.Draw) }, { gpxPicker.launch("*/*") })
+                    // In der Hülle (MapChrome) übernimmt der DockBar die Modus-Navigation —
+                    // die alte Werkzeugleiste (Knoten/Zeichnen/GPX/Aufnahme) bleibt außen vor.
+                    if (!chromeHosted) {
+                        MapViewToolbar(uiState, onStartRecording, { viewModel.setMode(MapMode.Draw) }, { gpxPicker.launch("*/*") })
+                    }
                     MapExtrasContent(
                         uiState,
                         viewModel,
                         visible = showExtras,
+                        onStartRecording = onStartRecording,
                     )
                 }
                 MapMode.Draw -> MapDrawPanel(uiState, viewModel)
@@ -197,8 +209,26 @@ fun MapScreen(onStartRecording: () -> Unit, modifier: Modifier = Modifier, chrom
                 MapMode.EditSegment -> MapEditShapePanel(uiState, viewModel)
                 MapMode.SplitSegment -> MapSplitPanel(uiState, viewModel)
             }
+        }
 
-            Text(mapHint(uiState), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(horizontal = 4.dp))
+        // Hinweistext am allerunteren Rand über der DockBar (bottom 100) — UNTER den
+        // Erkunden-Panels (die bei bottom 140 enden). So liegt er nie über den
+        // Menü-Enträgen, sondern bleibt als schmaler Banner darunter lesbar.
+        if (uiState.messageRes == null) {
+            Surface(
+                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.82f),
+                shape = MaterialTheme.shapes.small,
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = if (chromeHosted) 100.dp else 8.dp),
+            ) {
+                Text(
+                    mapHint(uiState),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                )
+            }
         }
     }
 }
@@ -333,9 +363,16 @@ private fun MapExtrasContent(
     state: MapUiState,
     viewModel: MapViewModel,
     visible: Boolean,
+    onStartRecording: () -> Unit,
 ) {
     AnimatedVisibility(visible = visible) {
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            // Ebenen liegt hier oben rechts (dasselbe Menü wie Wege-Tabelle + Papierkorb):
+            // Kartenstil-Dropdown + Marked-Trails-Checkbox — Änderungen greifen sofort
+            // (rememberMapPreferences persistiert live). Kein separates Speichern nötig.
+            LayersPanel()
+            // Aufnahme gehört zu Erkunden: hier startet man die Aufzeichnung neuer Wege.
+            RecordingEntryPanel(onStartRecording)
             if (state.proposals.isNotEmpty()) {
                 ProposalsPanel(state, viewModel)
             }
@@ -344,6 +381,43 @@ private fun MapExtrasContent(
             }
             SegmentsTablePanel(state, viewModel)
             TrashPanel(state, viewModel)
+        }
+    }
+}
+
+@Composable
+private fun RecordingEntryPanel(onStart: () -> Unit) {
+    // Gleiche Flächenfarbe wie die übrigen Hamburger-Punkte (surfaceVariant) —
+    // das Menü wirkt dadurch einheitlich statt aus verschieden designeten Blöcken.
+    Surface(color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.94f), shape = MaterialTheme.shapes.medium) {
+        Row(
+            Modifier.fillMaxWidth().padding(10.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text(stringResource(R.string.shell_recording_entries_title), style = MaterialTheme.typography.titleSmall)
+                Text(stringResource(R.string.shell_recording_entries_hint), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            Button(onClick = onStart) {
+                Text(stringResource(R.string.record_start))
+            }
+        }
+    }
+}
+
+@Composable
+private fun LayersPanel() {
+    val mapPrefs = rememberMapPreferences()
+    Surface(color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.94f), shape = MaterialTheme.shapes.medium) {
+        Column(Modifier.fillMaxWidth().padding(10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(stringResource(R.string.shell_layers), style = MaterialTheme.typography.titleSmall)
+            MapStyleSwitcher(
+                selected = mapPrefs.baseMapStyle,
+                onSelect = mapPrefs.setBaseMapStyle,
+                waymarkedOverlay = mapPrefs.waymarkedOverlay,
+                onWaymarkedOverlayChange = mapPrefs.setWaymarkedOverlay,
+            )
         }
     }
 }
@@ -812,11 +886,45 @@ private fun SegmentsTablePanel(state: MapUiState, viewModel: MapViewModel) {
                         )
                     }
                 }
-                sorted.take(50).forEach { (segment, row) ->
-                    Text(
-                        "${row.start} → ${row.end} · ${"%.2f".format(Locale.US, row.length / 1000.0)} km · ${row.duration} min · ${row.usage}× ${segment.name?.let { "· $it" } ?: ""}",
-                        style = MaterialTheme.typography.bodySmall,
-                    )
+                // Kompakte Zeilen: Namen brechen um (maxLines 2, kein Ellipsis => nichts
+                // abgeschnitten), kleinere Schrift, minimaler Abstand => kein Leerraum.
+                Column(
+                    Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 360.dp)
+                        .verticalScroll(rememberScrollState()),
+                ) {
+                    sorted.take(50).forEach { (segment, row) ->
+                        Row(
+                            Modifier.fillMaxWidth().padding(vertical = 3.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                text = "${row.start} → ${row.end}",
+                                style = MaterialTheme.typography.bodySmall,
+                                modifier = Modifier.weight(1f),
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                            Text(
+                                text = "%.2f km · %d min".format(Locale.US, row.length / 1000.0, row.duration),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                            )
+                        }
+                        segment.name?.let {
+                            Text(
+                                text = it,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                                modifier = Modifier.padding(start = 24.dp, bottom = 3.dp),
+                            )
+                        }
+                        HorizontalDivider(Modifier.padding(vertical = 1.dp))
+                    }
                 }
                 if (sorted.size > 50) {
                     Text(stringResource(R.string.map_segments_table_more, sorted.size - 50), style = MaterialTheme.typography.labelSmall)

@@ -67,6 +67,7 @@
 
     <string name="route_offline_cached">Server nicht erreichbar — gecachte Netzwerkdaten</string>
     <string name="route_track">Track</string>
+    <string name="route_go">Go</string>
     <string name="route_tracking_on">Tracking an</string>
     <string name="route_track_stop">Tracking beenden</string>
     <string name="route_keep_screen_on">Bildschirm an</string>
@@ -132,7 +133,7 @@
     <string name="route_preset_short_btn">Kurz</string>
     <string name="route_preset_normal_btn">Normal</string>
     <string name="route_preset_long_btn">Lang</string>
-    <string name="route_generate_arrow">↑</string>
+    <string name="route_generate_arrow">Go</string>
     <string name="route_preset_short">Kurze Runde</string>
     <string name="route_again">Nochmal</string>
     <string name="route_reverse">Umkehren</string>
@@ -164,6 +165,7 @@
     <string name="free_roam_start_hint">Starte irgendwo und geh, wohin du willst — Routy erkennt unterwegs erreichbare Knotenpunkte und zeichnet deinen Track auf.</string>
     <string name="free_roam_start">Freies Gehen starten</string>
     <string name="free_roam_stop">Beenden</string>
+    <string name="free_roam_stop_confirm">Free Roam wirklich beenden? Der bisherige Track wird nicht als Runde gespeichert.</string>
     <string name="free_roam_finish">Abschließen</string>
     <string name="free_roam_active">Freies Gehen aktiv</string>
     <string name="free_roam_reached">Knoten erreicht</string>
@@ -199,6 +201,8 @@
     <string name="route_session_expired">Sitzung abgelaufen — bitte neu vorschlagen lassen.</string>
 
     <string name="record_entry_point">Weg aufzeichnen</string>
+    <string name="shell_recording_entries_title">Neue Wege aufzeichnen</string>
+    <string name="shell_recording_entries_hint">Startet die GPS-Aufnahme — neue Wege kommen ins Netz.</string>
     <string name="record_title">Weg aufzeichnen</string>
     <string name="record_instructions">Zeichnet deinen Weg per GPS auf, während du gehst — speicherbar wie ein gezeichneter oder importierter Weg.</string>
     <string name="record_background_capability">Läuft weiter, auch wenn der Bildschirm ausgeht oder eine andere App im Vordergrund ist.</string>
@@ -475,8 +479,8 @@
     <string name="notification_route_next_stop">Nächste Station: %1$s</string>
     <string name="notification_route_reannounce">Nächste Station</string>
     <string name="shell_mode_explore">Erkunden</string>
-    <string name="shell_mode_plan">Planen</string>
-    <string name="shell_mode_go">Gehen</string>
+    <string name="shell_mode_plan">Route</string>
+    <string name="shell_mode_go">Frei</string>
     <string name="shell_mode_record">Aufnahme</string>
     <string name="shell_profile">Profil</string>
     <string name="shell_destination_hint">Ziel oder Knoten</string>

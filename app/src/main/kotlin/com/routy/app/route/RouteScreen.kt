@@ -129,7 +129,21 @@ fun RouteScreen(onStartRecording: () -> Unit, accountLocaleTag: String, modifier
 
     val route = uiState.route
     val isLive = uiState.mode == RouteMode.ACTIVE || uiState.freeRoamActive
+    // Gehen-Sheet (Frei): zeigt IMMER den Free-Roam-Start (kein Rundweg-Formular
+    // mit Kurz/Normal/Lang + Go — das gehört ausschließlich zu Route/Planen).
+    // free-roam = „geh vom aktuellen Node aus, wohin du willst“; eine generierte
+    // Runde macht hier keinen Sinn (Punkt 4 / Emil).
     when {
+        // Go-Sheet: nichts aktiv → FREE ROAM starten, nie Rundweg-Generierung.
+        chromeHosted && section == RouteSection.GO && route == null && !isLive -> {
+            SuggestingMapLayout(
+                uiState = uiState,
+                viewModel = viewModel,
+                modifier = modifier,
+                chromeHosted = chromeHosted,
+                section = section,
+            )
+        }
         // Plan-Sheet: sobald eine Live-Session läuft, gehört sie zu Gehen (J3) — nichts zeigen.
         chromeHosted && section == RouteSection.PLAN && isLive -> Unit
         // Go-Sheet: nichts aktiv, aber Vorschau-Route → der Zustand ist im Plan-Sheet (J2-Übergang).
@@ -303,12 +317,10 @@ private fun RouteBottomDock(
     expandedContent: @Composable () -> Unit,
     /** Always-visible action beside the expand arrow (e.g. Generate). */
     trailingAction: (@Composable () -> Unit)? = null,
+    /** In der Hülle (MapChrome): schwebendes Sheet-Menü statt alter Bottom-Bar (§4.2/J2). */
+    chromeHosted: Boolean = false,
 ) {
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        tonalElevation = 2.dp,
-        shadowElevation = 6.dp,
-    ) {
+    val dock: @Composable () -> Unit = {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -346,6 +358,35 @@ private fun RouteBottomDock(
             }
         }
     }
+    if (chromeHosted) {
+        // Neue Sheet-Optik in der Hülle: schwebende, abgerundete Fläche unten,
+        // über der Karte und über dem MapChrome-DockBar — wie die Explore-Panels.
+        // Der Boden-Abstand (DockBar-Oberkante liegt bei navigationBars + ~56dp;
+        // 116dp) hält das Panel sauber ÜBER der DockBar (Bug: Planen/Gehen-Panel
+        // wurde vom neuen Dock überdeckt/abgeschnitten).
+        Box(modifier = Modifier.fillMaxWidth()) {
+            Surface(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 8.dp)
+                    .padding(bottom = 116.dp),
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(22.dp),
+                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.96f),
+                shadowElevation = 8.dp,
+            ) {
+                dock()
+            }
+        }
+    } else {
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            tonalElevation = 2.dp,
+            shadowElevation = 6.dp,
+        ) {
+            dock()
+        }
+    }
 }
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -360,6 +401,8 @@ private fun SuggestingMapLayout(
     val mapPrefs = rememberMapPreferences()
     var selectedPreset by remember { mutableStateOf("normal") }
     var dockLevel by remember { mutableStateOf(DockLevel.COLLAPSED) }
+    // Bestätigung bevor man freies Gehen abbricht (Nr. 4b / Emil: zu leicht abzubrechen).
+    var pendingFreeRoamStop by remember { mutableStateOf(false) }
 
     val nodeBadges = remember(uiState.startNodeId, uiState.destinationNodeId, uiState.isLoop, uiState.mustVisitNodeIds) {
         buildPlanningNodeBadges(uiState)
@@ -397,6 +440,7 @@ private fun SuggestingMapLayout(
             onToggleCollapse = {
                 dockLevel = if (dockLevel == DockLevel.COLLAPSED) DockLevel.EXPANDED else DockLevel.COLLAPSED
             },
+            chromeHosted = chromeHosted,
             summary = {
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.weight(1f, fill = false)) {
                     if (uiState.freeRoamActive) {
@@ -412,6 +456,17 @@ private fun SuggestingMapLayout(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         }
+                    } else if (section == RouteSection.GO) {
+                        // Frei-Tab ohne aktive Route: kein Rundweg-Formular, nur die
+                        // Free-Roam-Erklärung (was man hier tut). Kurz/Normal/Lang + Go
+                        // gehören zu Route (Punkt 4 / Emil).
+                        Text(
+                            stringResource(R.string.free_roam_start_hint),
+                            style = MaterialTheme.typography.labelSmall,
+                            maxLines = 3,
+                            overflow = TextOverflow.Ellipsis,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
                     } else {
                         Text(
                             summaryText,
@@ -430,9 +485,9 @@ private fun SuggestingMapLayout(
                 }
             },
             trailingAction = {
-                // While free-roaming, the generate button is hidden — free roam
-                // needs no planned route, its start is simply your position.
-                if (!uiState.freeRoamActive) {
+                // Frei-Tab ohne aktive Route: kein Go-Generieren-Button (Punkt 4).
+                // Free-Roam braucht keine generierte Runde — der Start-Button liegt im primary.
+                if (!uiState.freeRoamActive && section != RouteSection.GO) {
                     val loading = uiState.status == RouteStatus.LOADING
                     val hasStart = uiState.startNodeId != null || uiState.homeNodeId != null
                     val canGenerate = !loading && hasStart && !uiState.offlineCached
@@ -537,7 +592,7 @@ private fun SuggestingMapLayout(
                     CompactButton(onClick = viewModel::finishFreeRoam, enabled = !loading) {
                         Text(stringResource(R.string.free_roam_finish))
                     }
-                    CompactOutlinedButton(onClick = viewModel::cancelFreeRoam, enabled = !loading) {
+                    CompactOutlinedButton(onClick = { pendingFreeRoamStop = true }, enabled = !loading) {
                         Text(stringResource(R.string.free_roam_stop))
                     }
                 } else if (section == RouteSection.GO) {
@@ -574,6 +629,28 @@ private fun SuggestingMapLayout(
 
         uiState.pendingDestinationReplace?.let { _ ->
             DestinationReplaceDialog(uiState, viewModel)
+        }
+
+        // Bestätigungsdialog beim Free-Roam-Abbruch (Nr. 4b): „Beenden“ schmeißt
+        // sonst die laufende Aufzeichnung weg — erst fragen.
+        if (pendingFreeRoamStop) {
+            AlertDialog(
+                onDismissRequest = { pendingFreeRoamStop = false },
+                confirmButton = {
+                    TextButton(onClick = {
+                        pendingFreeRoamStop = false
+                        viewModel.cancelFreeRoam()
+                    }) {
+                        Text(stringResource(R.string.free_roam_stop))
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { pendingFreeRoamStop = false }) {
+                        Text(stringResource(R.string.common_cancel))
+                    }
+                },
+                text = { Text(stringResource(R.string.free_roam_stop_confirm)) },
+            )
         }
     }
 }
@@ -808,7 +885,6 @@ private fun RouteWithMapLayout(
         }
     }
     var pendingDiscard by remember { mutableStateOf(false) }
-    var pendingTrackStop by remember { mutableStateOf(false) }
     var pendingBackDiscard by remember { mutableStateOf(false) }
 
     BackHandler(enabled = uiState.mode == RouteMode.ACTIVE) {
@@ -833,27 +909,6 @@ private fun RouteWithMapLayout(
                 }
             },
             text = { Text(stringResource(R.string.route_back_active_confirm)) },
-        )
-    }
-
-    if (pendingTrackStop) {
-        AlertDialog(
-            onDismissRequest = { pendingTrackStop = false },
-            confirmButton = {
-                TextButton(onClick = {
-                    pendingTrackStop = false
-                    RouteTrackingForegroundService.stopTrack(context)
-                    viewModel.setTrackEnabled(false)
-                }) {
-                    Text(stringResource(R.string.route_track_stop))
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { pendingTrackStop = false }) {
-                    Text(stringResource(R.string.route_cancel))
-                }
-            },
-            text = { Text(stringResource(R.string.route_track_abort_confirm)) },
         )
     }
 
@@ -1002,6 +1057,7 @@ private fun RouteWithMapLayout(
             onToggleCollapse = {
                 dockLevel = if (dockLevel == DockLevel.COLLAPSED) DockLevel.EXPANDED else DockLevel.COLLAPSED
             },
+            chromeHosted = chromeHosted,
             summary = {
                 CompactMeta("${"%.1f".format(route.lengthM / 1000.0)} km")
                 CompactMeta("${route.durationMin} min")
@@ -1107,7 +1163,7 @@ private fun RouteWithMapLayout(
                                     }
                                 }
                                 CompactButton(onClick = viewModel::accept, enabled = !loading) {
-                                    Text(stringResource(R.string.route_accept))
+                                    Text(stringResource(R.string.route_go))
                                 }
                                 CompactOutlinedButton(onClick = viewModel::cancel, enabled = !loading) {
                                     Text(stringResource(R.string.route_cancel))
@@ -1129,17 +1185,6 @@ private fun RouteWithMapLayout(
                                 )
                             }
                             FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                if (!uiState.trackEnabled) {
-                                    CompactButton(onClick = {
-                                        ensureBackgroundPermissions { viewModel.setTrackEnabled(true) }
-                                    }) {
-                                        Text(stringResource(R.string.route_track))
-                                    }
-                                } else {
-                                    CompactOutlinedButton(onClick = { pendingTrackStop = true }) {
-                                        Text(stringResource(R.string.route_track_stop))
-                                    }
-                                }
                                 val canComplete = !uiState.trackEnabled || uiState.completedWaypointIndex >= route.stations.lastIndex
                                 CompactButton(
                                     onClick = {

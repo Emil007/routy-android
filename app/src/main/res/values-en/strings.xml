@@ -67,6 +67,7 @@
 
     <string name="route_offline_cached">Could not reach server — showing cached network data</string>
     <string name="route_track">Track</string>
+    <string name="route_go">Go</string>
     <string name="route_tracking_on">Tracking on</string>
     <string name="route_track_stop">Stop tracking</string>
     <string name="route_keep_screen_on">Keep screen on</string>
@@ -132,7 +133,7 @@
     <string name="route_preset_short_btn">Short</string>
     <string name="route_preset_normal_btn">Normal</string>
     <string name="route_preset_long_btn">Long</string>
-    <string name="route_generate_arrow">↑</string>
+    <string name="route_generate_arrow">Go</string>
     <string name="route_preset_short">Short loop</string>
     <string name="route_again">Again</string>
     <string name="route_reverse">Reverse</string>
@@ -164,6 +165,7 @@
     <string name="free_roam_start_hint">Start anywhere and walk freely — Routy detects reachable junctions and records your track.</string>
     <string name="free_roam_start">Start free roam</string>
     <string name="free_roam_stop">Stop</string>
+    <string name="free_roam_stop_confirm">Really stop free roam? Your track so far won\'t be saved as a round.</string>
     <string name="free_roam_finish">Finish</string>
     <string name="free_roam_active">Free roam active</string>
     <string name="free_roam_reached">Node reached</string>
@@ -199,6 +201,8 @@
     <string name="route_session_expired">Session expired — please suggest again.</string>
 
     <string name="record_entry_point">Record a path</string>
+    <string name="shell_recording_entries_title">Record new paths</string>
+    <string name="shell_recording_entries_hint">Starts GPS recording — new paths join the network.</string>
     <string name="record_title">Record a path</string>
     <string name="record_instructions">Records your path by GPS while you walk — save it afterward like a drawn or imported path.</string>
     <string name="record_background_capability">Keeps recording even with the screen off or another app in the foreground.</string>
@@ -468,8 +472,8 @@
     <string name="notification_route_next_stop">Next stop: %1$s</string>
     <string name="notification_route_reannounce">Next stop</string>
     <string name="shell_mode_explore">Explore</string>
-    <string name="shell_mode_plan">Plan</string>
-    <string name="shell_mode_go">Go</string>
+    <string name="shell_mode_plan">Route</string>
+    <string name="shell_mode_go">Free</string>
     <string name="shell_mode_record">Record</string>
     <string name="shell_profile">Profile</string>
     <string name="shell_destination_hint">Destination or junction</string>

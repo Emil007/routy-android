@@ -3,7 +3,7 @@ package com.routy.app.shell
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
@@ -25,6 +25,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.routy.app.R
 import com.routy.app.ui.theme.ChromeCard
@@ -55,10 +56,9 @@ fun DockBar(
 ) {
     val dark = isSystemInDarkTheme()
     val chips = listOf(
-        DockChip(ShellMode.EXPLORE, R.string.shell_mode_explore, Icons.Filled.Explore, disabled = false),
         DockChip(ShellMode.PLAN, R.string.shell_mode_plan, Icons.Filled.Map, disabled = false),
+        DockChip(ShellMode.EXPLORE, R.string.shell_mode_explore, Icons.Filled.Explore, disabled = false),
         DockChip(ShellMode.GO, R.string.shell_mode_go, Icons.AutoMirrored.Filled.DirectionsWalk, disabled = false),
-        DockChip(ShellMode.RECORD, R.string.shell_mode_record, Icons.Filled.FiberManualRecord, disabled = false),
     )
 
     Surface(
@@ -68,9 +68,9 @@ fun DockBar(
         modifier = modifier,
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 6.dp, vertical = 6.dp),
+            modifier = Modifier.padding(horizontal = 4.dp, vertical = 5.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            horizontalArrangement = Arrangement.spacedBy(2.dp),
         ) {
             chips.forEach { chip ->
                 val active = chip.mode == mode
@@ -80,30 +80,32 @@ fun DockBar(
                     modifier = Modifier.clickable(enabled = !chip.disabled) { if (!chip.disabled) onSelect(chip.mode) },
                 ) {
                     Row(
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
                     ) {
                         Icon(
                             imageVector = chip.icon,
                             contentDescription = null,
+                            modifier = Modifier.size(20.dp),
                             tint = if (active) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                         Text(
                             text = stringResource(chip.label),
-                            style = MaterialTheme.typography.labelLarge,
+                            style = MaterialTheme.typography.labelMedium,
                             fontWeight = FontWeight.SemiBold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
                             color = if (active) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
                 }
             }
-            Spacer(Modifier.width(4.dp))
-            IconButton(onClick = onProfile) {
+            IconButton(onClick = onProfile, modifier = Modifier.size(36.dp)) {
                 Icon(
                     imageVector = Icons.Filled.AccountCircle,
                     contentDescription = stringResource(R.string.shell_profile),
-                    modifier = Modifier.height(28.dp).background(androidx.compose.ui.graphics.Color.Transparent),
+                    modifier = Modifier.size(20.dp),
                 )
             }
         }

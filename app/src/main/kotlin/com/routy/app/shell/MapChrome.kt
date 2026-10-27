@@ -1,6 +1,7 @@
 package com.routy.app.shell
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -8,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -29,9 +31,13 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import androidx.compose.ui.res.stringResource
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Layers
 import androidx.compose.material3.Button
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.Surface
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -42,6 +48,7 @@ import com.routy.app.logic.api.GeoPoint
 import com.routy.app.logic.recording.RecordingPhase
 import com.routy.app.logic.route.remainingRouteGeometry
 import com.routy.app.map.MapMode
+import com.routy.app.map.MapStyleSwitcher
 import com.routy.app.map.MapViewModel
 import com.routy.app.map.rememberMapPreferences
 import com.routy.app.map.RoutyMapView
@@ -191,52 +198,19 @@ fun MapChrome(
     val shellState by shellViewModel.uiState.collectAsState()
     val baseUrl = app.secureStorage.serverUrl
     val token = app.secureStorage.token ?: ""
+    // Ebenen-Panel oben rechts für Planen/Gehen (Erkunden hat seinen eigenen Hamburger).
     var layersOpen by remember { mutableStateOf(false) }
 
-    if (chrome.stage == SheetStage.Stats) {
-        Box(modifier.fillMaxSize().zIndex(20f)) {
-            StatsScreen(modifier = Modifier.fillMaxSize())
-        }
-        return
-    }
-    if (chrome.stage == SheetStage.Settings) {
-        Box(modifier.fillMaxSize().zIndex(20f)) {
-            SettingsScreen(
-                onSignOut = shellViewModel::signOut,
-                modifier = Modifier.fillMaxSize(),
-            )
-        }
-        return
-    }
-    if (chrome.stage is SheetStage.Web && baseUrl != null && token.isNotEmpty()) {
-        AuthenticatedWebSheet(
-            baseUrl = baseUrl,
-            token = token,
-            path = (chrome.stage as SheetStage.Web).path.takeIf { it.isNotBlank() } ?: "/admin",
-            onDismiss = { chrome = chrome.copy(stage = SheetStage.Profile) },
-            onNavigateToLogin = shellViewModel::signOut,
-        )
-        return
-    }
-    if (layersOpen) {
-        Box(modifier.fillMaxSize().zIndex(20f)) {
-            ModalBottomSheet(
-                onDismissRequest = { layersOpen = false },
-            ) {
-                androidx.compose.foundation.layout.Column(
-                    modifier = Modifier.fillMaxSize().safeDrawingPadding().padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    LayersSheet()
-                }
-            }
-        }
-        return
-    }
-
-    // Back: bei laufender Live-Session übernimmt der hosted Screen (RouteWithMapLayout
-    // hat seinen eigenen BackHandler für Discard/Bestätigung); sonst Stufen-Logik der Hülle.
+    // Back: muss VOR den Vollbild-Stufen (Stats/Settings/Web/Layers) komponiert sein, sonst
+    // registriert kein BackHandler und Android-Back schließt die App (Bug: Back schloss in
+    // Statistiken/Einstellungen die App). Live-Sessions übernimmt der hosted Screen
+    // (RouteWithMapLayout hat seinen eigenen BackHandler für Discard/Bestätigung).
     BackHandler(enabled = !routeActive && !freeRoamActive) {
+        // Ebenen-Panel hat Vorrang vor der Stufen-Logik: erst schließen.
+        if (layersOpen) {
+            layersOpen = false
+            return@BackHandler
+        }
         val result = onHardwareBack(
             state = chrome,
             webCanGoBack = false,
@@ -262,6 +236,32 @@ fun MapChrome(
             BackResult.ConfirmStopFreeRoam -> routeViewModel.cancelFreeRoam()
             BackResult.Stay, BackResult.Pass, is BackResult.WebHistory -> Unit
         }
+    }
+
+    if (chrome.stage == SheetStage.Stats) {
+        Box(modifier.fillMaxSize().zIndex(20f)) {
+            StatsScreen(modifier = Modifier.fillMaxSize())
+        }
+        return
+    }
+    if (chrome.stage == SheetStage.Settings) {
+        Box(modifier.fillMaxSize().zIndex(20f)) {
+            SettingsScreen(
+                onSignOut = shellViewModel::signOut,
+                modifier = Modifier.fillMaxSize(),
+            )
+        }
+        return
+    }
+    if (chrome.stage is SheetStage.Web && baseUrl != null && token.isNotEmpty()) {
+        AuthenticatedWebSheet(
+            baseUrl = baseUrl,
+            token = token,
+            path = (chrome.stage as SheetStage.Web).path.takeIf { it.isNotBlank() } ?: "/admin",
+            onDismiss = { chrome = chrome.copy(stage = SheetStage.Profile) },
+            onNavigateToLogin = shellViewModel::signOut,
+        )
+        return
     }
 
     // §7.1: Sobald eine Live-Session läuft (ACTIVE oder freies Gehen), wechselt die Hülle
@@ -388,15 +388,51 @@ fun MapChrome(
                 .zIndex(if (mode == ShellMode.RECORD) 2f else 0f),
         )
 
-        // Ebenen-FAB (J5): öffnet das LayersSheet als Modal über der Karte.
-        LayersFab(
-            onOpen = { layersOpen = true },
-            modifier = Modifier
-                .align(if (isTablet) Alignment.TopStart else Alignment.TopStart)
-                .safeDrawingPadding()
-                .padding(top = if (isTablet) 96.dp else 76.dp, start = 12.dp)
-                .zIndex(8f),
-        )
+        // „Ebenen" für Planen/Gehen: oberer rechter Zugang (Erkunden hat seinen
+        // eigenen Hamburger mit Ebenen-Panel im Extras-Menü). So kann man auch
+        // während der Routenplanung / beim Gehen den Kartenstil wechseln.
+        if (mode == ShellMode.PLAN || mode == ShellMode.GO) {
+            IconButton(
+                onClick = { layersOpen = !layersOpen },
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .safeDrawingPadding()
+                    .padding(top = 8.dp, end = 12.dp)
+                    .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.9f))
+                    .zIndex(12f),
+            ) {
+                Icon(Icons.Filled.Layers, contentDescription = stringResource(R.string.shell_layers))
+            }
+        }
+
+        if (layersOpen) {
+            Box(modifier = Modifier.fillMaxSize().zIndex(14f)) {
+                val layersBoxModifier = if (isTablet) {
+                    Modifier.align(Alignment.TopEnd).safeDrawingPadding().padding(top = 64.dp, end = 12.dp).width(360.dp)
+                } else {
+                    Modifier.align(Alignment.TopEnd).safeDrawingPadding().padding(top = 64.dp, end = 12.dp).width(280.dp)
+                }
+                Surface(
+                    modifier = layersBoxModifier,
+                    shape = androidx.compose.foundation.shape.RoundedCornerShape(22.dp),
+                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.96f),
+                    shadowElevation = 8.dp,
+                ) {
+                    androidx.compose.foundation.layout.Column(
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        Text(stringResource(R.string.shell_layers), style = MaterialTheme.typography.titleSmall)
+                        MapStyleSwitcher(
+                            selected = mapPrefs.baseMapStyle,
+                            onSelect = mapPrefs.setBaseMapStyle,
+                            waymarkedOverlay = mapPrefs.waymarkedOverlay,
+                            onWaymarkedOverlayChange = mapPrefs.setWaymarkedOverlay,
+                        )
+                    }
+                }
+            }
+        }
 
         // Dock + Profil
         val dockModifier = if (isTablet) {
