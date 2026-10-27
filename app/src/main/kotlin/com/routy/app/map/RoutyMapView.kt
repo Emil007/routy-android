@@ -578,15 +578,16 @@ private fun updateNodesLayer(
         val color = when {
             node.id == moveNodeId -> "#1e4a32"
             node.id == selectedNodeId -> "#2563eb"
+            endNodeId != null && node.id == endNodeId -> "#7c3aed"
             node.id == startNodeId -> "#a5711c"
-            !isLoop && node.id == endNodeId -> "#a5711c"
             mustVisitNodeIds.contains(node.id) -> "#2b6cb0"
             node.id == homeNodeId || (homeNodeId == null && node.isHome) -> "#a5711c"
             else -> "#2e6b49"
         }
         val radius = when {
             node.id == moveNodeId || node.id == selectedNodeId -> 8f
-            node.id == startNodeId || (!isLoop && node.id == endNodeId) -> 7f
+            endNodeId != null && node.id == endNodeId -> 7f
+            node.id == startNodeId -> 7f
             mustVisitNodeIds.contains(node.id) -> 6f
             node.id == homeNodeId || (homeNodeId == null && node.isHome) -> 5f
             else -> 3f

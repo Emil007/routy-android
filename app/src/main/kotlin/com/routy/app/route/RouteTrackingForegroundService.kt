@@ -131,6 +131,10 @@ class RouteTrackingForegroundService : Service() {
                 reannounceUpcoming()
                 return START_STICKY
             }
+            ACTION_MARK_PASSED -> {
+                markNextPassed()
+                return START_STICKY
+            }
             ACTION_SET_VOICE -> {
                 voiceEnabled = intent.getBooleanExtra(EXTRA_VOICE_ENABLED, voiceEnabled)
                 emitState(_state.value.copy(voiceEnabled = voiceEnabled))
@@ -348,6 +352,44 @@ class RouteTrackingForegroundService : Service() {
         voiceController?.speak(cue.toSpokenText(this, accountLocaleTag))
     }
 
+    /**
+     * Mark the upcoming station as passed via the firing intent (ACTION_MARK_PASSED),
+     * mirroring the existing onLocation hop completion but also usable when the
+     * user passed a node just outside the reach radius (other side of the road).
+     */
+    fun markNextPassed() {
+        if (progressTracker == null || stations.isEmpty()) return
+        val baseCompleted = _state.value.completedWaypointIndex
+        val next = progressTracker?.markNextPassed() ?: return
+        if (next <= baseCompleted) return
+        var goldenHitsLocal = _state.value.goldenHitSegmentIds
+        goldenCanonicalForFinishedHop(
+            arrivedStationIndex = next,
+            routeSegmentIds = routeSegmentIds,
+            todayGoldenCanonicalIds = todayGoldenCanonicalIds,
+            segments = networkSegments,
+            alreadyCued = goldenSoundCued,
+        )?.let { canon ->
+            goldenSoundCued.add(canon)
+            goldenHitsLocal = goldenHitsLocal + canon
+            cueController?.goldenHit()
+        }
+        if (next >= stations.lastIndex) {
+            cueController?.routeCompleted()
+        } else {
+            cueController?.waypointReached()
+        }
+        persistTrack(goldenHitsLocal)
+        emitState(
+            _state.value.copy(
+                completedWaypointIndex = next,
+                goldenHitSegmentIds = goldenHitsLocal,
+                nextStationName = nextStationLabel(next),
+            ),
+        )
+        updateNotification()
+    }
+
     private fun persistTrack(goldenHits: Set<Int> = _state.value.goldenHitSegmentIds) {
         if (routeKey.isBlank()) return
         walkTrackStore.save(routeKey, walkTrackSession.points, goldenHits)
@@ -470,6 +512,7 @@ class RouteTrackingForegroundService : Service() {
         private const val ACTION_STOP_TRACK = "com.routy.app.route.TRACK_STOP"
         private const val ACTION_STOP_ALL = "com.routy.app.route.TRACK_STOP_ALL"
         private const val ACTION_REANNOUNCE = "com.routy.app.route.TRACK_REANNOUNCE"
+        private const val ACTION_MARK_PASSED = "com.routy.app.route.TRACK_MARK_PASSED"
         private const val ACTION_SET_VOICE = "com.routy.app.route.TRACK_SET_VOICE"
         private const val ACTION_SET_TRACK = "com.routy.app.route.TRACK_SET_TRACK"
         const val EXTRA_STATIONS_JSON = "stations_json"
@@ -550,6 +593,13 @@ class RouteTrackingForegroundService : Service() {
         fun stopTrack(context: Context) {
             context.startService(
                 Intent(context, RouteTrackingForegroundService::class.java).setAction(ACTION_STOP_TRACK),
+            )
+        }
+
+        /** Ask the running tracking service to mark the next station as passed. */
+        fun markNextPassed(context: Context) {
+            context.startService(
+                Intent(context, RouteTrackingForegroundService::class.java).setAction(ACTION_MARK_PASSED),
             )
         }
 

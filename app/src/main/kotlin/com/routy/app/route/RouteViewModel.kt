@@ -14,6 +14,10 @@ import com.routy.app.core.storage.NetworkCache
 import com.routy.app.core.storage.RouteProgressStore
 import com.routy.app.core.storage.RouteWalkTrackStore
 import com.routy.app.logic.api.AdjustRouteRequest
+import com.routy.app.logic.api.FreeRoamStartRequest
+import com.routy.app.logic.api.FreeRoamCheckinRequest
+import com.routy.app.logic.api.FreeRoamCompleteRequest
+import com.routy.app.logic.api.FreeRoamReachedNode
 import com.routy.app.map.MapTilePrefetchScheduler
 import com.routy.app.logic.api.AchievementsDto
 import com.routy.app.logic.api.CompleteRouteRequest
@@ -69,6 +73,7 @@ data class RouteUiState(
     val isLoop: Boolean = true,
     val destinationNodeId: Int? = null,
     val mustVisitNodeIds: List<Int> = emptyList(),
+    val pendingDestinationReplace: Int? = null,
     val requiredSegmentIds: List<Int> = emptyList(),
     val excludedSegmentIds: List<Int> = emptyList(),
     val selectedNodeId: Int? = null,
@@ -145,6 +150,13 @@ data class RouteUiState(
     val guideMode: Boolean = false,
     val pointsMultiplier: Double? = null,
     val completionGuideMode: Boolean = false,
+
+    // --- Free roam (0.47) ---
+    val freeRoamActive: Boolean = false,
+    val freeRoamToken: String = "",
+    val freeRoamStartNodeId: Int? = null,
+    val freeRoamReachedCount: Int = 0,
+    val freeRoamAnnounce: String? = null,
 
     val repositionCandidates: List<Int> = emptyList(),
     val repositionAccuracyM: Double = 35.0,
@@ -341,17 +353,18 @@ class RouteViewModel(
     fun setStartNodeId(id: Int) {
         _uiState.value = _uiState.value.copy(
             startNodeId = id,
-            destinationNodeId = if (_uiState.value.isLoop) id else _uiState.value.destinationNodeId,
+            destinationNodeId = _uiState.value.destinationNodeId,
+            isLoop = _uiState.value.destinationNodeId == null,
         )
     }
     fun setIsLoop(loop: Boolean) {
         val state = _uiState.value
         _uiState.value = state.copy(
             isLoop = loop,
-            destinationNodeId = if (loop) state.startNodeId else state.destinationNodeId,
+            destinationNodeId = if (loop) null else state.destinationNodeId,
         )
     }
-    fun setDestinationNodeId(id: Int) { _uiState.value = _uiState.value.copy(destinationNodeId = id) }
+    fun setDestinationNodeId(id: Int?) { _uiState.value = _uiState.value.copy(destinationNodeId = id, isLoop = id == null) }
     fun setForceGolden(value: Boolean) { _uiState.value = _uiState.value.copy(forceGolden = value) }
     fun setExplorerMode(enabled: Boolean) { _uiState.value = _uiState.value.copy(explorerMode = enabled) }
     fun setNickname(value: String) { _uiState.value = _uiState.value.copy(nickname = value) }
@@ -381,26 +394,65 @@ class RouteViewModel(
     private fun clearNodeRole(nodeId: Int) {
         val state = _uiState.value
         val home = state.homeNodeId
+        val dest = if (state.destinationNodeId == nodeId) null else state.destinationNodeId
         _uiState.value = state.copy(
             startNodeId = if (state.startNodeId == nodeId) home else state.startNodeId,
-            destinationNodeId = if (state.destinationNodeId == nodeId) home else state.destinationNodeId,
+            destinationNodeId = dest,
             mustVisitNodeIds = state.mustVisitNodeIds.filter { it != nodeId },
+            isLoop = dest == null,
         )
     }
 
     fun setNodeAsStart(nodeId: Int) {
         clearNodeRole(nodeId)
         val state = _uiState.value
+        val dest = state.destinationNodeId
         _uiState.value = state.copy(
             startNodeId = nodeId,
-            destinationNodeId = if (state.isLoop) nodeId else state.destinationNodeId,
+            destinationNodeId = dest,
+            isLoop = dest == null,
             selectedNodeId = null,
         )
     }
 
     fun setNodeAsEnd(nodeId: Int) {
         clearNodeRole(nodeId)
-        _uiState.value = _uiState.value.copy(destinationNodeId = nodeId, selectedNodeId = null)
+        val state = _uiState.value
+        val existing = state.destinationNodeId
+        if (existing != null && existing != nodeId) {
+            // A destination is already set — ask whether to switch, only for this calculation.
+            _uiState.value = _uiState.value.copy(pendingDestinationReplace = nodeId, selectedNodeId = null)
+            return
+        }
+        _uiState.value = _uiState.value.copy(destinationNodeId = nodeId, isLoop = false, selectedNodeId = null)
+    }
+
+    fun confirmReplaceDestination() {
+        val nodeId = _uiState.value.pendingDestinationReplace ?: return
+        _uiState.value = _uiState.value.copy(
+            destinationNodeId = nodeId,
+            isLoop = false,
+            pendingDestinationReplace = null,
+            selectedNodeId = null,
+        )
+    }
+
+    fun dismissReplaceDestination() {
+        _uiState.value = _uiState.value.copy(pendingDestinationReplace = null, selectedNodeId = null)
+    }
+
+    /** Clears every planning marker (destination, must-visit, required/excluded segments), keeping start/home. */
+    fun resetPlanning() {
+        _uiState.value = _uiState.value.copy(
+            isLoop = true,
+            destinationNodeId = null,
+            mustVisitNodeIds = emptyList(),
+            requiredSegmentIds = emptyList(),
+            excludedSegmentIds = emptyList(),
+            selectedNodeId = null,
+            selectedSegmentId = null,
+            pendingDestinationReplace = null,
+        )
     }
 
     fun toggleMustVisit(nodeId: Int) {
@@ -411,9 +463,18 @@ class RouteViewModel(
                 selectedNodeId = null,
             )
         } else {
+            if (state.destinationNodeId == nodeId) {
+                // A node can't be both destination and must-visit — destination wins.
+                _uiState.value = state.copy(
+                    destinationNodeId = null,
+                    isLoop = true,
+                    mustVisitNodeIds = state.mustVisitNodeIds + nodeId,
+                    selectedNodeId = null,
+                )
+                return
+            }
             _uiState.value = state.copy(
                 startNodeId = if (state.startNodeId == nodeId) state.homeNodeId else state.startNodeId,
-                destinationNodeId = if (state.destinationNodeId == nodeId) state.homeNodeId else state.destinationNodeId,
                 mustVisitNodeIds = state.mustVisitNodeIds + nodeId,
                 selectedNodeId = null,
             )
@@ -461,6 +522,9 @@ class RouteViewModel(
             myLocation = point,
             repositionAccuracyM = accuracyM?.toDouble()?.coerceAtLeast(1.0) ?: _uiState.value.repositionAccuracyM,
         )
+        if (_uiState.value.freeRoamActive && point != null) {
+            maybeCheckinFreeRoam(point)
+        }
     }
     fun addRetagLocationSample(lat: Double, lng: Double, accuracyM: Float?) {
         retagLocationBuffer.addSample(lat, lng, accuracyM)
@@ -468,6 +532,190 @@ class RouteViewModel(
     fun setLocationMotion(bearing: Float?, speed: Float?) {
         _uiState.value = _uiState.value.copy(locationBearing = bearing, locationSpeed = speed)
     }
+
+    // --- Free roam (0.47): start anywhere, track, announce reachable junctions ---
+
+    /** Distance a free-roam checkin must move before another API call fires (mirrors server 30m reach, throttled). */
+    private var freeRoamLastCheckinLat: Double? = null
+    private var freeRoamLastCheckinLng: Double? = null
+    private var freeRoamCheckinInFlight = false
+
+    /**
+     * Free-roam keeps its OWN track, independent of the route-tracking service:
+     * free-roam is explicitly not a guided route, so TP still has a real walked
+     * polyline at finish. Barely-moved fixes are skipped to keep it lean.
+     */
+    private val freeRoamTrack = mutableListOf<GeoPoint>()
+    private var freeRoamStartedAtMs: Long? = null
+
+    fun startFreeRoam() {
+        val loc = _uiState.value.myLocation
+        if (loc == null) {
+            _uiState.value = _uiState.value.copy(messageRes = R.string.free_roam_no_position, messageArgs = emptyList())
+            return
+        }
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(status = RouteStatus.LOADING, messageRes = null, messageArgs = emptyList())
+            val res = try {
+                apiClientProvider.service.startFreeRoam(FreeRoamStartRequest(lat = loc.lat, lng = loc.lng))
+            } catch (_: IOException) {
+                _uiState.value = _uiState.value.copy(status = RouteStatus.IDLE, messageRes = R.string.common_error, messageArgs = emptyList())
+                return@launch
+            }
+            if (res.isSuccessful && res.body() != null) {
+                val body = res.body()!!
+                freeRoamLastCheckinLat = null
+                freeRoamLastCheckinLng = null
+                freeRoamTrack.clear()
+                freeRoamTrack.add(loc)
+                freeRoamStartedAtMs = System.currentTimeMillis()
+                _uiState.value = _uiState.value.copy(
+                    freeRoamActive = true,
+                    freeRoamToken = body.token,
+                    freeRoamStartNodeId = body.startNodeId,
+                    freeRoamReachedCount = if (body.startReachable.isNotEmpty()) 1 else 0,
+                    freeRoamAnnounce = if (body.startReachable.isNotEmpty()) announceText(body.startReachable.map { it.name }) else null,
+                    status = RouteStatus.IDLE,
+                    messageRes = null,
+                    messageArgs = emptyList(),
+                )
+            } else {
+                _uiState.value = _uiState.value.copy(status = RouteStatus.IDLE, messageRes = R.string.common_error, messageArgs = emptyList())
+            }
+        }
+    }
+
+    fun cancelFreeRoam() {
+        _uiState.value = _uiState.value.copy(
+            freeRoamActive = false,
+            freeRoamToken = "",
+            freeRoamStartNodeId = null,
+            freeRoamReachedCount = 0,
+            freeRoamAnnounce = null,
+        )
+        freeRoamLastCheckinLat = null
+        freeRoamLastCheckinLng = null
+        freeRoamTrack.clear()
+        freeRoamStartedAtMs = null
+    }
+
+    fun finishFreeRoam() {
+        val token = _uiState.value.freeRoamToken
+        if (token.isEmpty()) {
+            cancelFreeRoam()
+            return
+        }
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(status = RouteStatus.LOADING, freeRoamActive = false)
+            val track = freeRoamTrack.takeIf { it.size >= 2 }
+                ?.map { com.routy.app.logic.route.RouteWalkTrackPoint(lat = it.lat, lng = it.lng, accuracy = 35.0) }
+                ?: _uiState.value.trackedGeometry.map {
+                    com.routy.app.logic.route.RouteWalkTrackPoint(lat = it.lat, lng = it.lng, accuracy = 35.0)
+                }
+            val lengthM = trackDistanceM(track)
+            val durationMin = freeRoamStartedAtMs?.let { ((System.currentTimeMillis() - it) / 60000L).toInt() } ?: 1
+            val res = try {
+                apiClientProvider.service.completeFreeRoam(
+                    FreeRoamCompleteRequest(
+                        token = token,
+                        trackPoints = track,
+                        lengthM = lengthM,
+                        durationMin = durationMin,
+                        nickname = null,
+                    ),
+                )
+            } catch (_: IOException) {
+                _uiState.value = _uiState.value.copy(status = RouteStatus.IDLE, messageRes = R.string.common_error, messageArgs = emptyList())
+                return@launch
+            }
+            freeRoamLastCheckinLat = null
+            freeRoamLastCheckinLng = null
+            freeRoamTrack.clear()
+            freeRoamStartedAtMs = null
+            if (res.isSuccessful) {
+                StatsInvalidation.bump()
+                _uiState.value = _uiState.value.copy(
+                    freeRoamActive = false,
+                    freeRoamToken = "",
+                    freeRoamStartNodeId = null,
+                    freeRoamReachedCount = 0,
+                    freeRoamAnnounce = null,
+                    trackedGeometry = emptyList(),
+                    status = RouteStatus.IDLE,
+                    messageRes = R.string.free_roam_finished,
+                    messageArgs = emptyList(),
+                )
+            } else {
+                _uiState.value = _uiState.value.copy(status = RouteStatus.IDLE, messageRes = R.string.common_error, messageArgs = emptyList())
+            }
+        }
+    }
+
+    private fun maybeCheckinFreeRoam(point: GeoPoint) {
+        val token = _uiState.value.freeRoamToken
+        if (token.isEmpty() || freeRoamCheckinInFlight) return
+        // Grow the free-roam track on every meaningful movement (>=~5 m from the
+        // last recorded fix), independent of the checkin throttle — so finish
+        // always has a real walked polyline even when tracking stayed off.
+        val lastTrack = freeRoamTrack.lastOrNull()
+        if (lastTrack != null) {
+            val moved = haversineMeters(LatLng(point.lat, point.lng), LatLng(lastTrack.lat, lastTrack.lng))
+            if (moved >= 5.0) freeRoamTrack.add(point)
+        } else {
+            freeRoamTrack.add(point)
+        }
+        val lastLat = freeRoamLastCheckinLat
+        val lastLng = freeRoamLastCheckinLng
+        if (lastLat != null && lastLng != null) {
+            val d = haversineMeters(LatLng(point.lat, point.lng), LatLng(lastLat, lastLng))
+            if (d < 30) return // not moved a meaningful distance yet
+        }
+        freeRoamLastCheckinLat = point.lat
+        freeRoamLastCheckinLng = point.lng
+        freeRoamCheckinInFlight = true
+        viewModelScope.launch {
+            try {
+                val res = apiClientProvider.service.checkinFreeRoam(FreeRoamCheckinRequest(lat = point.lat, lng = point.lng, token = token))
+                if (res.isSuccessful && res.body() != null) {
+                    val body = res.body()!!
+                    // Stateless token rotation (decision K): the server re-signs
+                    // on every checkin — keep the fresh token for later calls.
+                    // (body.token is a cross-module public property, so Kotlin
+                    // can't smart-cast it — capture into a local first.)
+                    val freshToken = body.token
+                    if (!freshToken.isNullOrEmpty()) {
+                        _uiState.value = _uiState.value.copy(freeRoamToken = freshToken)
+                    }
+                    if (body.shouldAnnounce && body.newlyReached.isNotEmpty()) {
+                        _uiState.value = _uiState.value.copy(
+                            freeRoamReachedCount = body.visitedCount,
+                            freeRoamAnnounce = announceText(body.newlyReached.map { it.name }),
+                        )
+                    } else {
+                        _uiState.value = _uiState.value.copy(freeRoamReachedCount = body.visitedCount)
+                    }
+                }
+            } catch (_: IOException) {
+                // transient — next location fix retries
+            }
+            freeRoamCheckinInFlight = false
+        }
+    }
+
+    private fun announceText(names: List<String?>): String {
+        val nodes = names.mapNotNull { it?.takeIf { s -> s.isNotBlank() } }
+        val joined = nodes.joinToString(", ")
+        return if (joined.isEmpty()) "" else joined
+    }
+
+    private fun trackDistanceM(points: List<com.routy.app.logic.route.RouteWalkTrackPoint>): Int {
+        var d = 0.0
+        for (i in 1 until points.size) {
+            d += haversineMeters(LatLng(points[i - 1].lat, points[i - 1].lng), LatLng(points[i].lat, points[i].lng))
+        }
+        return d.toInt()
+    }
+
     fun setFollowEnabled(enabled: Boolean) {
         _uiState.value = _uiState.value.copy(
             followEnabled = enabled,
@@ -570,6 +818,20 @@ class RouteViewModel(
         val voiceIndex = _uiState.value.voiceAnnouncedIndex
         routeProgressStore.save(routeKey(route), index, voiceIndex)
         _uiState.value = _uiState.value.copy(completedWaypointIndex = index)
+    }
+
+    /**
+     * Manually mark the upcoming station as passed without reaching its radius —
+     * e.g. you crossed the node on the far side of the road and don't want to
+     * walk back. Advances the active-route progress by exactly one station.
+     */
+    fun markNextStationPassed() {
+        val state = _uiState.value
+        val route = state.route ?: return
+        if (state.mode != RouteMode.ACTIVE) return
+        val next = state.completedWaypointIndex + 1
+        if (next >= route.stations.size) return // already past the end
+        onWaypointCompleted(next)
     }
 
     fun onVoiceCueAnnounced(announcedCount: Int) {
@@ -851,7 +1113,8 @@ class RouteViewModel(
         }
         val surprise = preset == "surprise"
         val explorerMode = if (surprise) false else state.explorerMode
-        val destination = if (state.isLoop) startNodeId else (state.destinationNodeId ?: startNodeId)
+        // Loop when no destination is set; point-to-point otherwise (destination = Ziel).
+        val destination = if (state.isLoop || state.destinationNodeId == null) startNodeId else state.destinationNodeId
         val mustVisit = state.mustVisitNodeIds.filter { it != startNodeId && it != destination }
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(status = RouteStatus.LOADING, messageRes = null, messageArgs = emptyList(), selectedNodeId = null, selectedSegmentId = null)

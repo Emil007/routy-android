@@ -16,6 +16,7 @@ class RetryInterceptor(
 
         var lastException: IOException? = null
         var response: Response? = null
+        var retryAfterSeconds: Int? = null
 
         repeat(maxAttempts) { attempt ->
             response?.close()
@@ -26,12 +27,18 @@ class RetryInterceptor(
                 if (response!!.isSuccessful || !response!!.code.isRetryable) {
                     return response!!
                 }
+                // Respect the server's "Retry-After" for 429s (rounded up, capped).
+                retryAfterSeconds = if (response!!.code == 429) {
+                    response!!.header("Retry-After")?.toIntOrNull()?.coerceIn(1, 60)
+                } else {
+                    null
+                }
             } catch (e: IOException) {
                 lastException = e
             }
 
             if (attempt < maxAttempts - 1) {
-                sleepBackoff(attempt)
+                sleepBackoff(attempt, retryAfterSeconds)
             }
         }
 
@@ -42,8 +49,12 @@ class RetryInterceptor(
     private val Int.isRetryable: Boolean
         get() = this == 429 || this in 500..599
 
-    private fun sleepBackoff(attempt: Int) {
-        val delayMs = (500L shl attempt).coerceAtMost(4_000L)
+    private fun sleepBackoff(attempt: Int, retryAfterSeconds: Int?) {
+        val delayMs = if (retryAfterSeconds != null) {
+            retryAfterSeconds * 1000L
+        } else {
+            (500L shl attempt).coerceAtMost(4_000L)
+        }.coerceAtMost(60_000L)
         try {
             TimeUnit.MILLISECONDS.sleep(delayMs)
         } catch (_: InterruptedException) {

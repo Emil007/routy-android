@@ -25,6 +25,11 @@ import com.routy.app.logic.api.NicknameRequest
 import com.routy.app.logic.api.NodesResponse
 import com.routy.app.logic.api.CompleteRouteRequest
 import com.routy.app.logic.api.CompleteRouteResponse
+import com.routy.app.logic.api.FreeRoamStartRequest
+import com.routy.app.logic.api.FreeRoamStartResponse
+import com.routy.app.logic.api.FreeRoamCheckinRequest
+import com.routy.app.logic.api.FreeRoamCheckinResponse
+import com.routy.app.logic.api.FreeRoamCompleteRequest
 import com.routy.app.logic.api.AppStatsMeResponse
 import com.routy.app.logic.api.ProposalActionRequest
 import com.routy.app.logic.api.ProposalsResponse
@@ -165,6 +170,15 @@ interface ApiService {
 
     @POST("api/route/adjust")
     suspend fun adjustRoute(@Body body: AdjustRouteRequest): Response<GenerateRouteResponse>
+
+    @POST("api/route/free-roam/start")
+    suspend fun startFreeRoam(@Body body: FreeRoamStartRequest): Response<FreeRoamStartResponse>
+
+    @POST("api/route/free-roam/checkin")
+    suspend fun checkinFreeRoam(@Body body: FreeRoamCheckinRequest): Response<FreeRoamCheckinResponse>
+
+    @POST("api/route/free-roam/complete")
+    suspend fun completeFreeRoam(@Body body: FreeRoamCompleteRequest): Response<CompleteRouteResponse>
 
     @POST("api/route/reverse")
     suspend fun reverseRoute(@Body body: RouteTokenRequest): Response<GenerateRouteResponse>

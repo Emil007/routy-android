@@ -247,7 +247,13 @@ private fun RouteMapChrome(
             goldenHitIds = goldenHitIds,
             disconnectedSegmentIds = disconnectedSegmentIds,
             homeNodeId = uiState.homeNodeId,
-            startNodeId = if (planningMode) uiState.startNodeId else null,
+            startNodeId = when {
+                planningMode -> uiState.startNodeId
+                // Free-roam (D2 parity): the start node is your position's
+                // nearest node — render it brown (#a5711c) like the web.
+                uiState.freeRoamActive -> uiState.freeRoamStartNodeId
+                else -> null
+            },
             endNodeId = if (planningMode) uiState.destinationNodeId else null,
             mustVisitNodeIds = if (planningMode) uiState.mustVisitNodeIds else emptyList(),
             isLoop = uiState.isLoop,
@@ -355,8 +361,8 @@ private fun SuggestingMapLayout(
         buildPlanningSegmentBadges(uiState)
     }
     val summaryText = planningSummaryText(uiState)
-    val fitKey = remember(uiState.startNodeId, uiState.mustVisitNodeIds, uiState.requiredSegmentIds, uiState.excludedSegmentIds) {
-        "plan-${uiState.startNodeId}-${uiState.mustVisitNodeIds.joinToString(",")}-${uiState.requiredSegmentIds.joinToString(",")}"
+    val fitKey = remember(uiState.startNodeId, uiState.destinationNodeId, uiState.mustVisitNodeIds, uiState.requiredSegmentIds, uiState.excludedSegmentIds) {
+        "plan-${uiState.startNodeId}-${uiState.destinationNodeId}-${uiState.mustVisitNodeIds.joinToString(",")}-${uiState.requiredSegmentIds.joinToString(",")}"
     }
 
     Column(modifier = modifier.fillMaxSize()) {
@@ -385,72 +391,118 @@ private fun SuggestingMapLayout(
             },
             summary = {
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.weight(1f, fill = false)) {
-                    Text(
-                        summaryText,
-                        style = MaterialTheme.typography.labelSmall,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    val loading = uiState.status == RouteStatus.LOADING
-                    val hasStart = uiState.startNodeId != null || uiState.homeNodeId != null
-                    LengthPresetSelector(
-                        selected = selectedPreset,
-                        onSelect = { selectedPreset = it },
-                        enabled = !loading && hasStart && !uiState.offlineCached,
-                    )
+                    if (uiState.freeRoamActive) {
+                        Text(
+                            stringResource(R.string.free_roam_active) + " · " + stringResource(R.string.free_roam_points_hint),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                        if (uiState.freeRoamReachedCount > 0) {
+                            Text(
+                                stringResource(R.string.free_roam_reached) + ": " + uiState.freeRoamReachedCount,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    } else {
+                        Text(
+                            summaryText,
+                            style = MaterialTheme.typography.labelSmall,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        val loading = uiState.status == RouteStatus.LOADING
+                        val hasStart = uiState.startNodeId != null || uiState.homeNodeId != null
+                        LengthPresetSelector(
+                            selected = selectedPreset,
+                            onSelect = { selectedPreset = it },
+                            enabled = !loading && hasStart && !uiState.offlineCached,
+                        )
+                    }
                 }
             },
             trailingAction = {
-                val loading = uiState.status == RouteStatus.LOADING
-                val hasStart = uiState.startNodeId != null || uiState.homeNodeId != null
-                val canGenerate = !loading && hasStart && !uiState.offlineCached
-                CompactButton(
-                    onClick = {
-                        viewModel.suggest(selectedPreset)
-                        dockLevel = DockLevel.EXPANDED
-                    },
-                    enabled = canGenerate,
-                ) {
-                    Text(stringResource(if (loading) R.string.route_generating else R.string.route_generate_arrow))
+                // While free-roaming, the generate button is hidden — free roam
+                // needs no planned route, its start is simply your position.
+                if (!uiState.freeRoamActive) {
+                    val loading = uiState.status == RouteStatus.LOADING
+                    val hasStart = uiState.startNodeId != null || uiState.homeNodeId != null
+                    val canGenerate = !loading && hasStart && !uiState.offlineCached
+                    CompactButton(
+                        onClick = {
+                            viewModel.suggest(selectedPreset)
+                            dockLevel = DockLevel.EXPANDED
+                        },
+                        enabled = canGenerate,
+                    ) {
+                        Text(stringResource(if (loading) R.string.route_generating else R.string.route_generate_arrow))
+                    }
                 }
             },
             primary = {
-                Text(
-                    stringResource(R.string.route_planning_tap_hint),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                uiState.selectedNodeId?.let { nodeId ->
-                    PlanningNodePanel(nodeId, uiState, viewModel)
-                }
-                uiState.selectedSegmentId?.let { segmentId ->
-                    PlanningSegmentPanel(segmentId, uiState, viewModel)
-                }
-                FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.Center,
-                ) {
-                    CompactCheck(
-                        uiState.isLoop,
-                        viewModel::setIsLoop,
-                        stringResource(R.string.route_loop),
-                        a11yDescription = stringResource(R.string.route_loop_hint),
-                    )
-                    CompactCheck(uiState.explorerMode, viewModel::setExplorerMode, stringResource(R.string.route_explorer_mode))
-                    CompactCheck(uiState.forceGolden, viewModel::setForceGolden, stringResource(R.string.route_force_golden))
-                }
-                if (uiState.usingNetworkFallback != null) {
+                // Free roam is its own state, NOT a guided route: no start/must-visit
+                // planning, no station list — just your position as start and free
+                // walking until you stop.
+                if (uiState.freeRoamActive) {
                     Text(
-                        stringResource(
-                            if (uiState.usingNetworkFallback == true) {
-                                R.string.route_length_taste_network
-                            } else {
-                                R.string.route_length_taste_personal
-                            },
-                        ),
+                        stringResource(R.string.free_roam_active),
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    if (uiState.freeRoamReachedCount > 0) {
+                        Text(
+                            stringResource(R.string.free_roam_reached) + ": " + uiState.freeRoamReachedCount,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    uiState.freeRoamAnnounce?.let {
+                        if (it.isNotBlank()) {
+                            Text(
+                                it,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.primary,
+                            )
+                        }
+                    }
+                } else {
+                    Text(
+                        stringResource(R.string.route_planning_tap_hint),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
+                    uiState.selectedNodeId?.let { nodeId ->
+                        PlanningNodePanel(nodeId, uiState, viewModel)
+                    }
+                    uiState.selectedSegmentId?.let { segmentId ->
+                        PlanningSegmentPanel(segmentId, uiState, viewModel)
+                    }
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.Center,
+                    ) {
+                        CompactCheck(
+                            uiState.isLoop,
+                            viewModel::setIsLoop,
+                            stringResource(R.string.route_loop),
+                            a11yDescription = stringResource(R.string.route_loop_hint),
+                        )
+                        CompactCheck(uiState.explorerMode, viewModel::setExplorerMode, stringResource(R.string.route_explorer_mode))
+                        CompactCheck(uiState.forceGolden, viewModel::setForceGolden, stringResource(R.string.route_force_golden))
+                    }
+                    if (uiState.usingNetworkFallback != null) {
+                        Text(
+                            stringResource(
+                                if (uiState.usingNetworkFallback == true) {
+                                    R.string.route_length_taste_network
+                                } else {
+                                    R.string.route_length_taste_personal
+                                },
+                            ),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                 }
                 uiState.messageRes?.let {
                     Text(
@@ -462,20 +514,73 @@ private fun SuggestingMapLayout(
             },
             expandedContent = {
                 val loading = uiState.status == RouteStatus.LOADING
-                val hasStart = uiState.startNodeId != null || uiState.homeNodeId != null
-                val canGuide = !loading && hasStart && !uiState.offlineCached
-                CompactOutlinedButton(onClick = viewModel::surprise, enabled = canGuide) {
-                    Text(stringResource(R.string.route_preset_surprise))
+                if (uiState.freeRoamActive) {
+                    CompactButton(onClick = viewModel::finishFreeRoam, enabled = !loading) {
+                        Text(stringResource(R.string.free_roam_finish))
+                    }
+                    CompactOutlinedButton(onClick = viewModel::cancelFreeRoam, enabled = !loading) {
+                        Text(stringResource(R.string.free_roam_stop))
+                    }
+                } else {
+                    val hasStart = uiState.startNodeId != null || uiState.homeNodeId != null
+                    val canGuide = !loading && hasStart && !uiState.offlineCached
+                    CompactOutlinedButton(onClick = viewModel::surprise, enabled = canGuide) {
+                        Text(stringResource(R.string.route_preset_surprise))
+                    }
+                    FavoritesLoadDeleteButton(uiState.favorites, loading, viewModel)
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+                    val hasPlanning = uiState.destinationNodeId != null || uiState.mustVisitNodeIds.isNotEmpty() ||
+                        uiState.requiredSegmentIds.isNotEmpty() || uiState.excludedSegmentIds.isNotEmpty()
+                    if (hasPlanning) {
+                        CompactOutlinedButton(onClick = viewModel::resetPlanning) {
+                            Text(stringResource(R.string.route_node_menu_clear_all))
+                        }
+                    }
+                    Text(
+                        stringResource(R.string.free_roam_start_hint),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    CompactButton(onClick = viewModel::startFreeRoam, enabled = !loading) {
+                        Text(stringResource(R.string.free_roam_start))
+                    }
                 }
-                CompactOutlinedButton(onClick = viewModel::startGuide, enabled = canGuide) {
-                    Text(stringResource(R.string.route_node_guide))
-                }
-                FavoritesLoadDeleteButton(uiState.favorites, loading, viewModel)
             },
         )
+
+        uiState.pendingDestinationReplace?.let { _ ->
+            DestinationReplaceDialog(uiState, viewModel)
+        }
     }
 }
 
+@Composable
+private fun DestinationReplaceDialog(uiState: RouteUiState, viewModel: RouteViewModel) {
+    val nextId = uiState.pendingDestinationReplace ?: return
+    val nextNode = uiState.nodes.firstOrNull { it.id == nextId }
+    AlertDialog(
+        onDismissRequest = viewModel::dismissReplaceDestination,
+        confirmButton = {
+            TextButton(onClick = viewModel::confirmReplaceDestination) {
+                Text(stringResource(R.string.route_node_second_destination_confirm))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = viewModel::dismissReplaceDestination) {
+                Text(stringResource(R.string.route_node_second_destination_cancel))
+            }
+        },
+        title = { Text(stringResource(R.string.route_node_second_destination_title)) },
+        text = {
+            Text(
+                stringResource(
+                    R.string.route_node_second_destination_body,
+                    nextNode?.name ?: "#$nextId",
+                ),
+            )
+        },
+    )
+}
 @Composable
 private fun GuideNodeList(stations: List<RouteStation>, completedIndex: Int) {
     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
@@ -508,10 +613,11 @@ private fun PlanningNodePanel(nodeId: Int, uiState: RouteUiState, viewModel: Rou
                 CompactOutlinedButton(onClick = { viewModel.setNodeAsStart(nodeId) }) {
                     Text(stringResource(R.string.route_node_menu_start))
                 }
-                if (!uiState.isLoop) {
-                    CompactOutlinedButton(onClick = { viewModel.setNodeAsEnd(nodeId) }) {
-                        Text(stringResource(R.string.route_node_menu_end))
-                    }
+                CompactOutlinedButton(onClick = { viewModel.setNodeAsEnd(nodeId) }) {
+                    val isCurrentDest = uiState.destinationNodeId == nodeId
+                    Text(
+                        if (isCurrentDest) "✓ " + stringResource(R.string.route_node_menu_end) else stringResource(R.string.route_node_menu_end),
+                    )
                 }
                 CompactOutlinedButton(onClick = { viewModel.toggleMustVisit(nodeId) }) {
                     Text(stringResource(R.string.route_node_menu_must_visit))
@@ -590,11 +696,13 @@ private fun nodeLabel(uiState: RouteUiState, nodeId: Int?): String {
 private fun buildPlanningNodeBadges(uiState: RouteUiState): Map<Int, String> {
     val badges = mutableMapOf<Int, String>()
     uiState.startNodeId?.let { badges[it] = "S" }
-    if (!uiState.isLoop) {
-        uiState.destinationNodeId?.let { badges[it] = "E" }
+    if (uiState.destinationNodeId != null) {
+        uiState.destinationNodeId?.let { badges[it] = "Z" }
     }
     uiState.mustVisitNodeIds.forEachIndexed { index, id ->
-        badges[id] = if (uiState.mustVisitNodeIds.size > 1) "${index + 1}" else "★"
+        if (uiState.destinationNodeId != id) {
+            badges[id] = if (uiState.mustVisitNodeIds.size > 1) "${index + 1}" else "★"
+        }
     }
     return badges
 }
@@ -721,6 +829,10 @@ private fun RouteWithMapLayout(
             },
             text = { Text(stringResource(R.string.route_track_abort_confirm)) },
         )
+    }
+
+    uiState.pendingDestinationReplace?.let { nextId ->
+        DestinationReplaceDialog(uiState, viewModel)
     }
 
     if (pendingDiscard) {
@@ -873,127 +985,167 @@ private fun RouteWithMapLayout(
                 }
             },
             primary = {
-                if (uiState.guideMode) {
+                if (uiState.freeRoamActive) {
+                    // Free roam is its own state here too: no guide list, no
+                    // route point preview, no planning context — just your walk
+                    // and reached junctions until you stop.
                     Text(
-                        stringResource(R.string.route_guide_active_title),
+                        stringResource(R.string.free_roam_active),
                         style = MaterialTheme.typography.labelMedium,
                         fontWeight = FontWeight.SemiBold,
                     )
-                    GuideNodeList(
-                        stations = route.stations,
-                        completedIndex = uiState.completedWaypointIndex,
-                    )
-                } else if (stationPath.isNotBlank()) {
-                    Text(
-                        stationPath,
-                        style = MaterialTheme.typography.labelSmall,
-                    )
-                }
-                uiState.pointPreview?.let { preview ->
-                    Text(
-                        stringResource(R.string.route_point_preview_total, preview.total),
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.Medium,
-                    )
-                }
-                if (uiState.goldenHitIds.isNotEmpty()) {
-                    Text(
-                        stringResource(R.string.route_golden_hint, uiState.goldenHitIds.size),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.primary,
-                    )
-                }
-
-                uiState.pendingShareToken?.let { token ->
-                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+                    if (uiState.freeRoamReachedCount > 0) {
                         Text(
-                            uiState.sharedRouteName ?: stringResource(R.string.route_share_preview),
+                            stringResource(R.string.free_roam_reached) + ": " + uiState.freeRoamReachedCount,
                             style = MaterialTheme.typography.labelSmall,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.weight(1f),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
-                        CompactButton(onClick = { viewModel.acceptSharedRoute(token) }) {
-                            Text(stringResource(R.string.route_accept))
-                        }
-                        CompactOutlinedButton(onClick = viewModel::dismissSharedRoute) {
-                            Text(stringResource(R.string.route_share_dismiss))
-                        }
                     }
-                }
-
-                when {
-                    uiState.mode == RouteMode.SUGGESTING && uiState.pendingShareToken == null -> {
-                        FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            if (!uiState.guideMode) {
-                                CompactOutlinedButton(onClick = { viewModel.adjust("shorter") }, enabled = !loading) {
-                                    Text(stringResource(R.string.route_shorter))
-                                }
-                                CompactOutlinedButton(onClick = viewModel::another, enabled = !loading) {
-                                    Text(stringResource(R.string.route_again))
-                                }
-                                CompactOutlinedButton(onClick = { viewModel.adjust("longer") }, enabled = !loading) {
-                                    Text(stringResource(R.string.route_longer))
-                                }
-                                if (uiState.token.isNotBlank()) {
-                                    CompactOutlinedButton(onClick = viewModel::reverse, enabled = !loading) {
-                                        Text(stringResource(R.string.route_reverse))
-                                    }
-                                }
-                            }
-                            CompactButton(onClick = viewModel::accept, enabled = !loading) {
-                                Text(stringResource(R.string.route_accept))
-                            }
-                            CompactOutlinedButton(onClick = viewModel::cancel, enabled = !loading) {
-                                Text(stringResource(R.string.route_cancel))
-                            }
-                        }
-                    }
-                    uiState.mode == RouteMode.ACTIVE -> {
-                        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.Center) {
-                            CompactCheck(
-                                checked = uiState.voiceEnabled,
-                                onCheckedChange = { checked ->
-                                    if (checked) {
-                                        ensureBackgroundPermissions { viewModel.setVoiceEnabled(true) }
-                                    } else {
-                                        viewModel.setVoiceEnabled(false)
-                                    }
-                                },
-                                label = stringResource(R.string.route_voice_check),
+                    uiState.freeRoamAnnounce?.let {
+                        if (it.isNotBlank()) {
+                            Text(
+                                it,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.primary,
                             )
                         }
-                        FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            if (!uiState.trackEnabled) {
-                                CompactButton(onClick = {
-                                    ensureBackgroundPermissions { viewModel.setTrackEnabled(true) }
-                                }) {
-                                    Text(stringResource(R.string.route_track))
-                                }
-                            } else {
-                                CompactOutlinedButton(onClick = { pendingTrackStop = true }) {
-                                    Text(stringResource(R.string.route_track_stop))
-                                }
+                    }
+                } else {
+                    if (uiState.guideMode) {
+                        Text(
+                            stringResource(R.string.route_guide_active_title),
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                        GuideNodeList(
+                            stations = route.stations,
+                            completedIndex = uiState.completedWaypointIndex,
+                        )
+                    } else if (stationPath.isNotBlank()) {
+                        Text(
+                            stationPath,
+                            style = MaterialTheme.typography.labelSmall,
+                        )
+                    }
+                    uiState.pointPreview?.let { preview ->
+                        Text(
+                            stringResource(R.string.route_point_preview_total, preview.total),
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Medium,
+                        )
+                    }
+                    if (uiState.goldenHitIds.isNotEmpty()) {
+                        Text(
+                            stringResource(R.string.route_golden_hint, uiState.goldenHitIds.size),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                    }
+
+                    uiState.pendingShareToken?.let { token ->
+                        Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                uiState.sharedRouteName ?: stringResource(R.string.route_share_preview),
+                                style = MaterialTheme.typography.labelSmall,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f),
+                            )
+                            CompactButton(onClick = { viewModel.acceptSharedRoute(token) }) {
+                                Text(stringResource(R.string.route_accept))
                             }
-                            val canComplete = !uiState.trackEnabled || uiState.completedWaypointIndex >= route.stations.lastIndex
-                            CompactButton(
-                                onClick = {
-                                    RouteTrackingForegroundService.stopAll(context)
-                                    viewModel.complete()
-                                },
-                                enabled = canComplete,
-                            ) {
-                                Text(stringResource(R.string.route_complete_button))
-                            }
-                            CompactOutlinedButton(onClick = { pendingDiscard = true }) {
-                                Text(stringResource(R.string.route_discard_button))
-                            }
-                            CompactOutlinedButton(onClick = viewModel::requestReposition) {
-                                Text(stringResource(R.string.route_reposition_node))
+                            CompactOutlinedButton(onClick = viewModel::dismissSharedRoute) {
+                                Text(stringResource(R.string.route_share_dismiss))
                             }
                         }
-                        if (uiState.trackEnabled || uiState.voiceEnabled) {
-                            BatteryOptimizationPrompt(modifier = Modifier.fillMaxWidth())
+                    }
+
+                    when {
+                        uiState.mode == RouteMode.SUGGESTING && uiState.pendingShareToken == null -> {
+                            FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                if (!uiState.guideMode) {
+                                    CompactOutlinedButton(onClick = { viewModel.adjust("shorter") }, enabled = !loading) {
+                                        Text(stringResource(R.string.route_shorter))
+                                    }
+                                    CompactOutlinedButton(onClick = viewModel::another, enabled = !loading) {
+                                        Text(stringResource(R.string.route_again))
+                                    }
+                                    CompactOutlinedButton(onClick = { viewModel.adjust("longer") }, enabled = !loading) {
+                                        Text(stringResource(R.string.route_longer))
+                                    }
+                                    if (uiState.token.isNotBlank()) {
+                                        CompactOutlinedButton(onClick = viewModel::reverse, enabled = !loading) {
+                                            Text(stringResource(R.string.route_reverse))
+                                        }
+                                    }
+                                }
+                                CompactButton(onClick = viewModel::accept, enabled = !loading) {
+                                    Text(stringResource(R.string.route_accept))
+                                }
+                                CompactOutlinedButton(onClick = viewModel::cancel, enabled = !loading) {
+                                    Text(stringResource(R.string.route_cancel))
+                                }
+                            }
+                        }
+                        uiState.mode == RouteMode.ACTIVE -> {
+                            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.Center) {
+                                CompactCheck(
+                                    checked = uiState.voiceEnabled,
+                                    onCheckedChange = { checked ->
+                                        if (checked) {
+                                            ensureBackgroundPermissions { viewModel.setVoiceEnabled(true) }
+                                        } else {
+                                            viewModel.setVoiceEnabled(false)
+                                        }
+                                    },
+                                    label = stringResource(R.string.route_voice_check),
+                                )
+                            }
+                            FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                if (!uiState.trackEnabled) {
+                                    CompactButton(onClick = {
+                                        ensureBackgroundPermissions { viewModel.setTrackEnabled(true) }
+                                    }) {
+                                        Text(stringResource(R.string.route_track))
+                                    }
+                                } else {
+                                    CompactOutlinedButton(onClick = { pendingTrackStop = true }) {
+                                        Text(stringResource(R.string.route_track_stop))
+                                    }
+                                }
+                                val canComplete = !uiState.trackEnabled || uiState.completedWaypointIndex >= route.stations.lastIndex
+                                CompactButton(
+                                    onClick = {
+                                        RouteTrackingForegroundService.stopAll(context)
+                                        viewModel.complete()
+                                    },
+                                    enabled = canComplete,
+                                ) {
+                                    Text(stringResource(R.string.route_complete_button))
+                                }
+                                CompactOutlinedButton(onClick = { pendingDiscard = true }) {
+                                    Text(stringResource(R.string.route_discard_button))
+                                }
+                                CompactOutlinedButton(onClick = viewModel::requestReposition) {
+                                    Text(stringResource(R.string.route_reposition_node))
+                                }
+                                if (uiState.completedWaypointIndex < route.stations.lastIndex) {
+                                    CompactOutlinedButton(
+                                        onClick = {
+                                            if (uiState.trackEnabled) {
+                                                RouteTrackingForegroundService.markNextPassed(context)
+                                            } else {
+                                                viewModel.markNextStationPassed()
+                                            }
+                                        },
+                                    ) {
+                                        Text(stringResource(R.string.route_mark_passed))
+                                    }
+                                }
+                            }
+                            if (uiState.trackEnabled || uiState.voiceEnabled) {
+                                BatteryOptimizationPrompt(modifier = Modifier.fillMaxWidth())
+                            }
                         }
                     }
                 }
@@ -1008,6 +1160,14 @@ private fun RouteWithMapLayout(
             },
             expandedContent = {
                 when {
+                    uiState.freeRoamActive -> {
+                        CompactButton(onClick = viewModel::finishFreeRoam, enabled = !loading) {
+                            Text(stringResource(R.string.free_roam_finish))
+                        }
+                        CompactOutlinedButton(onClick = viewModel::cancelFreeRoam, enabled = !loading) {
+                            Text(stringResource(R.string.free_roam_stop))
+                        }
+                    }
                     uiState.mode == RouteMode.SUGGESTING && uiState.pendingShareToken == null -> {
                         if (uiState.guideMode) {
                             Text(
@@ -1020,6 +1180,15 @@ private fun RouteWithMapLayout(
                             Text(stringResource(R.string.record_entry_point))
                         }
                         uiState.pointPreview?.let { PointPreviewLines(it) }
+                        HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+                        Text(
+                            stringResource(R.string.free_roam_start_hint),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        CompactButton(onClick = viewModel::startFreeRoam, enabled = !loading) {
+                            Text(stringResource(R.string.free_roam_start))
+                        }
                     }
                     uiState.mode == RouteMode.ACTIVE -> {
                         DenseTextField(

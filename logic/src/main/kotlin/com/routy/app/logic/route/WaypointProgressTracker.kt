@@ -29,6 +29,19 @@ class WaypointProgressTracker(private val stations: List<RouteStation>) {
         return completed
     }
 
+    /**
+     * Manually mark the upcoming station as passed without being inside the reach
+     * radius — e.g. when you crossed the node on the far side of the road (other
+     * side of the street) and don't want to walk back. The next station then
+     * becomes current again.
+     */
+    fun markNextPassed(): Int? {
+        if (nextIndex >= stations.size) return null
+        val completed = nextIndex
+        nextIndex++
+        return completed
+    }
+
     fun restore(completedUpTo: Int) {
         nextIndex = (completedUpTo + 1).coerceIn(0, stations.size)
     }

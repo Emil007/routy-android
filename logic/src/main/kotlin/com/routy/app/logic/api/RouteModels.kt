@@ -96,6 +96,66 @@ data class GenerateRouteRequest(
 @Serializable
 data class RouteTokenRequest(val token: String)
 
+// --- Free-roam (0.47) ---
+
+@Serializable
+data class FreeRoamStartRequest(
+    val lat: Double,
+    val lng: Double,
+    val startNodeId: Int? = null,
+)
+
+@Serializable
+data class FreeRoamNeighbour(
+    val nodeId: Int,
+    val name: String? = null,
+    val distanceM: Int = 0,
+    val viaSegmentName: String? = null,
+)
+
+@Serializable
+data class FreeRoamStartResponse(
+    val token: String,
+    val startNodeId: Int? = null,
+    val startReachable: List<FreeRoamNeighbour> = emptyList(),
+    val freeRoam: Boolean = true,
+    val pointsMultiplier: Double? = null,
+)
+
+@Serializable
+data class FreeRoamCheckinRequest(
+    val token: String,
+    val lat: Double,
+    val lng: Double,
+)
+
+@Serializable
+data class FreeRoamReachedNode(
+    val nodeId: Int,
+    val name: String? = null,
+    val reachable: List<FreeRoamNeighbour> = emptyList(),
+)
+
+@Serializable
+data class FreeRoamCheckinResponse(
+    val ok: Boolean = true,
+    val newlyReached: List<FreeRoamReachedNode> = emptyList(),
+    val shouldAnnounce: Boolean = false,
+    val visitedCount: Int = 0,
+    // Stateless token rotation (decision K): the server re-signs on every
+    // checkin; the client MUST store this fresh token and send it next.
+    val token: String? = null,
+)
+
+@Serializable
+data class FreeRoamCompleteRequest(
+    val token: String,
+    val trackPoints: List<com.routy.app.logic.route.RouteWalkTrackPoint> = emptyList(),
+    val lengthM: Int,
+    val durationMin: Int,
+    val nickname: String? = null,
+)
+
 @Serializable
 data class AdjustRouteRequest(val token: String, val direction: String) // "longer" | "shorter"
 
