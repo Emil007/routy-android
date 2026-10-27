@@ -615,16 +615,6 @@ private fun SuggestingMapLayout(
                             Text(stringResource(R.string.route_node_menu_clear_all))
                         }
                     }
-                    if (section != RouteSection.PLAN) {
-                        Text(
-                            stringResource(R.string.free_roam_start_hint),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                        CompactButton(onClick = viewModel::startFreeRoam, enabled = !loading) {
-                            Text(stringResource(R.string.free_roam_start))
-                        }
-                    }
                 }
             },
         )
@@ -1164,8 +1154,8 @@ private fun RouteWithMapLayout(
                                         }
                                     }
                                 }
-                                CompactButton(onClick = viewModel::accept, enabled = !loading) {
-                                    Text(stringResource(R.string.route_go))
+                                CompactButton(onClick = viewModel::select, enabled = !loading) {
+                                    Text(stringResource(R.string.route_select))
                                 }
                                 CompactOutlinedButton(onClick = viewModel::cancel, enabled = !loading) {
                                     Text(stringResource(R.string.route_cancel))
@@ -1173,6 +1163,23 @@ private fun RouteWithMapLayout(
                             }
                         }
                         uiState.mode == RouteMode.ACTIVE -> {
+                            // Route ist übernommen (Auswählen), aber noch nicht gestartet:
+                            // Hier liegt der eigentliche Start-Button „Go“, der erst jetzt
+                            // das Tracking anschaltet (accept). So trackt nichts, bevor
+                            // die Route auf der nächsten Seite bewusst bestätigt wurde.
+                            if (!uiState.trackEnabled) {
+                                FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    CompactButton(
+                                        onClick = viewModel::accept,
+                                        enabled = !loading,
+                                    ) {
+                                        Text(stringResource(R.string.route_go))
+                                    }
+                                    CompactOutlinedButton(onClick = { pendingDiscard = true }) {
+                                        Text(stringResource(R.string.route_discard_button))
+                                    }
+                                }
+                            }
                             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.Center) {
                                 CompactCheck(
                                     checked = uiState.voiceEnabled,

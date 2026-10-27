@@ -68,6 +68,7 @@
     <string name="route_offline_cached">Server nicht erreichbar — gecachte Netzwerkdaten</string>
     <string name="route_track">Track</string>
     <string name="route_go">Go</string>
+    <string name="route_select">Auswählen</string>
     <string name="route_tracking_on">Tracking an</string>
     <string name="route_track_stop">Tracking beenden</string>
     <string name="route_keep_screen_on">Bildschirm an</string>
@@ -311,7 +312,7 @@
     <string name="map_sort_name">Name</string>
     <string name="map_load_error">Wegnetz konnte nicht geladen werden.</string>
     <string name="map_record_track">Weg aufzeichnen</string>
-    <string name="map_tap_hint">Tippe auf Knoten oder Weg zum Bearbeiten. Zeichnen oder GPX importieren.</string>
+    <string name="map_tap_hint">Tippe auf Knoten oder Weg zum Bearbeiten</string>
     <string name="map_node_home">Startknoten</string>
     <string name="map_draw_path">Weg zeichnen</string>
     <string name="map_import_gpx">GPX importieren</string>

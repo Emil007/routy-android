@@ -25,6 +25,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -50,6 +51,7 @@ import com.routy.app.logic.route.remainingRouteGeometry
 import com.routy.app.map.MapMode
 import com.routy.app.map.MapStyleSwitcher
 import com.routy.app.map.MapViewModel
+import com.routy.app.map.mapHint
 import com.routy.app.map.rememberMapPreferences
 import com.routy.app.map.RoutyMapView
 import com.routy.app.recording.RecordingBindingState
@@ -394,19 +396,21 @@ fun MapChrome(
         )
 
         // „Ebenen" für Planen/Gehen: oberer rechter Zugang (Erkunden hat seinen
-        // eigenen Hamburger mit Ebenen-Panel im Extras-Menü). So kann man auch
-        // während der Routenplanung / beim Gehen den Kartenstil wechseln.
+        // eigenen Hamburger mit Ebenen-Panel im Extras-Menü). Position identisch
+        // zum Erkunden-Hamburger: ganz oben rechts in der Ecke (gleiche Modifier).
         if (mode == ShellMode.PLAN || mode == ShellMode.GO) {
             IconButton(
                 onClick = { layersOpen = !layersOpen },
                 modifier = Modifier
                     .align(Alignment.TopEnd)
-                    .safeDrawingPadding()
                     .padding(4.dp)
-                    .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.9f))
                     .zIndex(12f),
             ) {
-                Icon(Icons.Filled.Menu, contentDescription = stringResource(R.string.shell_layers))
+                Icon(
+                    Icons.Filled.Menu,
+                    contentDescription = stringResource(R.string.shell_layers),
+                    tint = MaterialTheme.colorScheme.onSurface,
+                )
             }
         }
 
@@ -440,13 +444,13 @@ fun MapChrome(
         }
 
         // Dock + Profil
-        // Unter dem Dock hängt der Hinweistext (MapScreen, bottom-Verankerung).
-        // Damit er nicht mit dem Dock kollidiert, hebt das Dock um 56.dp an —
-        // der Text füllt den untersten Streifen über der Navigationsleiste.
+        // Das Dock bleibt an seiner unteren Originalposition (bottom 8dp). Der
+        // MapScreen-Hinweis hängt darunter im freien Raum bis zur Systemleitung —
+        // der Platz reicht, ohne das MapLibre-Logo zu verdecken (Emil).
         val dockModifier = if (isTablet) {
             Modifier.align(Alignment.TopCenter).safeDrawingPadding().padding(top = 8.dp)
         } else {
-            Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(bottom = 56.dp)
+            Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(bottom = 8.dp)
         }
         DockBar(
             mode = mode,
@@ -483,6 +487,29 @@ fun MapChrome(
             },
             modifier = dockModifier.zIndex(10f),
         )
+
+        // Karten-Hinweis (eine Zeile, gekürzter Text) ÜBER dem Dock, nur auf
+        // Erkunden (MapMode.View). Hängt in der Chrome-Ebene über dem Sheet,
+        // also auch bei offenen Panels sichtbar — nie hinter dem Dock.
+        if (mode == ShellMode.EXPLORE && mapState.messageRes == null) {
+            Surface(
+                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.82f),
+                shape = MaterialTheme.shapes.small,
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .zIndex(11f)
+                    .padding(start = 8.dp, end = 8.dp, bottom = 96.dp),
+            ) {
+                Text(
+                    mapHint(mapState),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                )
+            }
+        }
 
         // Pille: laufende Aufnahme ist über jeden Modus erreichbar (§J4).
         if (recordingActive && mode != ShellMode.RECORD) {

@@ -160,9 +160,13 @@ fun MapScreen(onStartRecording: () -> Unit, modifier: Modifier = Modifier, chrom
         if (uiState.mode == MapMode.View) {
             IconButton(
                 onClick = { showExtras = !showExtras },
-                modifier = Modifier.align(Alignment.TopEnd).padding(4.dp).background(MaterialTheme.colorScheme.surface.copy(alpha = 0.9f)),
+                modifier = Modifier.align(Alignment.TopEnd).padding(4.dp),
             ) {
-                Icon(Icons.Filled.Menu, contentDescription = stringResource(R.string.map_more_options))
+                Icon(
+                    Icons.Filled.Menu,
+                    contentDescription = stringResource(R.string.map_more_options),
+                    tint = MaterialTheme.colorScheme.onSurface,
+                )
             }
         }
 
@@ -216,32 +220,11 @@ fun MapScreen(onStartRecording: () -> Unit, modifier: Modifier = Modifier, chrom
                 MapMode.SplitSegment -> MapSplitPanel(uiState, viewModel)
             }
         }
-
-        // Hinweistext UNTER dem unteren Dock-Menü (Route · Erkunden · Frei + Profil):
-        // als letzte Zeile am unteren Bildschirmrand verankert. Das Dock wird in der
-        // Hülle (MapChrome) um ~64dp angehoben, damit der Text darunter Platz hat.
-        if (uiState.messageRes == null) {
-            Surface(
-                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.82f),
-                shape = MaterialTheme.shapes.small,
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .navigationBarsPadding()
-                    .padding(bottom = 8.dp),
-            ) {
-                Text(
-                    mapHint(uiState),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
-                )
-            }
-        }
     }
 }
 
 @Composable
-private fun mapHint(state: MapUiState): String = when (state.mode) {
+fun mapHint(state: MapUiState): String = when (state.mode) {
     MapMode.View -> if (state.moveNodeId != null) stringResource(R.string.map_hint_move_tap) else stringResource(R.string.map_tap_hint)
     MapMode.Draw -> stringResource(R.string.map_hint_draw)
     MapMode.Gpx -> stringResource(R.string.map_hint_gpx)

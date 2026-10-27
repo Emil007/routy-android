@@ -1248,6 +1248,34 @@ class RouteViewModel(
         )
     }
 
+    /** Route aus der Vorschau übernehmen, ABER noch NICHT mit dem Tracking starten
+     *  und noch NICHT serverseitig abschließen (Bestätigungsschritt). „Auswählen“
+     *  im Generierungsmenü ruft das auf: Wechselt lokal in den Bestätigungszustand
+     *  (Route angenommen-bereit), ohne den Route-Token zu verbrauchen. Der Server-Call
+     *  (acceptRoute) + GPS-Tracking-Start passieren erst bei „Go“ via accept().
+     *  Dadurch schlägt Go-Start nicht mehr mit „Sitzung abgelaufen“ fehl (vorher
+     *  verbrauchte select() den Token schon beim Auswählen). */
+    fun select() {
+        val state = _uiState.value
+        if (state.token.isBlank()) return
+        routeProgressStore.clear()
+        routeWalkTrackStore.clear()
+        prefetchMapTiles(state.route)
+        // ACTIVE, aber OHNE Tracking: followEnabled + trackEnabled erst beim Go-Start.
+        _uiState.value = state.copy(
+            mode = RouteMode.ACTIVE,
+            status = RouteStatus.IDLE,
+            messageRes = null,
+            nickname = "",
+            completedWaypointIndex = -1,
+            voiceAnnouncedIndex = 0,
+            followEnabled = false,
+            trackEnabled = false,
+        )
+    }
+
+    /** Route ENDGÜLTIG starten („Go“ auf der Bestätigungsseite): übernimmt die Route
+     *  serverseitig und schaltet das GPS-Tracking an. */
     fun accept() {
         val token = _uiState.value.token
         val guide = _uiState.value.guideMode
