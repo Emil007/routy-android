@@ -440,10 +440,13 @@ fun MapChrome(
         }
 
         // Dock + Profil
+        // Unter dem Dock hängt der Hinweistext (MapScreen, bottom-Verankerung).
+        // Damit er nicht mit dem Dock kollidiert, hebt das Dock um 56.dp an —
+        // der Text füllt den untersten Streifen über der Navigationsleiste.
         val dockModifier = if (isTablet) {
             Modifier.align(Alignment.TopCenter).safeDrawingPadding().padding(top = 8.dp)
         } else {
-            Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(bottom = 8.dp)
+            Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(bottom = 56.dp)
         }
         DockBar(
             mode = mode,

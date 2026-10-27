@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -214,23 +215,26 @@ fun MapScreen(onStartRecording: () -> Unit, modifier: Modifier = Modifier, chrom
                 MapMode.EditSegment -> MapEditShapePanel(uiState, viewModel)
                 MapMode.SplitSegment -> MapSplitPanel(uiState, viewModel)
             }
+        }
 
-            // Hinweistext als LETZTES Kind der Panel-Column: darum liegt er immer
-            // UNTER den Panels (nicht über dem Menü) — wenn das Menü offen und hoch
-            // ist, rutscht der Hinweis mit nach oben, statt dazwischen zu kleben.
-            if (uiState.messageRes == null) {
-                Surface(
-                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.82f),
-                    shape = MaterialTheme.shapes.small,
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Text(
-                        mapHint(uiState),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
-                    )
-                }
+        // Hinweistext UNTER dem unteren Dock-Menü (Route · Erkunden · Frei + Profil):
+        // als letzte Zeile am unteren Bildschirmrand verankert. Das Dock wird in der
+        // Hülle (MapChrome) um ~64dp angehoben, damit der Text darunter Platz hat.
+        if (uiState.messageRes == null) {
+            Surface(
+                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.82f),
+                shape = MaterialTheme.shapes.small,
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .navigationBarsPadding()
+                    .padding(bottom = 8.dp),
+            ) {
+                Text(
+                    mapHint(uiState),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                )
             }
         }
     }
