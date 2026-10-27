@@ -32,7 +32,7 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import androidx.compose.ui.res.stringResource
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Layers
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -101,6 +101,11 @@ fun MapChrome(
     val mapState by mapViewModel.uiState.collectAsState()
     val mapPrefs = rememberMapPreferences()
 
+    // Beim Prozessstart IMMER mit Route (PLAN) beginnen — kein Wiederherstellen
+    // eines gespeicherten Modus: Emil-Wunsch (Route umschalten, beenden, neu
+    // starten => wieder Route, nicht Erkunden). Nur Stage/Tool bleiben für
+    // Drehung/Recreation erhalten (ChromeStateSaver speichert sie, setzt Modus
+    // beim Restore aber zurück auf PLAN).
     var chrome by rememberSaveable(stateSaver = ChromeStateSaver) {
         mutableStateOf(ChromeState())
     }
@@ -397,11 +402,11 @@ fun MapChrome(
                 modifier = Modifier
                     .align(Alignment.TopEnd)
                     .safeDrawingPadding()
-                    .padding(top = 8.dp, end = 12.dp)
+                    .padding(4.dp)
                     .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.9f))
                     .zIndex(12f),
             ) {
-                Icon(Icons.Filled.Layers, contentDescription = stringResource(R.string.shell_layers))
+                Icon(Icons.Filled.Menu, contentDescription = stringResource(R.string.shell_layers))
             }
         }
 
@@ -536,14 +541,20 @@ private fun stageFromKey(key: String): SheetStage = when (key) {
     else -> SheetStage.Hidden
 }
 
-/** ChromeState als rememberSaveable aus drei Strings (Modus, Stufe, Werkzeug) — §J2. */
+/** ChromeState als rememberSaveable aus drei Strings (Modus, Stufe, Werkzeug) — §J2.
+ *
+ * Der Modus wird beim Restore NICHT wiederhergestellt: Die App startet immer mit
+ * der Route-Ansicht (PLAN, siehe ChromeState-Default). Nur Stage + Tool überleben
+ * eine Drehung/Recreation — so bleibt der Start deterministisch Route statt dass
+ * ein gespeicherter „Erkunden“-Zustand kleben bleibt.
+ */
 private val ChromeStateSaver = listSaver<ChromeState, Any>(
     save = {
         listOf(it.mode.name, stageKey(it.stage), it.tool ?: "")
     },
     restore = { list ->
         ChromeState(
-            mode = runCatching { ShellMode.valueOf(list[0] as String) }.getOrDefault(ShellMode.EXPLORE),
+            mode = ShellMode.PLAN,
             stage = stageFromKey(list[1] as String),
             tool = (list[2] as String).takeIf { it.isNotEmpty() },
         )

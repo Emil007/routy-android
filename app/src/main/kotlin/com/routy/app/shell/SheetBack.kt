@@ -27,7 +27,8 @@ sealed interface SheetStage {
 }
 
 data class ChromeState(
-    val mode: ShellMode = ShellMode.EXPLORE,
+    // App startet mit der Route-Ansicht (Planung) statt Erkunden — Emil-Wunsch.
+    val mode: ShellMode = ShellMode.PLAN,
     val stage: SheetStage = SheetStage.Hidden,
     val tool: String? = null,
 )
