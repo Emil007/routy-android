@@ -144,8 +144,12 @@ fun RouteScreen(onStartRecording: () -> Unit, accountLocaleTag: String, modifier
                 section = section,
             )
         }
-        // Plan-Sheet: sobald eine Live-Session läuft, gehört sie zu Gehen (J3) — nichts zeigen.
-        chromeHosted && section == RouteSection.PLAN && isLive -> Unit
+        // Plan-Sheet: sobald eine Live-Session läuft, gehört sie zu Gehen (J3) —
+        // nichts zeigen. AUSNAHME: Route ist übernommen (ACTIVE) aber noch nicht
+        // gestartet (trackEnabled=false) → Bestätigungsseite mit Go bleibt im
+        // Plan-Sheet (Dock zeigt Route, kein Frei-Sprung). Erst Go (accept)
+        // schaltet trackEnabled an und kippt die Hülle auf Gehen.
+        chromeHosted && section == RouteSection.PLAN && isLive && uiState.trackEnabled -> Unit
         // Go-Sheet: nichts aktiv, aber Vorschau-Route → der Zustand ist im Plan-Sheet (J2-Übergang).
         chromeHosted && section == RouteSection.GO && !isLive && route != null -> Unit
         route == null -> {

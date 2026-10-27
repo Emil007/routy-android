@@ -64,6 +64,7 @@ import com.routy.app.route.buildPlanningNodeBadges
 import com.routy.app.route.buildPlanningSegmentBadges
 import com.routy.app.settings.SettingsScreen
 import com.routy.app.stats.StatsScreen
+import com.routy.app.ui.FloatingBurgerIcon
 import com.routy.app.webview.AuthenticatedWebSheet
 import com.routy.app.webview.ShellViewModel
 
@@ -198,7 +199,7 @@ fun MapChrome(
     val config = LocalConfiguration.current
     val isTablet = minOf(config.screenWidthDp, config.screenHeightDp) >= 600
 
-    val routeActive = route != null && routeState.mode == RouteMode.ACTIVE
+    val routeActive = route != null && routeState.mode == RouteMode.ACTIVE && routeState.trackEnabled
     val freeRoamActive = routeState.freeRoamActive
 
     // --- Profil/Stats/Settings/Admin als Stufen (§J2; Feinschliff J5) ---
@@ -396,22 +397,18 @@ fun MapChrome(
         )
 
         // „Ebenen" für Planen/Gehen: oberer rechter Zugang (Erkunden hat seinen
-        // eigenen Hamburger mit Ebenen-Panel im Extras-Menü). Position identisch
-        // zum Erkunden-Hamburger: ganz oben rechts in der Ecke (gleiche Modifier).
+        // eigenen Hamburger mit Ebenen-Panel im Extras-Menü). Gleiche Position und
+        // gleiche Glow-Technik wie der Erkunden-Hamburger — sichtbar auf hellem
+        // und dunklem Kartenhintergrund.
         if (mode == ShellMode.PLAN || mode == ShellMode.GO) {
-            IconButton(
+            FloatingBurgerIcon(
                 onClick = { layersOpen = !layersOpen },
+                contentDescription = stringResource(R.string.shell_layers),
                 modifier = Modifier
                     .align(Alignment.TopEnd)
                     .padding(4.dp)
                     .zIndex(12f),
-            ) {
-                Icon(
-                    Icons.Filled.Menu,
-                    contentDescription = stringResource(R.string.shell_layers),
-                    tint = MaterialTheme.colorScheme.onSurface,
-                )
-            }
+            )
         }
 
         if (layersOpen) {
@@ -498,7 +495,7 @@ fun MapChrome(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .zIndex(11f)
-                    .padding(start = 8.dp, end = 8.dp, bottom = 96.dp),
+                    .padding(start = 8.dp, end = 8.dp, bottom = 27.dp),
             ) {
                 Text(
                     mapHint(mapState),

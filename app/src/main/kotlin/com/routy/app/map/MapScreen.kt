@@ -60,6 +60,7 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.routy.app.R
 import com.routy.app.RoutyApplication
+import com.routy.app.ui.FloatingBurgerIcon
 import com.routy.app.ui.OfflineBanner
 import com.routy.app.logic.api.GeoPoint
 import com.routy.app.logic.api.NodeDto
@@ -158,16 +159,11 @@ fun MapScreen(onStartRecording: () -> Unit, modifier: Modifier = Modifier, chrom
         }
 
         if (uiState.mode == MapMode.View) {
-            IconButton(
+            FloatingBurgerIcon(
                 onClick = { showExtras = !showExtras },
+                contentDescription = stringResource(R.string.map_more_options),
                 modifier = Modifier.align(Alignment.TopEnd).padding(4.dp),
-            ) {
-                Icon(
-                    Icons.Filled.Menu,
-                    contentDescription = stringResource(R.string.map_more_options),
-                    tint = MaterialTheme.colorScheme.onSurface,
-                )
-            }
+            )
         }
 
         if (uiState.actionBusy) {
