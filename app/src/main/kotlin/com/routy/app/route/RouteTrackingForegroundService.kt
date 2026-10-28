@@ -8,6 +8,7 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
 import android.location.Location
 import android.os.Binder
@@ -128,11 +129,22 @@ class RouteTrackingForegroundService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         // M1: startForeground FIRST, before any branch — a sticky restart (intent == null)
         // or a stop action must never run the system foreground-service timeout.
+        // Crash-Fix (0.57a): der Location-FGS-Typ erfordert auf targetSDK 36 zwingend
+        // gewährte Standort-Berechtigung (auch forceStopped beim Neustart/Install).
+        // Ohne Permission fällt er auf Typ 0 zurück, damit reine Stop-/Restore-/Toggle-
+        // Aktionen (z. B. TRACK_STOP_ALL beim App-Start) NICHT als SecurityException
+        // den ganzen Prozess crashen. Echte Tracking-Starts laufen nur, wenn die UI vorher
+        // die Location-Berechtigung angefragt hat (LocationEffects: granted-Check).
+        val fgsType = if (hasLocationPermission(this)) {
+            ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION
+        } else {
+            0
+        }
         ServiceCompat.startForeground(
             this,
             NOTIFICATION_ID,
             buildNotification(),
-            ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION,
+            fgsType,
         )
 
         when (intent?.action) {
@@ -320,6 +332,9 @@ class RouteTrackingForegroundService : Service() {
     @SuppressLint("MissingPermission")
     private fun startLocationUpdates() {
         stopLocationUpdates()
+        // Defensive: ohne gewährte Standort-Berechtigung NICHT registrieren —
+        // requestLocationUpdates würde sonst als SecurityException crashen.
+        if (!hasLocationPermission(this)) return
         val request = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 3_000L)
             .setMinUpdateIntervalMillis(2_000L)
             .build()
@@ -643,6 +658,12 @@ class RouteTrackingForegroundService : Service() {
     }
 
     companion object {
+        /** Location-Berechtigung (fine ODER coarse) gewährt? — entscheidet über den
+         *  FGS-Typ (LOCATION vs 0) und ob GPS-Updates registriert werden dürfen. */
+        fun hasLocationPermission(context: Context): Boolean =
+            context.checkSelfPermission(android.Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED ||
+                context.checkSelfPermission(android.Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
+
         private const val NOTIFICATION_ID = 1002
         private const val CHANNEL_ID = "route_tracking"
         private const val ACTION_STOP_TRACK = "com.routy.app.route.TRACK_STOP"

@@ -6,7 +6,9 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
+import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
 import android.os.Binder
 import android.os.IBinder
@@ -72,7 +74,7 @@ class RecordingForegroundService : Service() {
             this,
             NOTIFICATION_ID,
             buildNotification(),
-            ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION,
+            if (hasLocationPermission(this)) ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION else 0,
         )
         when (intent?.action) {
             ACTION_PAUSE -> pause()
@@ -107,7 +109,7 @@ class RecordingForegroundService : Service() {
                 this,
                 NOTIFICATION_ID,
                 buildNotification(),
-                ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION,
+                if (hasLocationPermission(this)) ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION else 0,
             )
             startLocationUpdates()
         } else if (session.phase == RecordingPhase.PAUSED) {
@@ -115,7 +117,7 @@ class RecordingForegroundService : Service() {
                 this,
                 NOTIFICATION_ID,
                 buildNotification(),
-                ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION,
+                if (hasLocationPermission(this)) ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION else 0,
             )
         }
     }
@@ -139,6 +141,8 @@ class RecordingForegroundService : Service() {
     @SuppressLint("MissingPermission")
     private fun startLocationUpdates() {
         stopLocationUpdates()
+        // Defensiv: ohne gewährte Location-Berechtigung nicht registrieren (SecurityException).
+        if (!hasLocationPermission(this)) return
         val intervalMs = recordingLocationIntervalMs(session.points)
         locationIntervalMs = intervalMs
         val request = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, intervalMs)
@@ -274,6 +278,12 @@ class RecordingForegroundService : Service() {
     }
 
     companion object {
+        /** Location-Berechtigung (fine ODER coarse) gewährt? — entsprechend dem
+         *  RouteTracking-Helper: Location-FGS-Typ nur, wenn sie wirklich da ist. */
+        fun hasLocationPermission(context: Context): Boolean =
+            context.checkSelfPermission(android.Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED ||
+                context.checkSelfPermission(android.Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
+
         private const val NOTIFICATION_ID = 1001
         private const val CHANNEL_ID = "recording"
         private const val ACTION_PAUSE = "com.routy.app.recording.PAUSE"
