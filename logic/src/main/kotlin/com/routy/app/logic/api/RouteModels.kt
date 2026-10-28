@@ -94,7 +94,11 @@ data class GenerateRouteRequest(
 )
 
 @Serializable
-data class RouteTokenRequest(val token: String)
+data class RouteTokenRequest(
+    val token: String,
+    /** M3: true replaces an already-active route (server answers 409 otherwise). */
+    val replace: Boolean = false,
+)
 
 // --- Free-roam (0.47) ---
 
@@ -192,6 +196,8 @@ data class ShareFavoriteResponse(val ok: Boolean, val shareToken: String? = null
 @Serializable
 data class CompleteRouteRequest(
     val trackPoints: List<com.routy.app.logic.route.RouteWalkTrackPoint> = emptyList(),
+    /** M4: actual walked duration — server stores body value, not planned duration. */
+    val durationMin: Int? = null,
 )
 
 /** POST /api/route/complete — walk delta points for the completion dialog. */

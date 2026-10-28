@@ -200,6 +200,7 @@
     <string name="route_no_golden_route">Keine Route mit einem der heutigen goldenen Wege im Längenbereich gefunden.</string>
     <string name="route_no_alternative">Keine Alternative gefunden.</string>
     <string name="route_session_expired">Sitzung abgelaufen — bitte neu vorschlagen lassen.</string>
+    <string name="route_active_route_exists">Es läuft schon eine Tour auf einem anderen Gerät — diese Route wurde stattdessen gestartet.</string>
 
     <string name="record_entry_point">Weg aufzeichnen</string>
     <string name="shell_recording_entries_title">Neue Wege aufzeichnen</string>

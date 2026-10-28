@@ -337,7 +337,10 @@ class RouteViewModel(
             route = state?.activeRoute,
             guideMode = state?.walkMode == "guide",
             nickname = state?.nickname ?: "",
-            followEnabled = state?.activeRoute != null,
+            // M3: Eine serverseitig aktive Route (Bootstrap/Favorit/Share) landet auf
+            // der Zwischenseite — GPS-Folgen/Tracking erst beim Go (accept).
+            followEnabled = false,
+            trackEnabled = false,
             totalPoints = game.totalPoints,
             weeklyPoints = game.weeklyPoints,
             streakMultiplier = game.streakMultiplier,
@@ -1015,7 +1018,9 @@ class RouteViewModel(
                     GameSummaryDto(_uiState.value.totalPoints, _uiState.value.weeklyPoints, _uiState.value.streakMultiplier),
                     _uiState.value.todayGoldenSegmentIds.toList(),
                     offlineCached = _uiState.value.offlineCached,
-                    homeNodeId = _uiState.value.startNodeId,
+                    // M3: homeNodeId ist der Account-Home, NICHT der Routenstart —
+                    // sonst wird der Goldene/Start für den Rest des Prozesses zum Home.
+                    homeNodeId = _uiState.value.homeNodeId,
                 )
                 _uiState.value = _uiState.value.copy(
                     mode = RouteMode.ACTIVE,
@@ -1024,7 +1029,9 @@ class RouteViewModel(
                     sharedRouteName = null,
                     completedWaypointIndex = -1,
                     voiceAnnouncedIndex = 0,
-                    followEnabled = true,
+                    // M3: geteilte Route → Zwischenseite; Go startet Tracking.
+                    followEnabled = false,
+                    trackEnabled = false,
                     messageRes = null,
                 )
                 prefetchMapTiles(state.activeRoute)
@@ -1277,9 +1284,31 @@ class RouteViewModel(
     /** Route ENDGÜLTIG starten („Go“ auf der Bestätigungsseite): übernimmt die Route
      *  serverseitig und schaltet das GPS-Tracking an. */
     fun accept() {
-        val token = _uiState.value.token
-        val guide = _uiState.value.guideMode
         viewModelScope.launch {
+            val state = _uiState.value
+            val token = state.token
+            val guide = state.guideMode
+            // M3: Go ohne Token (Favorit/Share/Bootstrap) startet NUR das Tracking —
+            // der Server besitzt die Route schon; ein leerer Token bei /accept
+            // würde 400 „Sitzung abgelaufen“ werfen.
+            if (token.isBlank() && state.route != null) {
+                routeProgressStore.clear()
+                routeWalkTrackStore.clear()
+                prefetchMapTiles(state.route)
+                _uiState.value = state.copy(
+                    mode = RouteMode.ACTIVE,
+                    status = RouteStatus.IDLE,
+                    messageRes = null,
+                    nickname = state.nickname,
+                    completedWaypointIndex = -1,
+                    voiceAnnouncedIndex = 0,
+                    followEnabled = true,
+                    trackEnabled = true,
+                    voiceEnabled = state.voiceEnabled,
+                    token = "",
+                )
+                return@launch
+            }
             _uiState.value = _uiState.value.copy(status = RouteStatus.LOADING)
             val response = try {
                 if (guide) {
@@ -1295,7 +1324,54 @@ class RouteViewModel(
                 routeProgressStore.clear()
                 routeWalkTrackStore.clear()
                 prefetchMapTiles(_uiState.value.route)
-                _uiState.value = _uiState.value.copy(mode = RouteMode.ACTIVE, status = RouteStatus.IDLE, messageRes = null, nickname = "", completedWaypointIndex = -1, voiceAnnouncedIndex = 0, followEnabled = true, trackEnabled = true)
+                _uiState.value = _uiState.value.copy(mode = RouteMode.ACTIVE, status = RouteStatus.IDLE, messageRes = null, nickname = "", completedWaypointIndex = -1, voiceAnnouncedIndex = 0, followEnabled = true, trackEnabled = true, token = "")
+                return@launch
+            }
+            if (response.code() == 409) {
+                // M3: andere Gerät läuft schon — Retry mit replace (Emanuel: Android ist
+                // die Wahrheit; ein bestätigtes Go ersetzt die alte Route).
+                val retry = try {
+                    if (guide) {
+                        apiClientProvider.service.acceptGuide(RouteTokenRequest(token, replace = true))
+                    } else {
+                        apiClientProvider.service.acceptRoute(RouteTokenRequest(token, replace = true))
+                    }
+                } catch (_: IOException) {
+                    _uiState.value = _uiState.value.copy(status = RouteStatus.IDLE, messageRes = R.string.route_session_expired)
+                    return@launch
+                }
+                if (retry.isSuccessful) {
+                    routeProgressStore.clear()
+                    routeWalkTrackStore.clear()
+                    prefetchMapTiles(_uiState.value.route)
+                    _uiState.value = _uiState.value.copy(mode = RouteMode.ACTIVE, status = RouteStatus.IDLE, messageRes = null, nickname = "", completedWaypointIndex = -1, voiceAnnouncedIndex = 0, followEnabled = true, trackEnabled = true, token = "")
+                } else {
+                    _uiState.value = _uiState.value.copy(status = RouteStatus.IDLE, messageRes = R.string.common_error)
+                }
+                return@launch
+            }
+            if (response.code() == 410) {
+                // M3: Token schon verbraucht — wenn der Server die Route hat, in den
+                // Lauf gehen statt „Sitzung abgelaufen“ zu zeigen.
+                val resolved = fetchRouteStateWithRetry()
+                if (resolved?.activeRoute != null) {
+                    routeProgressStore.clear()
+                    routeWalkTrackStore.clear()
+                    _uiState.value = _uiState.value.copy(
+                        mode = RouteMode.ACTIVE,
+                        status = RouteStatus.IDLE,
+                        messageRes = null,
+                        nickname = resolved.nickname ?: "",
+                        completedWaypointIndex = -1,
+                        voiceAnnouncedIndex = 0,
+                        followEnabled = true,
+                        trackEnabled = true,
+                        token = "",
+                    )
+                } else {
+                    _uiState.value = _uiState.value.copy(status = RouteStatus.IDLE, messageRes = R.string.route_session_expired)
+                }
+                return@launch
             } else {
                 _uiState.value = _uiState.value.copy(status = RouteStatus.IDLE, messageRes = R.string.route_session_expired)
             }
@@ -1554,6 +1630,29 @@ class RouteViewModel(
 
     fun discardActive() {
         viewModelScope.launch {
+            val state = _uiState.value
+            // M3-6/Q1: Auf der Zwischenseite (nicht gestartet, trackEnabled=false):
+            //  - Token gesetzt (frische generierte Route): NUR lokal zurück — der
+            //    Server kennt die Route noch nicht, kein /discard nötig, der
+            //    Vorschlag bleibt (Q1-Empfehlung: zurück zu SUGGESTING, Route bleibt).
+            //  - Token leer (Favorit/Share/Bootstrap): Route hängt am Account →
+            //    serverseitig discard.
+            // Live (trackEnabled): normaler Serverseiten-Discard.
+            val isPreview = state.mode == RouteMode.ACTIVE && !state.trackEnabled
+            if (isPreview && state.token.isNotBlank()) {
+                _uiState.value = state.copy(
+                    mode = RouteMode.SUGGESTING,
+                    status = RouteStatus.IDLE,
+                    messageRes = null,
+                    trackEnabled = false,
+                    voiceEnabled = false,
+                    nickname = "",
+                    followEnabled = false,
+                    completedWaypointIndex = -1,
+                    voiceAnnouncedIndex = 0,
+                )
+                return@launch
+            }
             _uiState.value = _uiState.value.copy(status = RouteStatus.LOADING, trackEnabled = false, voiceEnabled = false)
             try { apiClientProvider.service.discardRoute() } catch (_: IOException) {}
             routeProgressStore.clear()
@@ -1599,7 +1698,10 @@ class RouteViewModel(
                     nickname = "",
                     completedWaypointIndex = -1,
                     voiceAnnouncedIndex = 0,
-                    followEnabled = true,
+                    // M3: Favorit → Zwischenseite, NICHT sofort folgen/aufzeichnen.
+                    // Go (accept mit leerem Token) startet Tracking erst.
+                    followEnabled = false,
+                    trackEnabled = false,
                     goldenHitIds = goldenHitsOnRoute(
                         favorite.display.segmentIds,
                         _uiState.value.todayGoldenSegmentIds,

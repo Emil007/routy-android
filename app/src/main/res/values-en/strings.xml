@@ -200,6 +200,7 @@
     <string name="route_no_golden_route">No route that uses today\'s golden path was found in the length range.</string>
     <string name="route_no_alternative">No alternative found.</string>
     <string name="route_session_expired">Session expired — please suggest again.</string>
+    <string name="route_active_route_exists">A walk is already running on another device — this route was started instead.</string>
 
     <string name="record_entry_point">Record a path</string>
     <string name="shell_recording_entries_title">Record new paths</string>

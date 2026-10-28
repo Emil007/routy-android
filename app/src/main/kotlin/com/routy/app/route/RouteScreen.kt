@@ -836,13 +836,12 @@ private fun RouteWithMapLayout(
     }
     val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         hasLocationPermission = granted
-        if (granted) viewModel.setFollowEnabled(true)
+        // M3-5: Folgen/Service starten NICHT hier — das passiert im accept() beim Go.
+        // (Nur der abgelehnte Fall zeigt weiter den Berechtigungs-Fehler.)
     }
     LaunchedEffect(uiState.mode) {
         if (uiState.mode == RouteMode.ACTIVE && !hasLocationPermission) {
             permissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
-        } else if (uiState.mode == RouteMode.ACTIVE && hasLocationPermission) {
-            viewModel.setFollowEnabled(true)
         }
     }
     fun needsNotificationPermission() =
@@ -1183,8 +1182,8 @@ private fun RouteWithMapLayout(
                                         Text(stringResource(R.string.route_discard_button))
                                     }
                                 }
-                            }
-                            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.Center) {
+                                // M3: Ansage-Checkbox steht VOR dem Go auch auf der
+                                // Zwischenseite (wie trackEnabled=false auf Web).
                                 CompactCheck(
                                     checked = uiState.voiceEnabled,
                                     onCheckedChange = { checked ->
@@ -1196,23 +1195,39 @@ private fun RouteWithMapLayout(
                                     },
                                     label = stringResource(R.string.route_voice_check),
                                 )
-                            }
-                            FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                val canComplete = !uiState.trackEnabled || uiState.completedWaypointIndex >= route.stations.lastIndex
-                                CompactButton(
-                                    onClick = {
-                                        RouteTrackingForegroundService.stopAll(context)
-                                        viewModel.complete()
-                                    },
-                                    enabled = canComplete,
-                                ) {
-                                    Text(stringResource(R.string.route_complete_button))
+                            } else {
+                                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.Center) {
+                                    CompactCheck(
+                                        checked = uiState.voiceEnabled,
+                                        onCheckedChange = { checked ->
+                                            if (checked) {
+                                                ensureBackgroundPermissions { viewModel.setVoiceEnabled(true) }
+                                            } else {
+                                                viewModel.setVoiceEnabled(false)
+                                            }
+                                        },
+                                        label = stringResource(R.string.route_voice_check),
+                                    )
                                 }
-                                CompactOutlinedButton(onClick = { pendingDiscard = true }) {
-                                    Text(stringResource(R.string.route_discard_button))
-                                }
-                                CompactOutlinedButton(onClick = viewModel::requestReposition) {
-                                    Text(stringResource(R.string.route_reposition_node))
+                                FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    // M3-4: Fertig erst möglich, wenn das Tracking läuft
+                                    // UND alle Stationen passiert sind.
+                                    val canComplete = uiState.trackEnabled && uiState.completedWaypointIndex >= route.stations.lastIndex
+                                    CompactButton(
+                                        onClick = {
+                                            RouteTrackingForegroundService.stopAll(context)
+                                            viewModel.complete()
+                                        },
+                                        enabled = canComplete,
+                                    ) {
+                                        Text(stringResource(R.string.route_complete_button))
+                                    }
+                                    CompactOutlinedButton(onClick = { pendingDiscard = true }) {
+                                        Text(stringResource(R.string.route_discard_button))
+                                    }
+                                    CompactOutlinedButton(onClick = viewModel::requestReposition) {
+                                        Text(stringResource(R.string.route_reposition_node))
+                                    }
                                 }
                                 if (uiState.completedWaypointIndex < route.stations.lastIndex) {
                                     CompactOutlinedButton(
