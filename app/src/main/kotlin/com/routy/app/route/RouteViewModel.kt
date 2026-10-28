@@ -581,8 +581,9 @@ class RouteViewModel(
                     freeRoamToken = body.token,
                     freeRoamStartNodeId = body.startNodeId,
                     freeRoamReachedCount = if (body.startReachable.isNotEmpty()) 1 else 0,
-                    // Q7: Start-Ansage = dieselbe Nachbarzeile wie Web (Name + "über {via}").
-                    freeRoamAnnounce = if (body.startReachable.isNotEmpty()) announceNeighbourLine(body.startReachable) else null,
+                    // 0.57: Start-Ansage kommt jetzt lokalisiert vom Server
+                    // („Angekommen bei X, mögliche Wege zu… Richtung…“) — einmal, nicht doppelt.
+                    freeRoamAnnounce = body.announcement,
                     status = RouteStatus.IDLE,
                     messageRes = null,
                     messageArgs = emptyList(),
@@ -735,11 +736,10 @@ class RouteViewModel(
                         if (body.shouldAnnounce && body.newlyReached.isNotEmpty()) {
                             _uiState.value = _uiState.value.copy(
                                 freeRoamReachedCount = body.visitedCount,
-                                // Q7 (entschieden): die neue Nachbarzeile wird bei
-                                // shouldAnnounce gesprochen — VoiceGuidance liest
-                                // freeRoamAnnounce, sobald es gesetzt ist. Web-Gleichlaut:
-                                // Name + "über {via}" für jeden erreichbaren Nachbarn.
-                                freeRoamAnnounce = announceNeighbours(body.newlyReached),
+                                // 0.57: komplette lokalisierte Ansage kommt jetzt vom Server
+                                // („Angekommen bei X, mögliche Wege zu… Richtung…“) — einmal,
+                                // nicht doppelt, mit Richtungen. Fallback bleibt die Web-Gleichlaut.
+                                freeRoamAnnounce = body.announcement ?: announceNeighbours(body.newlyReached),
                             )
                         } else {
                             _uiState.value = _uiState.value.copy(freeRoamReachedCount = body.visitedCount)

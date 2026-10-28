@@ -95,6 +95,7 @@ data class FreeRoamStartResponse(
     val startReachable: List<FreeRoamNeighbour> = emptyList(),
     val freeRoam: Boolean = true,
     val pointsMultiplier: Double? = null,
+    val announcement: String? = null,
 )
 
 @Serializable
@@ -116,6 +117,7 @@ data class FreeRoamCheckinResponse(
     val ok: Boolean = true,
     val newlyReached: List<FreeRoamReachedNode> = emptyList(),
     val shouldAnnounce: Boolean = false,
+    val announcement: String? = null,
     val visitedCount: Int = 0,
     // Stateless token rotation (decision K): the server re-signs on every
     // checkin; the client MUST store this fresh token and send it next.
