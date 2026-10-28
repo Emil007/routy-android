@@ -1,6 +1,18 @@
 package com.routy.app.logic.api
 
+import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.builtins.ListSerializer
+import kotlinx.serialization.descriptors.SerialDescriptor
+import kotlinx.serialization.encoding.Decoder
+import kotlinx.serialization.encoding.Encoder
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.doubleOrNull
+import kotlinx.serialization.json.jsonPrimitive
 
 @Serializable
 data class RouteStation(
@@ -20,6 +32,46 @@ data class ShortStationGroup(val text: String, val viaSegmentName: String? = nul
 @Serializable
 data class RouteElevation(val gainM: Int, val lossM: Int)
 
+/**
+ * M9: Geometry reads BOTH wire formats — `[{lat, lng}, …]` objects AND `[[lat, lng], …]` tuples
+ * (old 0.56 caches) — and treats `null` / a missing field as an empty line instead of dropping
+ * the whole payload. Encoding stays object-format so new caches have one canonical format.
+ */
+object GeometryListSerializer : KSerializer<List<GeoPoint>> {
+    private val listSerializer = ListSerializer(GeoPoint.serializer())
+
+    override val descriptor: SerialDescriptor = listSerializer.descriptor
+
+    override fun serialize(encoder: Encoder, value: List<GeoPoint>) {
+        encoder.encodeSerializableValue(listSerializer, value)
+    }
+
+    override fun deserialize(decoder: Decoder): List<GeoPoint> {
+        val element = decoder.decodeSerializableValue(JsonElement.serializer())
+        return when (element) {
+            is JsonNull -> emptyList()
+            is JsonArray -> element.mapNotNull { it.toGeoPointOrNull() }
+            else -> emptyList()
+        }
+    }
+
+    private fun JsonElement.toGeoPointOrNull(): GeoPoint? {
+        if (this is JsonObject) {
+            val lat = this["lat"]?.jsonPrimitive?.doubleOrNull ?: return null
+            val lng = this["lng"]?.jsonPrimitive?.doubleOrNull ?: return null
+            return GeoPoint(lat, lng)
+        }
+        if (this is JsonArray) {
+            // legacy [lat, lng] tuple
+            if (size < 2) return null
+            val lat = this[0].jsonPrimitive.doubleOrNull ?: return null
+            val lng = this[1].jsonPrimitive.doubleOrNull ?: return null
+            return GeoPoint(lat, lng)
+        }
+        return null
+    }
+}
+
 /** Mirrors RouteDisplayPayload in src/components/RouteGenerator.tsx. */
 @Serializable
 data class RouteDisplayPayload(
@@ -30,7 +82,9 @@ data class RouteDisplayPayload(
     val stations: List<RouteStation>,
     val shortStationGroups: List<ShortStationGroup>,
     val elevation: RouteElevation? = null,
-    val geometry: List<GeoPoint>,
+    // M9: Tupel UND Objekt lesen; fehlendes Feld / null => leere Liste statt Decode-Fehler.
+    @Serializable(with = GeometryListSerializer::class)
+    val geometry: List<GeoPoint> = emptyList(),
 )
 
 @Serializable
@@ -86,6 +140,8 @@ data class FreeRoamNeighbour(
     val name: String? = null,
     val distanceM: Int = 0,
     val viaSegmentName: String? = null,
+    // M27: Himmelsrichtung (N/NE/...) vom Server — Parität mit der Web-Nachbarliste.
+    val directionCompass: String? = null,
 )
 
 @Serializable

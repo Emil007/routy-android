@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.material3.AssistChip
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
@@ -78,12 +79,15 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import com.routy.app.R
 import com.routy.app.RoutyApplication
 import com.routy.app.logic.api.FavoriteEntry
+import com.routy.app.logic.api.FreeRoamReachedNode
 import com.routy.app.logic.api.GeoPoint
 import com.routy.app.logic.api.NodeDto
 import com.routy.app.logic.api.PointPreviewBreakdown
 import com.routy.app.logic.api.RouteDisplayPayload
 import com.routy.app.logic.api.RouteStation
+import com.routy.app.logic.geo.CompassPoint
 import com.routy.app.logic.geo.LatLng
+import com.routy.app.logic.route.compassPointFromAbbreviation
 import com.routy.app.logic.route.remainingRouteGeometry
 import com.routy.app.map.BaseMapStyle
 import com.routy.app.map.rememberMapPreferences
@@ -115,11 +119,16 @@ fun RouteScreen(onStartRecording: () -> Unit, accountLocaleTag: String, modifier
 
     // Q7 (entschieden): Free-Roam-Ansagen werden gesprochen — die sichtbare
     // Nachbarzeile, sobald sich freeRoamAnnounce ändert.
+    // M7: NUR im sichtbaren Gehen (GO oder FULL) — das Plan-Sheet hält die Anzeige,
+    // spricht aber kein TTS. Nach dem Sprechen wird die Ansage VERBRAUCHT (null),
+    // damit dieselbe Runde/neuer Start den nächsten Satz wieder spricht (F02).
     val freeRoamVoice = rememberVoiceGuidanceController(accountLocaleTag)
     LaunchedEffect(uiState.freeRoamAnnounce) {
         val line = uiState.freeRoamAnnounce
-        if (line != null && line.isNotBlank() && uiState.freeRoamActive) {
+        val wantsVoice = section == RouteSection.GO || section == RouteSection.FULL
+        if (line != null && line.isNotBlank() && uiState.freeRoamActive && wantsVoice) {
             freeRoamVoice.speak(line)
+            viewModel.consumeFreeRoamAnnounce()
         }
     }
 
@@ -255,6 +264,8 @@ private fun RouteMapChrome(
     segmentBadges: Map<Int, String> = emptyMap(),
     onMapClick: ((Double, Double) -> Unit)? = null,
     onMapLongClick: ((Double, Double) -> Unit)? = null,
+    /** M14: user pan/zoom turns follow off. */
+    onFollowChanged: ((Boolean) -> Unit)? = null,
     modifier: Modifier = Modifier,
     chromeHosted: Boolean = false,
 ) {
@@ -299,6 +310,7 @@ private fun RouteMapChrome(
             segmentBadges = if (planningMode) segmentBadges else emptyMap(),
             onMapClick = onMapClick,
             onMapLongClick = onMapLongClick,
+            onFollowChanged = onFollowChanged,
             modifier = Modifier.fillMaxSize(),
         )
         }
@@ -582,6 +594,8 @@ private fun SuggestingMapLayout(
                             )
                         }
                     }
+                    // M27: Nachbar-Chips (Name/Via/Richtung) — Parität mit der Web-Zeile.
+                    FreeRoamNeighbourChips(uiState.freeRoamReachedNodes)
                 } else if (section == RouteSection.GO) {
                     val canStart = uiState.status != RouteStatus.LOADING
                     // GoSheet, nichts aktiv: Freies Gehen prominent starten.
@@ -906,34 +920,50 @@ private fun RouteWithMapLayout(
             ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
 
     var pendingStartBackground by remember { mutableStateOf(false) }
-    val notificationPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
-        if (pendingStartBackground) {
-            pendingStartBackground = false
-            if (uiState.trackEnabled) viewModel.setTrackEnabled(true)
-            else if (uiState.voiceEnabled) { /* voice already set */ }
-        }
+    // M13: die Aktion wird in einem Slott aufgehoben und erst ausgeführt, wenn BEIDE
+    // Rechte (Standort + Benachrichtigung) da sind — so geht die eigentliche Aktion
+    // nicht mehr verloren, wenn ein Dialog dazwischenkommt (F19).
+    var pendingBackgroundAction by remember { mutableStateOf<(() -> Unit)?>(null) }
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        val action = pendingBackgroundAction
+        pendingStartBackground = false
+        pendingBackgroundAction = null
+        if (granted) action?.invoke()
     }
     val backgroundLocationPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         hasLocationPermission = granted
         if (!granted) {
             pendingStartBackground = false
+            pendingBackgroundAction = null
             return@rememberLauncherForActivityResult
         }
         if (needsNotificationPermission()) {
+            pendingStartBackground = true
             notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
         } else {
+            val action = pendingBackgroundAction
             pendingStartBackground = false
+            pendingBackgroundAction = null
+            action?.invoke()
         }
     }
     fun ensureBackgroundPermissions(then: () -> Unit) {
+        // M13: den Callback aufheben statt ausführen/verwerfen.
+        pendingBackgroundAction = then
         when {
-            ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED ->
+            ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED -> {
+                pendingStartBackground = true
                 backgroundLocationPermissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+            }
             needsNotificationPermission() -> {
                 pendingStartBackground = true
                 notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
             }
-            else -> then()
+            else -> {
+                // alles schon da — sofort ausführen, Slott leeren.
+                pendingBackgroundAction = null
+                then()
+            }
         }
     }
     var pendingDiscard by remember { mutableStateOf(false) }
@@ -1067,6 +1097,8 @@ private fun RouteWithMapLayout(
             locationSpeed = uiState.locationSpeed,
             onCompassClick = if (showLocation) viewModel::cycleCompassMode else null,
             onMapLongClick = if (uiState.mode == RouteMode.ACTIVE) viewModel::onActiveMapLongPress else null,
+            // M14: Nutzer-Geste auf der Karte schaltet Folgen ab.
+            onFollowChanged = if (showLocation) { enabled -> if (!enabled) viewModel.setFollowEnabled(false) } else null,
             modifier = Modifier.weight(1f),
             chromeHosted = chromeHosted,
         )
@@ -1174,6 +1206,8 @@ private fun RouteWithMapLayout(
                             )
                         }
                     }
+                    // M27: Nachbar-Chips (Name/Via/Richtung) — Parität mit der Web-Zeile.
+                    FreeRoamNeighbourChips(uiState.freeRoamReachedNodes)
                 } else {
                     if (uiState.guideMode) {
                         Text(
@@ -1700,4 +1734,49 @@ private fun celebrationTitle(tier: String): String? = when (tier) {
     "streak" -> stringResource(R.string.route_celebration_streak)
     "achievement" -> stringResource(R.string.route_celebration_achievement)
     else -> null
+}
+
+/** M27: Nachbar-Chips pro erreichtem Free-Roam-Knoten — Name, Via, Richtung (Parität Web). */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun FreeRoamNeighbourChips(nodes: List<FreeRoamReachedNode>) {
+    nodes.forEach { reachedNode ->
+        if (reachedNode.reachable.isEmpty()) return@forEach
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalArrangement = Arrangement.Center,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            reachedNode.reachable.forEach { nb ->
+                val name = nb.name?.takeIf { it.isNotBlank() } ?: "#${nb.nodeId}"
+                val via = nb.viaSegmentName?.takeIf { it.isNotBlank() }
+                val dirAbbrev = nb.directionCompass
+                val label = buildString {
+                    append(name)
+                    if (via != null) append(" · ${stringResource(R.string.route_via, name, via)}")
+                    if (dirAbbrev != null) {
+                        val dirChip = compassPointFromAbbreviation(dirAbbrev)?.let {
+                            stringResource(
+                                when (it) {
+                                    CompassPoint.N -> R.string.route_compass_n
+                                    CompassPoint.NE -> R.string.route_compass_ne
+                                    CompassPoint.E -> R.string.route_compass_e
+                                    CompassPoint.SE -> R.string.route_compass_se
+                                    CompassPoint.S -> R.string.route_compass_s
+                                    CompassPoint.SW -> R.string.route_compass_sw
+                                    CompassPoint.W -> R.string.route_compass_w
+                                    CompassPoint.NW -> R.string.route_compass_nw
+                                },
+                            )
+                        }
+                        if (dirChip != null) append(" · $dirChip")
+                    }
+                }
+                AssistChip(
+                    onClick = {},
+                    label = { Text(label, style = MaterialTheme.typography.labelSmall) },
+                )
+            }
+        }
+    }
 }

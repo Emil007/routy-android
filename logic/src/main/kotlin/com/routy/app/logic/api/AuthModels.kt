@@ -25,6 +25,9 @@ data class SessionUser(
     val totpEnabled: Boolean,
     val homeNodeId: Int? = null,
     val client: String = "web",
+    // M37: per-account IANA zone (decision G) — opening-hours chips on both maps
+    // use this clock, not the device clock. Server sends users.timezone.
+    val timezone: String = "Europe/Vienna",
 )
 
 @Serializable

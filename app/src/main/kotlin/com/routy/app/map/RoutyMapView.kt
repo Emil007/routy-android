@@ -1,5 +1,6 @@
 package com.routy.app.map
 
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
@@ -21,6 +22,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.google.gson.JsonObject
+import com.routy.app.core.AccountTheme
 import com.routy.app.logic.api.GeoPoint
 import com.routy.app.logic.api.NodeDto
 import com.routy.app.logic.api.RouteStation
@@ -139,6 +141,8 @@ fun RoutyMapView(
     selectedEditVertexIndex: Int? = null,
     onMapClick: ((lat: Double, lng: Double) -> Unit)? = null,
     onMapLongClick: ((lat: Double, lng: Double) -> Unit)? = null,
+    /** M14: user pan/zoom/rotate gestures turn follow off (the map stops jumping back to the fix). */
+    onFollowChanged: ((Boolean) -> Unit)? = null,
     modifier: Modifier = Modifier,
     /** When true (default), camera fits route geometry + stations (+ myLocation), not the whole network. */
     fitToRouteOnly: Boolean = true,
@@ -146,6 +150,9 @@ fun RoutyMapView(
      * distinct reddish-brown ("#9a3b29") for a track being recorded, matching MapView.tsx's
      * own color choice for the same distinction (RecordTrackWizard.tsx's trackLine). */
     routeColor: String = "#2e6b49",
+    /** M41/F56: Netzfarbe (kein gedimmtes #9a9a90 unter einer Route) — Akzent ergäbe
+     *  hell #2E6B49 / dunkel #6FC08C aus dem Theme; Aufrufer reichen das hier rein. */
+    networkColor: String = "#2e6b49",
     /** Strong green strokes for the map overview tab; faint grey when a route is drawn on top. */
     emphasizeNetworkSegments: Boolean = false,
     /** Inset the map's attribution/compass/zoom so overlays (right panel, half-sheet) don't
@@ -157,8 +164,19 @@ fun RoutyMapView(
     val mapView = remember { MapView(context) }
     var maplibreMap by remember { mutableStateOf<MapLibreMap?>(null) }
     var loadedStyle by remember { mutableStateOf<Style?>(null) }
+    // M41: Akzent hell/dunkel deterministisch wie im Web (mapAccentHex) — Netz bleibt
+    // im Akzent statt gedimmt, auch wenn eine Route darüber liegt (F56).
+    val themeDark = isSystemInDarkTheme()
+    val resolvedNetworkColor = remember(networkColor) {
+        if (networkColor == "#2e6b49") {
+            if (AccountTheme.isDarkTheme(themeDark)) "#6fc08c" else "#2e6b49"
+        } else {
+            networkColor
+        }
+    }
     val onMapClickState by rememberUpdatedState(onMapClick)
     val onMapLongClickState by rememberUpdatedState(onMapLongClick)
+    val onFollowChangedState by rememberUpdatedState(onFollowChanged)
 
     DisposableEffect(lifecycleOwner, mapView) {
         val observer = LifecycleEventObserver { _, event ->
@@ -202,6 +220,13 @@ fun RoutyMapView(
                 onMapLongClickState?.invoke(point.latitude, point.longitude)
                 true
             }
+            // M14: nur Nutzer-Gesten (Pan/Zoom/Rotate) — nicht der eigene animateCamera
+            // (REASON_API_ANIMATION/REASON_DEVELOPER_ANIMATION) — schalten Folgen aus.
+            map.addOnCameraMoveStartedListener { reason ->
+                if (reason == MapLibreMap.OnCameraMoveStartedListener.REASON_API_GESTURE) {
+                    onFollowChangedState?.invoke(false)
+                }
+            }
         }
     }
 
@@ -214,7 +239,7 @@ fun RoutyMapView(
     LaunchedEffect(loadedStyle, nodes, segments, routeGeometry, stations, myLocation, trackedGeometry, routeColor, completedWaypointIndex, goldenSegmentIds, goldenHitIds, disconnectedSegmentIds, selectedNodeId, moveNodeId, homeNodeId, startNodeId, endNodeId, mustVisitNodeIds, isLoop, requiredSegmentIds, excludedSegmentIds, nodeBadges, segmentBadges, selectedSegmentId, overlayLine, editVertices, selectedEditVertexIndex, emphasizeNetworkSegments, waymarkedOverlay) {
         val currentStyle = loadedStyle ?: return@LaunchedEffect
         updateWaymarkedOverlay(currentStyle, waymarkedOverlay)
-        updateSegmentsLayer(currentStyle, segments, emphasizeNetworkSegments, requiredSegmentIds, excludedSegmentIds, goldenSegmentIds, disconnectedSegmentIds)
+        updateSegmentsLayer(currentStyle, segments, emphasizeNetworkSegments, resolvedNetworkColor, requiredSegmentIds, excludedSegmentIds, goldenSegmentIds, disconnectedSegmentIds)
         updateGoldenSegmentsLayer(currentStyle, segments, goldenSegmentIds, goldenHitIds)
         updateSelectedSegmentLayer(currentStyle, segments, selectedSegmentId)
         updateOverlayLayer(currentStyle, overlayLine)
@@ -324,6 +349,7 @@ private fun updateSegmentsLayer(
     style: Style,
     segments: List<SegmentDto>,
     emphasize: Boolean,
+    networkColor: String,
     requiredIds: Set<Int> = emptySet(),
     excludedIds: Set<Int> = emptySet(),
     goldenIds: Set<Int> = emptySet(),
@@ -338,7 +364,12 @@ private fun updateSegmentsLayer(
         excludedIds.contains(id) -> "#c53030"
         requiredIds.contains(id) -> "#2b6cb0"
         goldenIds.contains(id) -> "#c99a2e"
-        else -> if (emphasize) "#2e6b49" else "#9a9a90"
+        // M41/F56: Netz bleibt im Akzent (hell/dunkel), NICHT gedimmt #9a9a90 —
+        // auch wenn eine Route darüber liegt.
+        else -> when {
+            emphasize -> networkColor
+            else -> if (networkColor == "#6fc08c") "#6fc08c" else if (networkColor == "#2e6b49") "#3d7d57" else "#9a9a90"
+        }
     }
     fun segmentWidth(id: Int): Float = when {
         requiredIds.contains(id) || goldenIds.contains(id) -> 6f
@@ -399,8 +430,10 @@ private fun updateSegmentsLayer(
     val lockedLayer = LineLayer(LOCKED_SEGMENTS_LAYER, LOCKED_SEGMENTS_SOURCE)
     val lockedWidth = if (emphasize) 4f else 2f
     val lockedOpacity = if (emphasize) 0.92f else 0.7f
+    // M41/F56: auch gesperrte Kanten im Akzent (nicht #9a9a90/#6b7280) — die
+    // Gedämpftheit kommt aus Opacity + Dasharray, nicht aus einer Grau-Rolle.
     lockedLayer.setProperties(
-        PropertyFactory.lineColor(if (emphasize) "#6b7280" else "#9a9a90"),
+        PropertyFactory.lineColor(networkColor),
         PropertyFactory.lineWidth(lockedWidth),
         PropertyFactory.lineOpacity(lockedOpacity * 0.85f),
         PropertyFactory.lineDasharray(arrayOf(2f, 2f)),

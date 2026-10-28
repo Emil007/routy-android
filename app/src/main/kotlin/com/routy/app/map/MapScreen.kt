@@ -68,6 +68,9 @@ import com.routy.app.logic.api.SegmentDto
 import com.routy.app.logic.api.isLocked
 import com.routy.app.logic.geo.LatLng
 import com.routy.app.logic.geo.pathLengthMeters
+import com.routy.app.logic.time.isNodeOpenByRule
+import com.routy.app.logic.time.localMinutesDevice
+import com.routy.app.logic.time.localMinutesInZone
 import com.routy.app.logic.recording.EndpointDecision
 import com.routy.app.logic.recording.NodeCandidate
 import java.io.File
@@ -285,7 +288,8 @@ private fun MapNodePanel(node: NodeDto, state: MapUiState, viewModel: MapViewMod
             }
             if (node.id == state.user?.homeNodeId) Text(stringResource(R.string.map_node_home), style = MaterialTheme.typography.labelSmall)
             val hasHours = node.openFromMinutes != null && node.openUntilMinutes != null
-            if (hasHours && !isNodeOpenNow(node.openFromMinutes, node.openUntilMinutes)) {
+            // M37: geschlossen-Chip nutzt Web-Regel + Account-Zeitzone (state.user.timezone).
+            if (!isNodeOpenNow(node.openFromMinutes, node.openUntilMinutes, state.user?.timezone)) {
                 Text(stringResource(R.string.map_opening_hours_closed_chip), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error)
             }
             if (canEdit) {
@@ -543,6 +547,11 @@ private fun MapSegmentPanel(segment: SegmentDto, state: MapUiState, viewModel: M
                 }
             }
             if (!canEdit) return@Column
+            // M51: Einbahn-Schalter — Parität mit dem Web-SegmentPopup (gleiches Feld für den Router).
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Checkbox(checked = segment.oneWay, onCheckedChange = viewModel::toggleOneWay)
+                Text(stringResource(R.string.map_segment_one_way), style = MaterialTheme.typography.labelSmall)
+            }
             if (state.renamingSegment) {
                 OutlinedTextField(state.renameSegmentName, viewModel::updateRenameSegmentName, label = { Text(stringResource(R.string.map_segment_name)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
                 CompactButton(viewModel::saveRenameSegment) { Text(stringResource(R.string.map_rename)) }
@@ -961,13 +970,16 @@ private fun CompactOutlinedButton(
     OutlinedButton(onClick, modifier, enabled = enabled, contentPadding = contentPadding, content = content)
 }
 
-private fun isNodeOpenNow(openFromMinutes: Int?, openUntilMinutes: Int?): Boolean {
-    if (openFromMinutes == null || openUntilMinutes == null) return true
-    val now = java.time.LocalTime.now()
-    val minutes = now.hour * 60 + now.minute
-    return if (openFromMinutes <= openUntilMinutes) {
-        minutes in openFromMinutes..openUntilMinutes
+private fun isNodeOpenNow(
+    openFromMinutes: Int?,
+    openUntilMinutes: Int?,
+    timezone: String?,
+): Boolean {
+    // M37: Web-Regel + Account-Zeitzone statt Geräteuhr — beide Karten teilen dieselbe Öffnungszeit (F45).
+    val minutes = if (timezone.isNullOrBlank()) {
+        localMinutesDevice(System.currentTimeMillis())
     } else {
-        minutes >= openFromMinutes || minutes <= openUntilMinutes
+        localMinutesInZone(System.currentTimeMillis(), timezone)
     }
+    return isNodeOpenByRule(openFromMinutes, openUntilMinutes, minutes)
 }

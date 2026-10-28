@@ -30,6 +30,11 @@ class VoiceGuidanceController(context: Context, private val ttsLocale: Locale) {
     private var tts: TextToSpeech? = null
     private var ready = false
     private var speaking = false
+    // M8: Warteschlange — Texte, die ankamen, während TTS noch nicht bereit oder
+    // noch beschäftigt war, werden nach onDone/onError/init nachgesprochen, statt
+    // verworfen zu werden (F11).
+    private val pendingQueue = ArrayDeque<String>()
+    private var utteranceCounter = 0L
 
     init {
         tts = TextToSpeech(context) { status ->
@@ -42,30 +47,53 @@ class VoiceGuidanceController(context: Context, private val ttsLocale: Locale) {
                     override fun onDone(utteranceId: String?) {
                         speaking = false
                         audioManager.abandonAudioFocusRequest(focusRequest)
+                        speakNext()
                     }
 
                     @Deprecated("Deprecated in TextToSpeech")
                     override fun onError(utteranceId: String?) {
                         speaking = false
                         audioManager.abandonAudioFocusRequest(focusRequest)
+                        speakNext()
                     }
                 })
             }
+            speakNext()
         }
     }
 
     fun speak(text: String) {
-        if (!ready || speaking) return
+        if (ready && !speaking) {
+            speaking = true
+            audioManager.requestAudioFocus(focusRequest)
+            tts?.speak(text, TextToSpeech.QUEUE_ADD, null, "routy-voice-cue-${utteranceCounter++}")
+        } else {
+            // M8: puffern statt verwerfen — gleicher Text direkt hintereinander bleibt
+            // in der Queue (Dedupe über Sessions macht der Effect über den State).
+            pendingQueue.add(text)
+        }
+    }
+
+    private fun speakNext() {
+        if (speaking || !ready) return
+        val next = pendingQueue.removeFirstOrNull() ?: return
         speaking = true
         audioManager.requestAudioFocus(focusRequest)
-        tts?.speak(text, TextToSpeech.QUEUE_ADD, null, "routy-voice-cue")
+        tts?.speak(next, TextToSpeech.QUEUE_ADD, null, "routy-voice-cue-${utteranceCounter++}")
+    }
+
+    /** M8: räumt die Warteschlange, wenn der Nutzer eine neue Aktion startet (Runden-Start/Stopp). */
+    fun clearPending() {
+        pendingQueue.clear()
     }
 
     fun shutdown() {
         tts?.stop()
         tts?.shutdown()
         tts = null
+        ready = false
         speaking = false
+        pendingQueue.clear()
     }
 }
 

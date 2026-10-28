@@ -26,6 +26,7 @@ import com.routy.app.logic.api.SegmentConditionDto
 import com.routy.app.logic.api.SegmentDto
 import com.routy.app.logic.api.SegmentGeometryRequest
 import com.routy.app.logic.api.SegmentIdRequest
+import com.routy.app.logic.api.SegmentOneWayRequest
 import com.routy.app.logic.api.SegmentRenameRequest
 import com.routy.app.logic.api.SegmentSplitRequest
 import com.routy.app.logic.api.SessionUser
@@ -351,6 +352,38 @@ class MapViewModel(
             apiClientProvider.service.renameSegment(
                 SegmentRenameRequest(segment.id, _uiState.value.renameSegmentName.trim()),
             )
+        }
+    }
+
+    // M51: Einbahn-Schalter (Parität mit dem Web-SegmentPopup) — POST
+    // /api/segments/one-way { segmentId, oneWay }, danach lokalen State + Netz-Flag
+    // aktualisieren, damit der Router dieselbe Tatsache sieht (M30 nutzt sie).
+    fun toggleOneWay(on: Boolean) {
+        val segment = _uiState.value.selectedSegment ?: return
+        if (!canEditSegment(segment)) return denyNotAllowed()
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(actionBusy = true, messageRes = null)
+            val res = runCatching {
+                apiClientProvider.service.setSegmentOneWay(SegmentOneWayRequest(segment.id, on))
+            }.getOrNull()
+            if (res?.isSuccessful == true && res.body()?.segment != null) {
+                val updated = res.body()!!.segment!!
+                if (updated.oneWay != segment.oneWay && updated.id == segment.id) {
+                    val newSegments = _uiState.value.segments.map {
+                        if (it.id == updated.id) updated else it
+                    }
+                    _uiState.value = _uiState.value.copy(
+                        segments = newSegments,
+                        selectedSegment = updated,
+                        actionBusy = false,
+                        messageRes = R.string.map_saved,
+                    )
+                    return@launch
+                }
+                _uiState.value = _uiState.value.copy(actionBusy = false, messageRes = R.string.map_saved)
+            } else {
+                _uiState.value = _uiState.value.copy(actionBusy = false, isError = true, messageRes = R.string.common_error)
+            }
         }
     }
 
@@ -964,7 +997,7 @@ class MapViewModel(
         offline: Boolean,
         todayGoldenSegmentIds: List<Int> = emptyList(),
     ) {
-        val homeId = user.homeNodeId ?: nodes.firstOrNull { it.isHome }?.id
+        val homeId = user.homeNodeId // M38: nur homeNodeId — kein isHome-Legacy-Fallback
         val disconnected = disconnectedCanonicalSegmentIds(segments.filter { it.isCanonical() }, homeId)
         val prev = _uiState.value
         _uiState.value = prev.copy(

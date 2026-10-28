@@ -169,6 +169,23 @@ fun MapChrome(
             segmentBadges = if (mode == ShellMode.PLAN) buildPlanningSegmentBadges(routeState) else emptyMap(),
             fitKey = if (routeState.token.isEmpty()) route.nodeChain.joinToString("-") else routeState.token,
         )
+    } else if (routeState.freeRoamActive && mode == ShellMode.GO) {
+        // M26: freies Gehen ohne generierte Route — die Karte zeichnet den gelaufenen
+        // Strich (#9a3b29) + Position, keine Stationen/Guidance.
+        RouteMapContext(
+            mode = RouteMode.ACTIVE,
+            route = null,
+            routeGeometry = routeState.trackedGeometry,
+            stations = emptyList(),
+            myLocation = routeState.myLocation,
+            followEnabled = routeState.followEnabled,
+            compassMode = routeState.compassMode,
+            locationBearing = routeState.locationBearing,
+            locationSpeed = routeState.locationSpeed,
+            trackedGeometry = routeState.trackedGeometry,
+            fitKey = "freeRoam-${routeState.trackedGeometry.size}",
+            freeRoam = true,
+        )
     } else null
 
     val overlayLine = when (mapState.mode) {
@@ -213,11 +230,19 @@ fun MapChrome(
     // Ebenen-Panel oben rechts für Planen/Gehen (Erkunden hat seinen eigenen Hamburger).
     var layersOpen by remember { mutableStateOf(false) }
 
-    // Back: muss VOR den Vollbild-Stufen (Stats/Settings/Web/Layers) komponiert sein, sonst
-    // registriert kein BackHandler und Android-Back schließt die App (Bug: Back schloss in
-    // Statistiken/Einstellungen die App). Live-Sessions übernimmt der hosted Screen
-    // (RouteWithMapLayout hat seinen eigenen BackHandler für Discard/Bestätigung).
-    BackHandler(enabled = !routeActive && !freeRoamActive) {
+    // M12: Auf den Vollbild-Stufen (Stats/Settings/Web) muss Back auch bei einer
+    // aktiven Tour/Free-Roam abgefangen werden, statt die Activity zu schließen —
+    // zurück geht es aufs Profil, der Modus bleibt erhalten. Bei allen anderen
+    // Stufen übernimmt der gehostete Screen (Discard/Bestätigung).
+    val isFullscreenStage = chrome.stage is SheetStage.Stats ||
+        chrome.stage is SheetStage.Settings ||
+        chrome.stage is SheetStage.Web
+    val handleBack = if (isFullscreenStage && (routeActive || freeRoamActive)) {
+        true
+    } else {
+        !routeActive && !freeRoamActive
+    }
+    BackHandler(enabled = handleBack) {
         // Ebenen-Panel hat Vorrang vor der Stufen-Logik: erst schließen.
         if (layersOpen) {
             layersOpen = false
@@ -226,8 +251,8 @@ fun MapChrome(
         val result = onHardwareBack(
             state = chrome,
             webCanGoBack = false,
-            routeActive = false,
-            freeRoamActive = false,
+            routeActive = routeActive,
+            freeRoamActive = freeRoamActive,
             recordingPhase = recordingPhase,
             mapMode = mapState.mode.name,
         )
@@ -271,7 +296,9 @@ fun MapChrome(
             token = token,
             path = (chrome.stage as SheetStage.Web).path.takeIf { it.isNotBlank() } ?: "/admin",
             onDismiss = { chrome = chrome.copy(stage = SheetStage.Profile) },
-            onNavigateToLogin = shellViewModel::signOut,
+            // M36/F52: /login im WebView schließt nur die Web-Stufe — die App-Sitzung
+            // (Bearer) bleibt; das nächste Öffnen holt eine neue routy_web.
+            onNavigateToLogin = { chrome = chrome.copy(stage = SheetStage.Profile) },
         )
         return
     }
@@ -354,6 +381,10 @@ fun MapChrome(
             selectedEditVertexIndex = if (binding.kind == MapBindingKind.NETWORK) binding.selectedEditVertexIndex else null,
             onMapClick = if (binding.onMapClick) mapViewModel::onMapClick else null,
             onMapLongClick = if (binding.onMapLongClick) routeViewModel::onActiveMapLongPress else null,
+            // M14: Nutzer-Geste auf der Karte schaltet Folgen ab (springt nicht mehr zurück).
+            onFollowChanged = if (routeState.mode == RouteMode.ACTIVE || routeState.freeRoamActive) {
+                { enabled -> if (!enabled) routeViewModel.setFollowEnabled(false) }
+            } else null,
             routeColor = binding.routeColor,
             contentPadding = PaddingValues(
                 start = 0.dp,

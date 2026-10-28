@@ -28,6 +28,13 @@ data class PublicConfigResponse(
     val captcha: CaptchaConfig = CaptchaConfig(),
 )
 
+/** M36: POST /api/auth/web-session — der WebView holt eine kurze routy_web-Session. */
+@Serializable
+data class WebSessionResponse(
+    val ok: Boolean = true,
+    val expiresMin: Int = 15,
+)
+
 @Serializable
 data class SetupRequest(
     val setupToken: String,

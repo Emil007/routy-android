@@ -66,17 +66,19 @@ class RecordingForegroundService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        when (intent?.action) {
-            ACTION_PAUSE -> pause()
-            ACTION_RESUME -> resume()
-            ACTION_STOP -> finish()
-        }
+        // M2: startForeground IMMER zuerst — auch wenn die Aktion danach an einer
+        // falschen Phase no-op ist, darf kein System-Timeout für den Foreground-Service laufen.
         ServiceCompat.startForeground(
             this,
             NOTIFICATION_ID,
             buildNotification(),
             ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION,
         )
+        when (intent?.action) {
+            ACTION_PAUSE -> pause()
+            ACTION_RESUME -> resume()
+            ACTION_STOP -> finish()
+        }
         if (session.phase == RecordingPhase.IDLE) beginRecording()
         return START_STICKY
     }
@@ -97,7 +99,25 @@ class RecordingForegroundService : Service() {
                 trackGeometry = trackGeometry(),
             ),
         )
-        if (session.phase == RecordingPhase.RECORDING) startLocationUpdates()
+        // F21/M2: Auch wenn der Service NUR per BIND_AUTO_CREATE entstanden ist (kein
+        // onStartCommand), muss eine wiederhergestellte Aufnahme eine Foreground-Notification
+        // haben — sonst wird sie im Hintergrund ausgebremst.
+        if (session.phase == RecordingPhase.RECORDING) {
+            ServiceCompat.startForeground(
+                this,
+                NOTIFICATION_ID,
+                buildNotification(),
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION,
+            )
+            startLocationUpdates()
+        } else if (session.phase == RecordingPhase.PAUSED) {
+            ServiceCompat.startForeground(
+                this,
+                NOTIFICATION_ID,
+                buildNotification(),
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION,
+            )
+        }
     }
 
     fun recordedPoints(): List<RecordingPoint> = session.points
@@ -166,6 +186,9 @@ class RecordingForegroundService : Service() {
     }
 
     fun pause() {
+        // M2: falsche Phase (z. B. Alert aus Notification nach dem direkten Sheet-Finish
+        // auf CONFIRM) ist ein No-Op statt einer Exception. Session-check bleibt erhalten.
+        if (session.phase != RecordingPhase.RECORDING) return
         session.pause()
         persistSnapshot()
         emitState(_state.value.copy(phase = session.phase))
@@ -173,6 +196,7 @@ class RecordingForegroundService : Service() {
     }
 
     fun resume() {
+        if (session.phase != RecordingPhase.PAUSED) return
         session.resume()
         persistSnapshot()
         emitState(_state.value.copy(phase = session.phase))
@@ -181,10 +205,16 @@ class RecordingForegroundService : Service() {
     }
 
     fun finish(): List<RecordingPoint> {
+        if (session.phase != RecordingPhase.RECORDING && session.phase != RecordingPhase.PAUSED) {
+            return session.points
+        }
         session.finish()
         persistSnapshot()
         emitState(_state.value.copy(phase = session.phase))
         stopLocationUpdates()
+        // M2: nach dem direkten Sheet-Finish die Notification neu bauen (Actions in
+        // CONFIRM entfernt) — sonst bleiben Pause/Stopp in der Leiste hängen.
+        updateNotification()
         return session.points
     }
 

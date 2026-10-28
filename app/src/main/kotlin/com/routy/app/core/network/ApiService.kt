@@ -13,6 +13,7 @@ import com.routy.app.logic.api.GuideStartRequest
 import com.routy.app.logic.api.GpxCommitRequest
 import com.routy.app.logic.api.GpxConfigResponse
 import com.routy.app.logic.api.HealthResponse
+import com.routy.app.logic.api.WebSessionResponse
 import com.routy.app.logic.api.LockProposalActionRequest
 import com.routy.app.logic.api.LockProposalsResponse
 import com.routy.app.logic.api.LoginRequest
@@ -62,6 +63,7 @@ import com.routy.app.logic.api.SuggestNamePartsRequest
 import com.routy.app.logic.api.SuggestNamePartsResponse
 import com.routy.app.logic.api.SegmentGeometryRequest
 import com.routy.app.logic.api.SegmentIdRequest
+import com.routy.app.logic.api.SegmentOneWayResponse
 import com.routy.app.logic.api.SegmentRenameRequest
 import com.routy.app.logic.api.SegmentSplitRequest
 import com.routy.app.logic.api.RevokeOthersResponse
@@ -113,6 +115,11 @@ interface ApiService {
 
     @POST("api/auth/logout")
     suspend fun logout(@Body body: RequestBody = EMPTY_JSON_BODY): Response<Unit>
+
+    // M36: der WebView holt eine volumen-session CSRF-sichere Kurz-Websession
+    // (routy_web, 15 min) — der langlebige API-Bearer geht NIE ins Cookie-Jar.
+    @POST("api/auth/web-session")
+    suspend fun createWebSession(@Body body: RequestBody = EMPTY_JSON_BODY): Response<WebSessionResponse>
 
     @GET("api/auth/me")
     suspend fun me(): Response<MeResponse>
@@ -263,6 +270,10 @@ interface ApiService {
 
     @POST("api/segments/lock")
     suspend fun lockSegment(@Body body: RequestBody): Response<Unit>
+
+    // M51: Einbahn-Schalter — Parität mit dem Web-SegmentPopup.
+    @POST("api/segments/one-way")
+    suspend fun setSegmentOneWay(@Body body: com.routy.app.logic.api.SegmentOneWayRequest): Response<SegmentOneWayResponse>
 
     @POST("api/segments/delete")
     suspend fun deleteSegment(@Body body: SegmentIdRequest): Response<Unit>

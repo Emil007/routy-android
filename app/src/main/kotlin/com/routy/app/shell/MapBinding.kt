@@ -83,6 +83,8 @@ data class RouteMapContext(
     val nodeBadges: Map<Int, String> = emptyMap(),
     val segmentBadges: Map<Int, String> = emptyMap(),
     val fitKey: Any? = null,
+    /** M26: wahr = freies Gehen — Track-Zweig ohne Stationen, Strich in Aufnahme-Farbe (§6). */
+    val freeRoam: Boolean = false,
 )
 
 /** Zentrale Einstiegspunkte, damit die pure Funktion keine ViewModels braucht. */
@@ -112,8 +114,8 @@ fun mapBindingFor(
     }
 
     // 2. Route (GO immer, PLAN nur in J2 wenn eine Route da ist)
-    // routeCtx wird vom Aufrufer NUR gebaut, wenn eine aktive Route existiert —
-    // die Präsenz des Kontexts ist die Route-Signal.
+    // routeCtx wird vom Aufrufer NUR gebaut, wenn eine aktive Route ODER freies
+    // Gehen existiert — die Präsenz des Kontexts ist das Route-Signal.
     val showRoute = chromeMode == ShellMode.GO || (chromeMode == ShellMode.PLAN && routeCtx != null)
     if (showRoute && routeCtx != null) {
         val planning = chromeMode == ShellMode.PLAN
@@ -129,9 +131,11 @@ fun mapBindingFor(
             locationBearing = routeCtx.locationBearing,
             locationSpeed = routeCtx.locationSpeed,
             trackedGeometry = routeCtx.trackedGeometry,
-            routeColor = "#2e6b49",
-            nodeBadges = if (planning) routeCtx.nodeBadges else emptyMap(),
-            segmentBadges = if (planning) routeCtx.segmentBadges else emptyMap(),
+            // M26: freies Gehen zeichnet seinen gelaufenen Strich in der Aufnahme-Farbe
+            // §6 (#9a3b29), die generierte Route bleibt Akzent (M41 fasst den Akzent an).
+            routeColor = if (routeCtx.freeRoam) "#9a3b29" else "#2e6b49",
+            nodeBadges = if (planning && !routeCtx.freeRoam) routeCtx.nodeBadges else emptyMap(),
+            segmentBadges = if (planning && !routeCtx.freeRoam) routeCtx.segmentBadges else emptyMap(),
             onMapClick = planning,
             onMapLongClick = routeCtx.mode == RouteMode.ACTIVE,
             fitToRouteOnly = true,

@@ -23,6 +23,7 @@ import com.routy.app.logic.recording.RecordingPoint
 import com.routy.app.logic.recording.matchesTrack
 import com.routy.app.logic.recording.findNodeCandidates
 import com.routy.app.logic.recording.initialEndpointDecision
+import com.routy.app.logic.recording.recordingDurationMin
 import java.io.IOException
 import kotlin.math.roundToInt
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -68,6 +69,12 @@ class RecordingViewModel(
     private val _uiState = MutableStateFlow(RecordingUiState())
     val uiState: StateFlow<RecordingUiState> = _uiState.asStateFlow()
 
+    // M16: Punkte, die ankamen, solange die Knoten noch nicht geladen waren — werden
+    // nach dem Laden neu gematcht (statt ein vorschnelles NewJunction festzuschreiben).
+    private var pendingPointsWhileLoading: List<RecordingPoint>? = null
+    // M16: hat der Nutzer Start/Ende selbst entschieden, wird NICHT überschrieben.
+    private var decisionsTouchedByUser = false
+
     init {
         loadConfig()
     }
@@ -87,6 +94,8 @@ class RecordingViewModel(
                 mergeRadiusM = config?.mergeRadiusM ?: _uiState.value.mergeRadiusM,
                 walkSpeedKmh = config?.walkSpeedKmh ?: _uiState.value.walkSpeedKmh,
             )
+            // M16: wartende Punkte jetzt mit voller Knotenliste neu matchen.
+            recomputeEndpointsAfterConfig()
         }
     }
 
@@ -105,6 +114,30 @@ class RecordingViewModel(
     /** Called once RecordingForegroundService.finish() returns the recorded points. */
     fun setRecordedPoints(points: List<RecordingPoint>) {
         if (points.size < 2) return
+        // M16: Endpunkte erst festlegen, wenn die Knoten geladen sind — sonst wird
+        // aus einem leeren Match ein vorschnelles NewJunction gespeichert (F22).
+        if (_uiState.value.loadingConfig) {
+            pendingPointsWhileLoading = points
+            return
+        }
+        applyEndpointDecisions(points)
+    }
+
+    private fun recomputeEndpointsAfterConfig() {
+        val pending = pendingPointsWhileLoading ?: return
+        pendingPointsWhileLoading = null
+        if (decisionsTouchedByUser) {
+            // Nutzer hat schon entschieden — nur die Punkte nachtragen, Entscheidungen behalten.
+            if (pending.size >= 2) {
+                _uiState.value = _uiState.value.copy(points = pending)
+                persistConfirmDraft()
+            }
+            return
+        }
+        applyEndpointDecisions(pending)
+    }
+
+    private fun applyEndpointDecisions(points: List<RecordingPoint>) {
         val state = _uiState.value
         val draft = confirmStore.load()?.takeIf { it.matchesTrack(points) }
         val start = points.first()
@@ -136,11 +169,13 @@ class RecordingViewModel(
     }
 
     fun setStartDecision(decision: EndpointDecision) {
+        decisionsTouchedByUser = true
         _uiState.value = _uiState.value.copy(startDecision = decision)
         persistConfirmDraft()
     }
 
     fun setEndDecision(decision: EndpointDecision) {
+        decisionsTouchedByUser = true
         _uiState.value = _uiState.value.copy(endDecision = decision)
         persistConfirmDraft()
     }
@@ -176,7 +211,10 @@ class RecordingViewModel(
             val track = GpxTrack(
                 points = state.points.map { GpxPoint(it.lat, it.lng, it.ele) },
                 lengthM = lengthM,
-                durationMin = estimateMinutes(lengthM.toDouble(), state.walkSpeedKmh),
+                // M17: Dauer aus den Zeitstempeln (gelaufene Zeit), nicht aus der
+                // Solltempo-Schätzung — eine langsame/pausierte Runde wird korrekt
+                // gemeldet. Schätzung nur als Fallback ohne Stempel.
+                durationMin = recordingDurationMin(state.points, lengthM.toDouble(), state.walkSpeedKmh),
                 elevation = null,
                 start = start.toGpxEndpoint(),
                 end = end.toGpxEndpoint(),

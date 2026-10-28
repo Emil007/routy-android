@@ -28,10 +28,12 @@ import com.routy.app.logic.api.GeoPoint
 import com.routy.app.logic.api.RouteStation
 import com.routy.app.logic.api.SegmentDto
 import com.routy.app.logic.geo.LatLng
+import com.routy.app.logic.route.FREE_ROAM_ROUTE_KEY
 import com.routy.app.logic.route.GoldenSegmentHitTracker
 import com.routy.app.logic.route.OffPathDetector
 import com.routy.app.logic.route.RouteWalkTrackSession
 import com.routy.app.logic.route.VoiceCueTracker
+import com.routy.app.logic.route.segmentsForService
 import com.routy.app.logic.route.WaypointProgressTracker
 import com.routy.app.logic.route.goldenCanonicalForFinishedHop
 import com.routy.app.logic.route.isRouteTrackAccuracyUsable
@@ -85,6 +87,8 @@ class RouteTrackingForegroundService : Service() {
     private var trackEnabled: Boolean = false
     private var voiceEnabled: Boolean = false
     private var freeRoamMode: Boolean = false
+    /** M1: a sticky restart (intent == null) restored this run from the store — keep it alive until the app re-syncs. */
+    private var restoredRun: Boolean = false
     private var stations: List<RouteStation> = emptyList()
     private var routePolyline: List<LatLng> = emptyList()
     private var routeSegmentIds: List<Int> = emptyList()
@@ -108,9 +112,29 @@ class RouteTrackingForegroundService : Service() {
         walkTrackStore = (application as RoutyApplication).routeWalkTrackStore
         createNotificationChannel()
         cueController = TrackCueController(this)
+        instance = this
+    }
+
+    /** M15: Retag-Verschiebung — der Service bekommt die neuen Stationskoordinaten,
+     *  damit die 30-m-Erkennung den verschobenen Punkt nutzt (F25). */
+    fun replaceStations(newStations: List<RouteStation>) {
+        if (newStations.isEmpty()) return
+        stations = newStations
+        voiceTracker = VoiceCueTracker(newStations).also { it.restore(_state.value.voiceAnnouncedIndex) }
+        progressTracker = WaypointProgressTracker(newStations).also { it.restore(_state.value.completedWaypointIndex) }
+        emitState(_state.value.copy(stationCount = newStations.size))
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        // M1: startForeground FIRST, before any branch — a sticky restart (intent == null)
+        // or a stop action must never run the system foreground-service timeout.
+        ServiceCompat.startForeground(
+            this,
+            NOTIFICATION_ID,
+            buildNotification(),
+            ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION,
+        )
+
         when (intent?.action) {
             ACTION_STOP_ALL -> {
                 stopTracking(clearSession = false)
@@ -120,30 +144,23 @@ class RouteTrackingForegroundService : Service() {
                 trackEnabled = false
                 persistTrack()
                 emitState(_state.value.copy(trackEnabled = false))
-                if (!voiceEnabled) {
-                    stopTracking()
-                } else {
-                    updateNotification()
-                }
                 _stopTrackRequested.tryEmit(Unit)
-                return if (_state.value.active) START_STICKY else START_NOT_STICKY
+                updateNotification()
             }
             ACTION_REANNOUNCE -> {
                 reannounceUpcoming()
-                return START_STICKY
             }
             ACTION_MARK_PASSED -> {
                 markNextPassed()
-                return START_STICKY
             }
             ACTION_SET_VOICE -> {
                 voiceEnabled = intent.getBooleanExtra(EXTRA_VOICE_ENABLED, voiceEnabled)
                 emitState(_state.value.copy(voiceEnabled = voiceEnabled))
                 if (!trackEnabled && !voiceEnabled) {
                     stopTracking()
-                } else {
-                    updateNotification()
+                    return START_NOT_STICKY
                 }
+                updateNotification()
             }
             ACTION_SET_TRACK -> {
                 trackEnabled = intent.getBooleanExtra(EXTRA_TRACK_ENABLED, trackEnabled)
@@ -151,33 +168,62 @@ class RouteTrackingForegroundService : Service() {
                 updateNotification()
             }
             else -> {
-                val stationsJson = intent?.getStringExtra(EXTRA_STATIONS_JSON)
-                val isFreeRoam = intent?.getBooleanExtra(EXTRA_FREE_ROAM_MODE, false) == true
-                freeRoamMode = isFreeRoam
-                if (isFreeRoam || !stationsJson.isNullOrBlank()) {
-                    configureFromIntent(intent)
+                restoredRun = false
+                if (intent == null) {
+                    // M1: process-death sticky restart — restore the run from the store
+                    // instead of stopping with empty fields.
+                    restoreFromStore()
+                } else {
+                    val stationsJson = intent.getStringExtra(EXTRA_STATIONS_JSON)
+                    val isFreeRoam = intent.getBooleanExtra(EXTRA_FREE_ROAM_MODE, false) == true
+                    freeRoamMode = isFreeRoam
+                    if (isFreeRoam || !stationsJson.isNullOrBlank()) {
+                        configureFromIntent(intent)
+                    }
                 }
             }
         }
 
-        // M5-A1: Freies Gehen hat keine Stationen — der Modus läuft rein auf Punkten.
-        // Ohne diesen Abzweig würde die Service-Gate (stations.isEmpty) sofort stoppen.
-        if ((stations.isEmpty() && !freeRoamMode) || (!trackEnabled && !voiceEnabled)) {
+        // M1: real stop path only — a restored run stays alive until the app re-syncs.
+        // stopForeground is what actually ends it (never leave early before startForeground).
+        if (!restoredRun && (stations.isEmpty() && !freeRoamMode) || (!trackEnabled && !voiceEnabled)) {
+            stopForeground(STOP_FOREGROUND_REMOVE)
             stopSelf()
             return START_NOT_STICKY
         }
 
-        ServiceCompat.startForeground(
-            this,
-            NOTIFICATION_ID,
-            buildNotification(),
-            ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION,
-        )
         ensureVoiceController()
         startLocationUpdates()
         syncTrackingActive(true)
         emitState(_state.value.copy(active = true, stationCount = stations.size))
         return START_STICKY
+    }
+
+    /** M1/M10: restore an in-flight run (free roam or route) from the store after process death. */
+    private fun restoreFromStore() {
+        val snapshot = walkTrackStore.loadLatest() ?: run {
+            // nothing persisted — the clean stop path below ends the service properly.
+            return
+        }
+        restoredRun = true
+        routeKey = snapshot.routeKey
+        freeRoamMode = snapshot.routeKey == FREE_ROAM_ROUTE_KEY
+        trackEnabled = freeRoamMode || snapshot.points.isNotEmpty()
+        voiceEnabled = false
+        walkTrackSession.restore(snapshot.points)
+        goldenSoundCued.clear()
+        goldenSoundCued.addAll(snapshot.goldenHitSegmentIds)
+        emitState(
+            RouteTrackingServiceState(
+                active = true,
+                trackEnabled = trackEnabled,
+                voiceEnabled = false,
+                stationCount = 0,
+                nextStationName = null,
+                trackedGeometry = walkTrackSession.geometryPoints().map { GeoPoint(it.lat, it.lng) },
+                goldenHitSegmentIds = snapshot.goldenHitSegmentIds.toSet(),
+            ),
+        )
     }
 
     private fun configureFromIntent(intent: Intent) {
@@ -188,6 +234,9 @@ class RouteTrackingForegroundService : Service() {
         val completed = intent.getIntExtra(EXTRA_COMPLETED_INDEX, -1)
         val voiceIdx = intent.getIntExtra(EXTRA_VOICE_INDEX, 0)
         // Freies Gehen: keine Stationen, kein Guidance — nur Track + Position.
+        // M10: Nach einem Prozess-Tod liefert M1 restoreFromStore(); hier (erneuter
+        // Start mit Intent) den schon gespeicherten Track wieder aufnehmen statt
+        // einen leeren zu starten — der Strich und das Token überleben den Neustart.
         if (intent.getBooleanExtra(EXTRA_FREE_ROAM_MODE, false)) {
             routePolyline = emptyList()
             networkSegments = emptyList()
@@ -197,8 +246,11 @@ class RouteTrackingForegroundService : Service() {
             progressTracker = null
             offPathDetector = null
             goldenHitTracker = null
-            walkTrackSession.clear()
             goldenSoundCued.clear()
+            if (routeKey.isBlank()) routeKey = FREE_ROAM_ROUTE_KEY
+            val saved = walkTrackStore.load(FREE_ROAM_ROUTE_KEY)
+            walkTrackSession.restore(saved?.points.orEmpty())
+            if (saved != null) goldenSoundCued.addAll(saved.goldenHitSegmentIds)
             emitState(
                 RouteTrackingServiceState(
                     active = true,
@@ -208,7 +260,8 @@ class RouteTrackingForegroundService : Service() {
                     voiceAnnouncedIndex = 0,
                     stationCount = 0,
                     nextStationName = null,
-                    trackedGeometry = emptyList(),
+                    trackedGeometry = walkTrackSession.geometryPoints().map { GeoPoint(it.lat, it.lng) },
+                    goldenHitSegmentIds = saved?.goldenHitSegmentIds?.toSet().orEmpty(),
                 ),
             )
             return
@@ -456,6 +509,8 @@ class RouteTrackingForegroundService : Service() {
 
     private fun persistTrack(goldenHits: Set<Int> = _state.value.goldenHitSegmentIds) {
         if (routeKey.isBlank()) return
+        // M10: Free-Roam-Snapshots tragen das Session-Token; die Store-Impl erhält
+        // bestehende Tokens über loadLatest() automatisch, hier genügt der Key.
         walkTrackStore.save(routeKey, walkTrackSession.points, goldenHits)
     }
 
@@ -504,6 +559,7 @@ class RouteTrackingForegroundService : Service() {
     }
 
     override fun onDestroy() {
+        if (instance === this) instance = null
         stopLocationUpdates()
         voiceController?.shutdown()
         voiceController = null
@@ -544,11 +600,11 @@ class RouteTrackingForegroundService : Service() {
         val done = (_state.value.completedWaypointIndex + 1).coerceAtLeast(0)
         val total = stations.size.coerceAtLeast(1)
         val next = _state.value.nextStationName
-        // M5-A1: Freies Gehen — eigene Notification ohne Stationszähler.
+        // M5-A1: Freies Gehen — eigene Notification ohne Stationszähler (M10: eigener Text).
         if (freeRoamMode) {
             return NotificationCompat.Builder(this, CHANNEL_ID)
                 .setContentTitle(getString(R.string.notification_route_free_roam_title))
-                .setContentText(getString(R.string.notification_route_tracking_text_next, done, total, next ?: "—"))
+                .setContentText(getString(R.string.notification_route_free_roam_text))
                 .setSmallIcon(R.mipmap.ic_launcher)
                 .setOngoing(true)
                 .setOnlyAlertOnce(true)
@@ -611,6 +667,16 @@ class RouteTrackingForegroundService : Service() {
         private val _trackingActive = MutableStateFlow(false)
         val trackingActive: StateFlow<Boolean> = _trackingActive.asStateFlow()
 
+        @Volatile
+        private var instance: RouteTrackingForegroundService? = null
+
+        /** M15: updated live station coordinates after a retag move (30-m detection uses the new point). */
+        fun updateStations(routeKey: String, stations: List<RouteStation>) {
+            val svc = instance ?: return
+            if (routeKey.isNotBlank() && svc.routeKey != routeKey) return
+            svc.replaceStations(stations)
+        }
+
         fun syncTrackingActive(active: Boolean) {
             _trackingActive.value = active
         }
@@ -633,10 +699,13 @@ class RouteTrackingForegroundService : Service() {
             completedWaypointIndex: Int,
             voiceAnnouncedIndex: Int,
         ) {
+            // M11: Nur die Routen-Segmente (Route + Golden) in den Service-Intent —
+            // das volle Netz sprengt sonst das Binder-Limit (TransactionTooLargeException).
+            val serviceSegments = segmentsForService(segments, routeSegmentIds, goldenHitSegmentIds)
             val intent = Intent(context, RouteTrackingForegroundService::class.java).apply {
                 putExtra(EXTRA_STATIONS_JSON, json.encodeToString(stations))
                 putExtra(EXTRA_ROUTE_GEOMETRY_JSON, json.encodeToString(routeGeometry))
-                putExtra(EXTRA_SEGMENTS_JSON, json.encodeToString(segments))
+                putExtra(EXTRA_SEGMENTS_JSON, json.encodeToString(serviceSegments))
                 putExtra(EXTRA_ROUTE_SEGMENT_IDS, routeSegmentIds.toIntArray())
                 putExtra(EXTRA_TODAY_GOLDEN_IDS, todayGoldenCanonicalIds.toIntArray())
                 putExtra(EXTRA_GOLDEN_HIT_IDS, goldenHitSegmentIds.toIntArray())
@@ -650,7 +719,9 @@ class RouteTrackingForegroundService : Service() {
             context.startForegroundService(intent)
         }
 
-        /** M5-A1: Freies Gehen — Nur Track + Position, keine Stationen/Guidance. */
+        /** M5-A1/M10: Freies Gehen — Nur Track + Position, keine Stationen/Guidance.
+         *  Stabiler Free-Roam-Key im Intent, damit M1 nach Prozess-Tod denselben
+         *  gespeicherten Track im Store wiederfindet. */
         fun startFreeRoam(
             context: Context,
             accountLocaleTag: String,
@@ -658,6 +729,7 @@ class RouteTrackingForegroundService : Service() {
         ) {
             val intent = Intent(context, RouteTrackingForegroundService::class.java).apply {
                 putExtra(EXTRA_FREE_ROAM_MODE, true)
+                putExtra(EXTRA_ROUTE_KEY, FREE_ROAM_ROUTE_KEY)
                 putExtra(EXTRA_LOCALE_TAG, accountLocaleTag)
                 putExtra(EXTRA_TRACK_ENABLED, trackEnabled)
                 putExtra(EXTRA_VOICE_ENABLED, false)

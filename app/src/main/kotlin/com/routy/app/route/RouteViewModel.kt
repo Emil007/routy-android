@@ -3,6 +3,7 @@ package com.routy.app.route
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.routy.app.R
+import com.routy.app.core.AccountLocale
 import com.routy.app.core.DeepLinkHolder
 import com.routy.app.core.BootstrapLoader
 import com.routy.app.core.BootstrapResult
@@ -45,9 +46,14 @@ import com.routy.app.logic.api.ShareFavoriteRequest
 import com.routy.app.logic.geo.LatLng
 import com.routy.app.logic.geo.haversineMeters
 import com.routy.app.logic.graph.disconnectedCanonicalSegmentIds
+import com.routy.app.logic.route.FREE_ROAM_ROUTE_KEY
 import com.routy.app.logic.route.RetagLocationBuffer
 import com.routy.app.logic.route.ROUTE_TRACK_GEOMETRY_ACCURACY_MAX_M
+import com.routy.app.logic.route.acceptResumeDecision
+import com.routy.app.logic.route.fallbackLines
+import com.routy.app.logic.route.viaWordForLocale
 import java.io.IOException
+import java.util.Locale
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -161,6 +167,8 @@ data class RouteUiState(
     val freeRoamStartNodeId: Int? = null,
     val freeRoamReachedCount: Int = 0,
     val freeRoamAnnounce: String? = null,
+    /** M27: erreichte Knoten inkl. Nachbar-Chips (Name/Via/Richtung) für die UI. */
+    val freeRoamReachedNodes: List<FreeRoamReachedNode> = emptyList(),
 
     val repositionCandidates: List<Int> = emptyList(),
     val repositionAccuracyM: Double = 35.0,
@@ -199,6 +207,23 @@ class RouteViewModel(
 
     private fun loadInitial() {
         viewModelScope.launch {
+            // M10: eine offene Freie-Runde aus dem Store wiederherstellen (Prozess-Tod)
+            // — Token, Start und Track überleben; der Service-Restore (M1) liefert die
+            // Kartenlinie dazu.
+            routeWalkTrackStore.load(FREE_ROAM_ROUTE_KEY)?.let { saved ->
+                val savedToken: String? = saved.freeRoamToken
+                if (savedToken != null) {
+                    freeRoamStartedAtMs = saved.freeRoamStartedAtMs
+                    freeRoamTrack.clear()
+                    freeRoamTrack.addAll(saved.points.map { GeoPoint(it.lat, it.lng) })
+                    _uiState.value = _uiState.value.copy(
+                        freeRoamActive = true,
+                        freeRoamToken = savedToken,
+                        trackEnabled = true,
+                        trackedGeometry = saved.points.map { GeoPoint(it.lat, it.lng) },
+                    )
+                }
+            }
             val cachedBootstrap = networkCache.loadBootstrap()
             val cachedNetwork = networkCache.load()
             if (cachedBootstrap != null) {
@@ -325,26 +350,32 @@ class RouteViewModel(
         todayGoldenSegmentIds: List<Int> = emptyList(),
         offlineCached: Boolean,
         homeNodeId: Int? = null,
+        // M5: live tour flags (trackEnabled/followEnabled/mode) survive a network
+        // refresh when the walk is running — used by confirmReposition. Initial load
+        // passes false (default).
+        preserveLive: Boolean = false,
     ) {
-        val resolvedHome = homeNodeId ?: nodes.firstOrNull { it.isHome }?.id
+        val resolvedHome = homeNodeId // M38: nur homeNodeId, kein isHome-Legacy-Fallback
         val disconnected = disconnectedCanonicalSegmentIds(segments, resolvedHome)
-        _uiState.value = _uiState.value.copy(
+        val current = _uiState.value
+        _uiState.value = current.copy(
             loadingInitial = false,
             offlineCached = offlineCached,
             nodes = nodes,
             segments = segments,
             favorites = state?.favorites.orEmpty(),
             homeNodeId = resolvedHome,
-            startNodeId = _uiState.value.startNodeId ?: resolvedHome,
-            destinationNodeId = _uiState.value.destinationNodeId ?: resolvedHome,
-            mode = if (state?.activeRoute != null) RouteMode.ACTIVE else RouteMode.SUGGESTING,
+            startNodeId = current.startNodeId ?: resolvedHome,
+            destinationNodeId = current.destinationNodeId ?: resolvedHome,
+            mode = if (preserveLive) current.mode else if (state?.activeRoute != null) RouteMode.ACTIVE else RouteMode.SUGGESTING,
             route = state?.activeRoute,
-            guideMode = state?.walkMode == "guide",
+            guideMode = if (preserveLive) current.guideMode else (state?.walkMode == "guide"),
             nickname = state?.nickname ?: "",
             // M3: Eine serverseitig aktive Route (Bootstrap/Favorit/Share) landet auf
             // der Zwischenseite — GPS-Folgen/Tracking erst beim Go (accept).
-            followEnabled = false,
-            trackEnabled = false,
+            // M5: beim Live-Refresh (Verorten) bleiben die Flags stehen.
+            followEnabled = if (preserveLive) current.followEnabled else false,
+            trackEnabled = if (preserveLive) current.trackEnabled else false,
             totalPoints = game.totalPoints,
             weeklyPoints = game.weeklyPoints,
             streakMultiplier = game.streakMultiplier,
@@ -533,6 +564,13 @@ class RouteViewModel(
             maybeCheckinFreeRoam(point)
         }
     }
+
+    /** M7: Free-Roam-Ansage verbrauchen (auf null setzen), sobald sie gesprochen wurde. */
+    fun consumeFreeRoamAnnounce() {
+        if (_uiState.value.freeRoamAnnounce != null) {
+            _uiState.value = _uiState.value.copy(freeRoamAnnounce = null)
+        }
+    }
     fun addRetagLocationSample(lat: Double, lng: Double, accuracyM: Float?) {
         retagLocationBuffer.addSample(lat, lng, accuracyM)
     }
@@ -576,6 +614,16 @@ class RouteViewModel(
                 freeRoamTrack.clear()
                 freeRoamTrack.add(loc)
                 freeRoamStartedAtMs = System.currentTimeMillis()
+                // M10: Token + Start in den persisted free-roam snapshot (Prozess-Tod).
+                routeWalkTrackStore.save(
+                    routeKey = FREE_ROAM_ROUTE_KEY,
+                    points = listOf(
+                        com.routy.app.logic.route.RouteWalkTrackPoint(lat = loc.lat, lng = loc.lng, accuracy = 35.0),
+                    ),
+                    goldenHits = emptySet(),
+                    freeRoamToken = body.token,
+                    freeRoamStartedAtMs = freeRoamStartedAtMs,
+                )
                 _uiState.value = _uiState.value.copy(
                     freeRoamActive = true,
                     freeRoamToken = body.token,
@@ -589,6 +637,7 @@ class RouteViewModel(
                     messageArgs = emptyList(),
                     // Frei gehen zeichnet denselben Foreground-Track auf wie Routerfolgen.
                     trackEnabled = true,
+                    trackedGeometry = listOf(GeoPoint(loc.lat, loc.lng)),
                 )
             } else {
                 _uiState.value = _uiState.value.copy(status = RouteStatus.IDLE, messageRes = R.string.common_error, messageArgs = emptyList())
@@ -603,6 +652,7 @@ class RouteViewModel(
             freeRoamStartNodeId = null,
             freeRoamReachedCount = 0,
             freeRoamAnnounce = null,
+            freeRoamReachedNodes = emptyList(),
             trackEnabled = false,
         )
         freeRoamLastCheckinLat = null
@@ -621,10 +671,11 @@ class RouteViewModel(
             // M5-2: freeRoamActive bleibt AN, bis der Server 2xx antwortet — ein
             // Fehlschlag lässt Session + Track liegen, damit Finish wiederholt wird.
             _uiState.value = _uiState.value.copy(status = RouteStatus.LOADING)
+            val nowIso = java.time.Instant.ofEpochMilli(System.currentTimeMillis()).toString()
             val track = freeRoamTrack.takeIf { it.size >= 2 }
-                ?.map { com.routy.app.logic.route.RouteWalkTrackPoint(lat = it.lat, lng = it.lng, accuracy = 35.0) }
+                ?.map { com.routy.app.logic.route.RouteWalkTrackPoint(lat = it.lat, lng = it.lng, time = nowIso, accuracy = 35.0) }
                 ?: _uiState.value.trackedGeometry.map {
-                    com.routy.app.logic.route.RouteWalkTrackPoint(lat = it.lat, lng = it.lng, accuracy = 35.0)
+                    com.routy.app.logic.route.RouteWalkTrackPoint(lat = it.lat, lng = it.lng, time = nowIso, accuracy = 35.0)
                 }
             val lengthM = trackDistanceM(track)
             // M5-A2: unter 2 Punkten oder unter 50 m lokal abbrechen, bevor gepostet
@@ -668,6 +719,7 @@ class RouteViewModel(
                     freeRoamStartNodeId = null,
                     freeRoamReachedCount = 0,
                     freeRoamAnnounce = null,
+                    freeRoamReachedNodes = emptyList(),
                     trackedGeometry = emptyList(),
                     status = RouteStatus.IDLE,
                     messageRes = R.string.free_roam_finished,
@@ -681,7 +733,12 @@ class RouteViewModel(
                 val retry = res.headers()["Retry-After"]?.toIntOrNull()
                 _uiState.value = _uiState.value.copy(
                     status = RouteStatus.IDLE,
-                    messageRes = if (code == "rate_limited") R.string.free_roam_rate_limited else R.string.common_error,
+                    messageRes = when (code) {
+                        "rate_limited" -> R.string.free_roam_rate_limited
+                        "track_too_short" -> R.string.free_roam_too_short
+                        "hop_too_far" -> R.string.free_roam_hop_too_far
+                        else -> R.string.common_error
+                    },
                     messageArgs = if (code == "rate_limited") listOf(retry ?: 30) else emptyList(),
                 )
             }
@@ -690,17 +747,22 @@ class RouteViewModel(
 
     private fun maybeCheckinFreeRoam(point: GeoPoint) {
         val token = _uiState.value.freeRoamToken
-        if (token.isEmpty() || freeRoamCheckinInFlight) return
-        // Grow the free-roam track on every meaningful movement (>=~5 m from the
-        // last recorded fix), independent of the checkin throttle — so finish
-        // always has a real walked polyline even when tracking stayed off.
+        if (token.isEmpty()) return
+        // M6/F13: Der Track wächst IMMER zuerst — auch während ein Check-in läuft
+        // (die Sperre ist eine API-Sperre, keine Track-Sperre). Fixes im Flug gehen
+        // so nie verloren, und finish hat immer die echte Polyline.
         val lastTrack = freeRoamTrack.lastOrNull()
         if (lastTrack != null) {
             val moved = haversineMeters(LatLng(point.lat, point.lng), LatLng(lastTrack.lat, lastTrack.lng))
-            if (moved >= 5.0) freeRoamTrack.add(point)
+            if (moved >= 5.0) {
+                freeRoamTrack.add(point)
+                persistFreeRoamSnapshot()
+            }
         } else {
             freeRoamTrack.add(point)
+            persistFreeRoamSnapshot()
         }
+        if (freeRoamCheckinInFlight) return
         val lastLat = freeRoamLastCheckinLat
         val lastLng = freeRoamLastCheckinLng
         if (lastLat != null && lastLng != null) {
@@ -725,25 +787,30 @@ class RouteViewModel(
                     // (body.token is a cross-module public property, so Kotlin
                     // can't smart-cast it — capture into a local first.)
                     val freshToken = body.token
-                    // M5-3: Verwirf die Antwort, wenn inzwischen eine andere
-                    // Session begonnen wurde (stop + neuer Start dazwischen) —
-                    // der Request lief mit dem alten Token, sein frischer Token darf
-                    // die neue Session nicht überschreiben.
-                    if (token == _uiState.value.freeRoamToken && !freshToken.isNullOrEmpty()) {
-                        _uiState.value = _uiState.value.copy(freeRoamToken = freshToken)
-                    }
-                    if (token == _uiState.value.freeRoamToken) {
+                    // M6/F01: Session-Gleichheit VOR dem Schreiben merken — ein
+                    // einziges copy setzt Token, Zähler und Ansage zusammen. Das
+                    // verhindert die verlorene Start-Ansage (die zweite Prüfung
+                    // gegen den schon überschriebenen State fällt weg).
+                    val stillThisSession = token == _uiState.value.freeRoamToken && !freshToken.isNullOrEmpty()
+                    if (stillThisSession) {
+                        var announce = _uiState.value.freeRoamAnnounce
                         if (body.shouldAnnounce && body.newlyReached.isNotEmpty()) {
-                            _uiState.value = _uiState.value.copy(
-                                freeRoamReachedCount = body.visitedCount,
-                                // 0.57: komplette lokalisierte Ansage kommt jetzt vom Server
-                                // („Angekommen bei X, mögliche Wege zu… Richtung…“) — einmal,
-                                // nicht doppelt, mit Richtungen. Fallback bleibt die Web-Gleichlaut.
-                                freeRoamAnnounce = body.announcement ?: announceNeighbours(body.newlyReached),
-                            )
-                        } else {
-                            _uiState.value = _uiState.value.copy(freeRoamReachedCount = body.visitedCount)
+                            announce = body.announcement ?: fallbackLines(body.newlyReached, viaWordForLocale(AccountLocale.currentTag()))
                         }
+                        // M27: Nachbar-Chips (Name, Via, Richtung) wie im Web — plus visitedCount.
+                        val merged = mergeReachedNodes(_uiState.value.freeRoamReachedNodes, body.newlyReached)
+                        _uiState.value = _uiState.value.copy(
+                            freeRoamToken = freshToken,
+                            freeRoamReachedCount = body.visitedCount,
+                            freeRoamAnnounce = announce,
+                            freeRoamReachedNodes = merged,
+                        )
+                        routeWalkTrackStore.saveFreeRoamToken(freshToken)
+                    } else if (token == _uiState.value.freeRoamToken) {
+                        _uiState.value = _uiState.value.copy(
+                            freeRoamReachedCount = body.visitedCount,
+                            freeRoamReachedNodes = mergeReachedNodes(_uiState.value.freeRoamReachedNodes, body.newlyReached),
+                        )
                     }
                 }
             } catch (_: IOException) {
@@ -754,6 +821,17 @@ class RouteViewModel(
                 freeRoamCheckinInFlight = false
             }
         }
+    }
+
+    private fun persistFreeRoamSnapshot() {
+        if (!_uiState.value.freeRoamActive) return
+        routeWalkTrackStore.save(
+            routeKey = FREE_ROAM_ROUTE_KEY,
+            points = freeRoamTrack.map { com.routy.app.logic.route.RouteWalkTrackPoint(lat = it.lat, lng = it.lng, accuracy = 35.0) },
+            goldenHits = emptySet(),
+            freeRoamToken = _uiState.value.freeRoamToken,
+            freeRoamStartedAtMs = freeRoamStartedAtMs,
+        )
     }
 
     private fun announceText(names: List<String?>): String {
@@ -773,6 +851,15 @@ class RouteViewModel(
             val via = nb.viaSegmentName?.takeIf { s -> s.isNotBlank() }
             if (via != null) "$name über $via" else name
         }.joinToString(", ")
+
+    /** M27: erreichte Knoten zusammenführen (dedup nach nodeId), wie Web setReached. */
+    private fun mergeReachedNodes(
+        existing: List<FreeRoamReachedNode>,
+        newly: List<FreeRoamReachedNode>,
+    ): List<FreeRoamReachedNode> {
+        val others = existing.filter { old -> newly.none { it.nodeId == old.nodeId } }
+        return others + newly
+    }
 
     private fun trackDistanceM(points: List<com.routy.app.logic.route.RouteWalkTrackPoint>): Int {
         var d = 0.0
@@ -853,7 +940,10 @@ class RouteViewModel(
             locationBearing = locationBearing ?: state.locationBearing,
             locationSpeed = locationSpeed ?: state.locationSpeed,
             trackedGeometry = trackedGeometry,
-            followEnabled = state.followEnabled || myLocation != null,
+            // M14: Folgen wird NICHT mehr bei jedem Fix erzwungen — es bleibt an,
+            // bis eine Nutzergeste es abschaltet (RoutyMapView.onFollowChanged).
+            // Die Karte springt damit nicht mehr nach jeder Bewegung zurück.
+            followEnabled = state.followEnabled,
         )
     }
     fun setKeepScreenOn(enabled: Boolean) { _uiState.value = _uiState.value.copy(keepScreenOn = enabled) }
@@ -998,6 +1088,13 @@ class RouteViewModel(
                     )
                 },
             )
+            // M15: Stationen im laufenden Foreground-Service aktualisieren, damit die
+            // 30-m-Erkennung den verschobenen Punkt nutzt (nur von einer Vollersetzung
+            // des State weg — GPS-Fixes dazwischen bleiben erhalten).
+            if (state.retagOfferMove && moveLat != null && moveLng != null && state.route != null) {
+                val liveStations = updatedRoute?.stations.orEmpty()
+                RouteTrackingForegroundService.updateStations(routeKey(state.route), liveStations)
+            }
             _uiState.value = state.copy(
                 nodes = updatedNodes,
                 route = updatedRoute,
@@ -1347,25 +1444,36 @@ class RouteViewModel(
             val state = _uiState.value
             val token = state.token
             val guide = state.guideMode
-            // M3: Go ohne Token (Favorit/Share/Bootstrap) startet NUR das Tracking —
-            // der Server besitzt die Route schon; ein leerer Token bei /accept
-            // würde 400 „Sitzung abgelaufen“ werfen.
+            // M4: Go ohne Token (Favorit/Share/Bootstrap) — der Server besitzt die
+            // Route schon. Mit gespeichertem Fortschritt (routeProgressStore oder
+            // Track-Geometrie) wird die Tour FORTGESETZT statt gelöscht (F07).
             if (token.isBlank() && state.route != null) {
-                routeProgressStore.clear()
-                routeWalkTrackStore.clear()
+                val key = routeKey(state.route)
+                val hasSavedProgress = routeProgressStore.load(key) != null ||
+                    routeWalkTrackStore.load(key) != null ||
+                    state.trackedGeometry.isNotEmpty()
+                val resume = acceptResumeDecision(hasSavedProgress)
+                if (resume.clearStores) {
+                    routeProgressStore.clear()
+                    routeWalkTrackStore.clear()
+                }
+                val completedIndex = if (resume.keepIndex) state.completedWaypointIndex else -1
+                val announcedIndex = if (resume.keepIndex) state.voiceAnnouncedIndex else 0
+                val started = state.walkStartedAtMs ?: System.currentTimeMillis()
                 prefetchMapTiles(state.route)
                 _uiState.value = state.copy(
                     mode = RouteMode.ACTIVE,
                     status = RouteStatus.IDLE,
                     messageRes = null,
                     nickname = state.nickname,
-                    completedWaypointIndex = -1,
-                    voiceAnnouncedIndex = 0,
+                    completedWaypointIndex = completedIndex,
+                    voiceAnnouncedIndex = announcedIndex,
                     followEnabled = true,
                     trackEnabled = true,
                     voiceEnabled = state.voiceEnabled,
                     token = "",
-                    walkStartedAtMs = System.currentTimeMillis(),
+                    walkStartedAtMs = started,
+                    trackedGeometry = if (resume.keepIndex) state.trackedGeometry else emptyList(),
                 )
                 return@launch
             }
@@ -1499,6 +1607,9 @@ class RouteViewModel(
             }
             if (response.isSuccessful) {
                 val offPath = response.body()?.offPathWarning == true
+                // M5/F17: Live-Flags (trackEnabled/followEnabled/mode/Index/Geometrie)
+                // beim Verorten NICHT zurücksetzen — nur Knoten/Segmente ersetzen.
+                val preserveLive = _uiState.value.trackEnabled || _uiState.value.freeRoamActive
                 when (val result = bootstrapLoader.load()) {
                     is BootstrapResult.Fresh -> applyNetworkState(
                         result.body.nodes,
@@ -1508,6 +1619,7 @@ class RouteViewModel(
                         result.body.todayGoldenSegmentIds,
                         offlineCached = false,
                         homeNodeId = result.body.user.homeNodeId,
+                        preserveLive = preserveLive,
                     )
                     is BootstrapResult.NotModified, is BootstrapResult.CachedOnly -> {
                         val cached = when (result) {
@@ -1524,6 +1636,7 @@ class RouteViewModel(
                                 cached.todayGoldenSegmentIds,
                                 offlineCached = true,
                                 homeNodeId = cached.user.homeNodeId,
+                                preserveLive = preserveLive,
                             )
                         }
                     }
@@ -1588,7 +1701,9 @@ class RouteViewModel(
                     CompleteRouteRequest(trackPoints = trackPoints, durationMin = durationMin),
                 )
             } catch (_: IOException) {
-                _uiState.value = stateBefore.copy(
+                // M15: NUR Status + Meldung auf den AKTUELLEN State legen — GPS-Fixes
+                // dazwischen (Station, Position, Track) gehen nicht mehr verloren.
+                _uiState.value = _uiState.value.copy(
                     status = RouteStatus.IDLE,
                     messageRes = R.string.common_error,
                     messageArgs = emptyList(),

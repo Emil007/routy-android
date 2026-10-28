@@ -2,6 +2,7 @@ package com.routy.app.logic.graph
 
 import com.routy.app.logic.api.SegmentDto
 import com.routy.app.logic.api.isCanonical
+import com.routy.app.logic.api.isLocked
 
 /** Undirected reachability from [homeNodeId] on the active segment graph. */
 fun reachableNodeIds(segments: List<SegmentDto>, homeNodeId: Int?): Set<Int> {
@@ -9,7 +10,10 @@ fun reachableNodeIds(segments: List<SegmentDto>, homeNodeId: Int?): Set<Int> {
     if (homeNodeId == null) return reachable
     val undirected = mutableMapOf<Int, MutableList<Int>>()
     for (seg in segments) {
-        if (!seg.isCanonical() || seg.deletedAt != null) continue
+        // M39 (F51): gesperrte Kanten (lockedUntil in der Zukunft) zählen NICHT als
+        // Verbindung — Parität mit filterRoutableEdges (Web): dieselbe Kante ist auf
+        // beiden Karten getrennt, solange die Sperre besteht.
+        if (!seg.isCanonical() || seg.deletedAt != null || seg.isLocked()) continue
         undirected.getOrPut(seg.startNodeId) { mutableListOf() }.add(seg.endNodeId)
         undirected.getOrPut(seg.endNodeId) { mutableListOf() }.add(seg.startNodeId)
     }

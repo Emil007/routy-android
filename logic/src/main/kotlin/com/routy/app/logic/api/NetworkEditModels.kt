@@ -54,6 +54,14 @@ data class SegmentIdRequest(val segmentId: Int)
 @Serializable
 data class SegmentLockRequest(val segmentId: Int, val days: Int? = 7, val reason: String? = null)
 
+/** M51: POST /api/segments/one-way { segmentId, oneWay } — Einbahn-Schalter wie im Web. */
+@Serializable
+data class SegmentOneWayRequest(val segmentId: Int, val oneWay: Boolean)
+
+/** M51: Antwort mit dem aktualisierten Segment. */
+@Serializable
+data class SegmentOneWayResponse(val ok: Boolean = true, val segment: SegmentDto? = null)
+
 @Serializable
 data class SegmentGeometryRequest(val segmentId: Int, val points: List<GpxPoint>)
 

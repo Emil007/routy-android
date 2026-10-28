@@ -92,10 +92,10 @@ fun onHardwareBack(
 
     // 1. web sheet with browser history -> go back in the web view
     if (stage is SheetStage.Web && webCanGoBack) return BackResult.WebHistory
-    // 2. web sheet -> profile
-    if (stage is SheetStage.Web) return BackResult.Apply(SheetStage.Profile)
-    // 3. stats/settings -> profile
-    if (stage is SheetStage.Stats || stage is SheetStage.Settings) return BackResult.Apply(SheetStage.Profile)
+    // 2. web sheet -> profile, keeping the mode (M12 — never fall back to EXPLORE)
+    if (stage is SheetStage.Web) return BackResult.Apply(SheetStage.Profile, state.mode)
+    // 3. stats/settings -> profile, keeping the mode (M12)
+    if (stage is SheetStage.Stats || stage is SheetStage.Settings) return BackResult.Apply(SheetStage.Profile, state.mode)
     // 4. profile -> peek of the current mode
     if (stage is SheetStage.Profile) return BackResult.Apply(SheetStage.Peek, state.mode)
     // 5. map edit mode -> back to View, stay in Explore
