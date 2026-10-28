@@ -490,4 +490,11 @@
     <string name="shell_collapse">Collapse</string>
     <string name="shell_stop_live_title">Stop the live session?</string>
     <string name="shell_stop_live_body">This ends the current outing.</string>
+    <string name="route_node_menu_clear_all">Reset planning</string>
+    <string name="route_node_second_destination_title">Change destination?</string>
+    <string name="route_node_second_destination_body">A destination is already set. Change the destination to this node (for this calculation only)?</string>
+    <string name="route_node_second_destination_confirm">Change</string>
+    <string name="route_node_second_destination_cancel">Cancel</string>
+    <string name="route_node_destination_marker">Destination</string>
+    <string name="route_node_must_visit_marker">Must visit</string>
 </resources>
