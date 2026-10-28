@@ -172,6 +172,8 @@
     <string name="free_roam_reached">Knoten erreicht</string>
     <string name="free_roam_reachable">Von hier erreichbar</string>
     <string name="free_roam_no_position">Kein Standort verfügbar — Berechtigung prüfen.</string>
+    <string name="free_roam_too_short">Zu wenig gelaufen — mindestens 50 m aufzeichnen.</string>
+    <string name="free_roam_rate_limited">Zu schnell — versuch es in %1$d Sekunden erneut.</string>
     <string name="free_roam_finished">Free Roam gespeichert — halbe Punkte gutgeschrieben.</string>
     <string name="free_roam_points_hint">Halbe Punkte (0.5×)</string>
     <string name="route_reposition_pick">Knoten zum Verorten wählen</string>
@@ -476,6 +478,7 @@
     <string name="notification_recording_text">%1$d Punkte, %2$s km</string>
     <string name="notification_route_tracking_channel_name">Routen-Tracking</string>
     <string name="notification_route_tracking_title">Route wird getrackt</string>
+    <string name="notification_route_free_roam_title">Freies Gehen läuft</string>
     <string name="notification_route_tracking_text">Station %1$d / %2$d</string>
     <string name="notification_route_tracking_text_next">%1$d / %2$d → %3$s</string>
     <string name="notification_route_next_stop">Nächste Station: %1$s</string>

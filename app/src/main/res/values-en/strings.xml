@@ -172,6 +172,8 @@
     <string name="free_roam_reached">Node reached</string>
     <string name="free_roam_reachable">Reachable from here</string>
     <string name="free_roam_no_position">No position available — check permission.</string>
+    <string name="free_roam_too_short">Not enough walked — record at least 50 m.</string>
+    <string name="free_roam_rate_limited">Too fast — try again in %1$d seconds.</string>
     <string name="free_roam_finished">Free roam saved — half points credited.</string>
     <string name="free_roam_points_hint">Half points (0.5×)</string>
     <string name="route_reposition_pick">Choose node to reposition</string>
@@ -469,6 +471,7 @@
     <string name="notification_recording_text">%1$d points, %2$s km</string>
     <string name="notification_route_tracking_channel_name">Route tracking</string>
     <string name="notification_route_tracking_title">Tracking your route</string>
+    <string name="notification_route_free_roam_title">Free roam running</string>
     <string name="notification_route_tracking_text">Waypoint %1$d / %2$d</string>
     <string name="notification_route_tracking_text_next">%1$d / %2$d → %3$s</string>
     <string name="notification_route_next_stop">Next stop: %1$s</string>

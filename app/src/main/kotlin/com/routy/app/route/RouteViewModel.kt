@@ -18,6 +18,7 @@ import com.routy.app.logic.api.FreeRoamStartRequest
 import com.routy.app.logic.api.FreeRoamCheckinRequest
 import com.routy.app.logic.api.FreeRoamCompleteRequest
 import com.routy.app.logic.api.FreeRoamReachedNode
+import com.routy.app.logic.api.FreeRoamNeighbour
 import com.routy.app.map.MapTilePrefetchScheduler
 import com.routy.app.logic.api.AchievementsDto
 import com.routy.app.logic.api.CompleteRouteRequest
@@ -99,6 +100,9 @@ data class RouteUiState(
     val followEnabled: Boolean = false,
     val voiceEnabled: Boolean = false,
     val trackEnabled: Boolean = false,
+    /** M4: epoch-ms, gesetzt beim Go (Tracking-Start) — Grundlage für durationMin
+     *  bei Complete statt der geplanten Plan-Dauer. */
+    val walkStartedAtMs: Long? = null,
     val trackedGeometry: List<GeoPoint> = emptyList(),
     val compassMode: MapCompassMode = MapCompassMode.NORTH_FREE,
     val keepScreenOn: Boolean = true,
@@ -577,7 +581,8 @@ class RouteViewModel(
                     freeRoamToken = body.token,
                     freeRoamStartNodeId = body.startNodeId,
                     freeRoamReachedCount = if (body.startReachable.isNotEmpty()) 1 else 0,
-                    freeRoamAnnounce = if (body.startReachable.isNotEmpty()) announceText(body.startReachable.map { it.name }) else null,
+                    // Q7: Start-Ansage = dieselbe Nachbarzeile wie Web (Name + "über {via}").
+                    freeRoamAnnounce = if (body.startReachable.isNotEmpty()) announceNeighbourLine(body.startReachable) else null,
                     status = RouteStatus.IDLE,
                     messageRes = null,
                     messageArgs = emptyList(),
@@ -612,13 +617,25 @@ class RouteViewModel(
             return
         }
         viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(status = RouteStatus.LOADING, freeRoamActive = false)
+            // M5-2: freeRoamActive bleibt AN, bis der Server 2xx antwortet — ein
+            // Fehlschlag lässt Session + Track liegen, damit Finish wiederholt wird.
+            _uiState.value = _uiState.value.copy(status = RouteStatus.LOADING)
             val track = freeRoamTrack.takeIf { it.size >= 2 }
                 ?.map { com.routy.app.logic.route.RouteWalkTrackPoint(lat = it.lat, lng = it.lng, accuracy = 35.0) }
                 ?: _uiState.value.trackedGeometry.map {
                     com.routy.app.logic.route.RouteWalkTrackPoint(lat = it.lat, lng = it.lng, accuracy = 35.0)
                 }
             val lengthM = trackDistanceM(track)
+            // M5-A2: unter 2 Punkten oder unter 50 m lokal abbrechen, bevor gepostet
+            // wird (Server-Gegenstück FREE_ROAM_MIN_TRACK_M=50 / schon im Web).
+            if (track.size < 2 || lengthM < 50) {
+                _uiState.value = _uiState.value.copy(
+                    status = RouteStatus.IDLE,
+                    messageRes = R.string.free_roam_too_short,
+                    messageArgs = emptyList(),
+                )
+                return@launch
+            }
             val durationMin = freeRoamStartedAtMs?.let { ((System.currentTimeMillis() - it) / 60000L).toInt() } ?: 1
             val res = try {
                 apiClientProvider.service.completeFreeRoam(
@@ -631,14 +648,18 @@ class RouteViewModel(
                     ),
                 )
             } catch (_: IOException) {
-                _uiState.value = _uiState.value.copy(status = RouteStatus.IDLE, messageRes = R.string.common_error, messageArgs = emptyList())
+                _uiState.value = _uiState.value.copy(
+                    status = RouteStatus.IDLE,
+                    messageRes = R.string.common_error,
+                    messageArgs = emptyList(),
+                )
                 return@launch
             }
-            freeRoamLastCheckinLat = null
-            freeRoamLastCheckinLng = null
-            freeRoamTrack.clear()
-            freeRoamStartedAtMs = null
             if (res.isSuccessful) {
+                freeRoamLastCheckinLat = null
+                freeRoamLastCheckinLng = null
+                freeRoamTrack.clear()
+                freeRoamStartedAtMs = null
                 StatsInvalidation.bump()
                 _uiState.value = _uiState.value.copy(
                     freeRoamActive = false,
@@ -653,7 +674,15 @@ class RouteViewModel(
                     trackEnabled = false,
                 )
             } else {
-                _uiState.value = _uiState.value.copy(status = RouteStatus.IDLE, messageRes = R.string.common_error, messageArgs = emptyList())
+                // M5-2/4xx/5xx/410/429: Session + Track bleiben; 429 zeigt die
+                // Wartezeit statt „Allgemeiner Fehler“.
+                val code = parseErrorCode(res.errorBody()?.string())
+                val retry = res.headers()["Retry-After"]?.toIntOrNull()
+                _uiState.value = _uiState.value.copy(
+                    status = RouteStatus.IDLE,
+                    messageRes = if (code == "rate_limited") R.string.free_roam_rate_limited else R.string.common_error,
+                    messageArgs = if (code == "rate_limited") listOf(retry ?: 30) else emptyList(),
+                )
             }
         }
     }
@@ -675,37 +704,55 @@ class RouteViewModel(
         val lastLng = freeRoamLastCheckinLng
         if (lastLat != null && lastLng != null) {
             val d = haversineMeters(LatLng(point.lat, point.lng), LatLng(lastLat, lastLng))
-            if (d < 30) return // not moved a meaningful distance yet
+            // Q6 (entschieden): 10 m auf beiden Clients — 30 m können einen Knoten-
+            // Eintritt verpassen, wenn man stehen bleibt.
+            if (d < 10) return // not moved a meaningful distance yet
         }
-        freeRoamLastCheckinLat = point.lat
-        freeRoamLastCheckinLng = point.lng
         freeRoamCheckinInFlight = true
         viewModelScope.launch {
             try {
                 val res = apiClientProvider.service.checkinFreeRoam(FreeRoamCheckinRequest(lat = point.lat, lng = point.lng, token = token))
                 if (res.isSuccessful && res.body() != null) {
                     val body = res.body()!!
+                    // M5-3: Nur nach 2xx den Cursor vorschieben (sonst wird der
+                    // Fehlschlag erst nach der nächsten Bewegung erneut versucht —
+                    // und das alte Token nicht „verbraucht“).
+                    freeRoamLastCheckinLat = point.lat
+                    freeRoamLastCheckinLng = point.lng
                     // Stateless token rotation (decision K): the server re-signs
                     // on every checkin — keep the fresh token for later calls.
                     // (body.token is a cross-module public property, so Kotlin
                     // can't smart-cast it — capture into a local first.)
                     val freshToken = body.token
-                    if (!freshToken.isNullOrEmpty()) {
+                    // M5-3: Verwirf die Antwort, wenn inzwischen eine andere
+                    // Session begonnen wurde (stop + neuer Start dazwischen) —
+                    // der Request lief mit dem alten Token, sein frischer Token darf
+                    // die neue Session nicht überschreiben.
+                    if (token == _uiState.value.freeRoamToken && !freshToken.isNullOrEmpty()) {
                         _uiState.value = _uiState.value.copy(freeRoamToken = freshToken)
                     }
-                    if (body.shouldAnnounce && body.newlyReached.isNotEmpty()) {
-                        _uiState.value = _uiState.value.copy(
-                            freeRoamReachedCount = body.visitedCount,
-                            freeRoamAnnounce = announceText(body.newlyReached.map { it.name }),
-                        )
-                    } else {
-                        _uiState.value = _uiState.value.copy(freeRoamReachedCount = body.visitedCount)
+                    if (token == _uiState.value.freeRoamToken) {
+                        if (body.shouldAnnounce && body.newlyReached.isNotEmpty()) {
+                            _uiState.value = _uiState.value.copy(
+                                freeRoamReachedCount = body.visitedCount,
+                                // Q7 (entschieden): die neue Nachbarzeile wird bei
+                                // shouldAnnounce gesprochen — VoiceGuidance liest
+                                // freeRoamAnnounce, sobald es gesetzt ist. Web-Gleichlaut:
+                                // Name + "über {via}" für jeden erreichbaren Nachbarn.
+                                freeRoamAnnounce = announceNeighbours(body.newlyReached),
+                            )
+                        } else {
+                            _uiState.value = _uiState.value.copy(freeRoamReachedCount = body.visitedCount)
+                        }
                     }
                 }
             } catch (_: IOException) {
                 // transient — next location fix retries
+            } finally {
+                // M5-3: inFlight IMMER löschen (auch bei nicht-IOException-Exceptions,
+                // die vorher Check-ins für die Session sterben ließen).
+                freeRoamCheckinInFlight = false
             }
-            freeRoamCheckinInFlight = false
         }
     }
 
@@ -714,6 +761,18 @@ class RouteViewModel(
         val joined = nodes.joinToString(", ")
         return if (joined.isEmpty()) "" else joined
     }
+
+    // Q7 (entschieden): Dieselbe Nachbarzeile wie Web — "Name über Via" statt nur
+    // "Name" — damit die Ansage dasselbe sagt, was der Nutzer auf dem Sheet sieht.
+    private fun announceNeighbours(nodes: List<FreeRoamReachedNode>): String =
+        announceNeighbourLine(nodes.flatMap { it.reachable })
+
+    private fun announceNeighbourLine(nodes: List<FreeRoamNeighbour>): String =
+        nodes.map { nb ->
+            val name = nb.name?.takeIf { s -> s.isNotBlank() } ?: "#${nb.nodeId}"
+            val via = nb.viaSegmentName?.takeIf { s -> s.isNotBlank() }
+            if (via != null) "$name über $via" else name
+        }.joinToString(", ")
 
     private fun trackDistanceM(points: List<com.routy.app.logic.route.RouteWalkTrackPoint>): Int {
         var d = 0.0
@@ -1306,6 +1365,7 @@ class RouteViewModel(
                     trackEnabled = true,
                     voiceEnabled = state.voiceEnabled,
                     token = "",
+                    walkStartedAtMs = System.currentTimeMillis(),
                 )
                 return@launch
             }
@@ -1324,7 +1384,7 @@ class RouteViewModel(
                 routeProgressStore.clear()
                 routeWalkTrackStore.clear()
                 prefetchMapTiles(_uiState.value.route)
-                _uiState.value = _uiState.value.copy(mode = RouteMode.ACTIVE, status = RouteStatus.IDLE, messageRes = null, nickname = "", completedWaypointIndex = -1, voiceAnnouncedIndex = 0, followEnabled = true, trackEnabled = true, token = "")
+                _uiState.value = _uiState.value.copy(mode = RouteMode.ACTIVE, status = RouteStatus.IDLE, messageRes = null, nickname = "", completedWaypointIndex = -1, voiceAnnouncedIndex = 0, followEnabled = true, trackEnabled = true, token = "", walkStartedAtMs = System.currentTimeMillis())
                 return@launch
             }
             if (response.code() == 409) {
@@ -1344,7 +1404,7 @@ class RouteViewModel(
                     routeProgressStore.clear()
                     routeWalkTrackStore.clear()
                     prefetchMapTiles(_uiState.value.route)
-                    _uiState.value = _uiState.value.copy(mode = RouteMode.ACTIVE, status = RouteStatus.IDLE, messageRes = null, nickname = "", completedWaypointIndex = -1, voiceAnnouncedIndex = 0, followEnabled = true, trackEnabled = true, token = "")
+                    _uiState.value = _uiState.value.copy(mode = RouteMode.ACTIVE, status = RouteStatus.IDLE, messageRes = null, nickname = "", completedWaypointIndex = -1, voiceAnnouncedIndex = 0, followEnabled = true, trackEnabled = true, token = "", walkStartedAtMs = System.currentTimeMillis())
                 } else {
                     _uiState.value = _uiState.value.copy(status = RouteStatus.IDLE, messageRes = R.string.common_error)
                 }
@@ -1367,6 +1427,7 @@ class RouteViewModel(
                         followEnabled = true,
                         trackEnabled = true,
                         token = "",
+                        walkStartedAtMs = System.currentTimeMillis(),
                     )
                 } else {
                     _uiState.value = _uiState.value.copy(status = RouteStatus.IDLE, messageRes = R.string.route_session_expired)
@@ -1495,7 +1556,7 @@ class RouteViewModel(
         if (_uiState.value.route == null) return
         viewModelScope.launch {
             try { apiClientProvider.service.cancelRoute(RouteTokenRequest(token)) } catch (_: IOException) {}
-            _uiState.value = _uiState.value.copy(route = null, token = "", status = RouteStatus.IDLE, messageRes = null, pointPreview = null, goldenHitIds = emptySet(), guideMode = false, pointsMultiplier = null)
+            _uiState.value = _uiState.value.copy(route = null, token = "", status = RouteStatus.IDLE, messageRes = null, pointPreview = null, goldenHitIds = emptySet(), guideMode = false, pointsMultiplier = null, walkStartedAtMs = null)
         }
     }
 
@@ -1503,9 +1564,11 @@ class RouteViewModel(
         viewModelScope.launch {
             val stateBefore = _uiState.value
             val completedRoute = stateBefore.route
-            val prevTrack = stateBefore.trackEnabled
-            val prevVoice = stateBefore.voiceEnabled
-            _uiState.value = stateBefore.copy(status = RouteStatus.LOADING, trackEnabled = false, voiceEnabled = false)
+            // M4-A2: NICHT trackEnabled/voiceEnabled abschalten — der Service muss
+            // weiterlaufen, bis complete() 2xx antwortet (sonst killt needsService
+            // den Foreground-Service mitten im Request; Fehler ließen GPS+Track
+            // liegen statt sie für den Retry laufen zu lassen).
+            _uiState.value = stateBefore.copy(status = RouteStatus.LOADING)
             val beforeAchievements = runCatching {
                 apiClientProvider.service.appStatsMe()
                     .takeIf { it.isSuccessful }
@@ -1514,13 +1577,19 @@ class RouteViewModel(
             }.getOrNull()
             val route = _uiState.value.route
             val trackPoints = route?.let { trackPointsForComplete(it) }.orEmpty()
+            // M4: Ist-Dauer seit dem Go (Tracking-Start), sonst null → Server nutzt
+            // accepted_at-Elapsed.
+            val startedAt = _uiState.value.walkStartedAtMs
+            val durationMin = startedAt?.let {
+                kotlin.math.max(1, ((System.currentTimeMillis() - it) / 60_000L).toInt())
+            }
             val response = try {
-                apiClientProvider.service.completeRoute(CompleteRouteRequest(trackPoints = trackPoints))
+                apiClientProvider.service.completeRoute(
+                    CompleteRouteRequest(trackPoints = trackPoints, durationMin = durationMin),
+                )
             } catch (_: IOException) {
                 _uiState.value = stateBefore.copy(
                     status = RouteStatus.IDLE,
-                    trackEnabled = prevTrack,
-                    voiceEnabled = prevVoice,
                     messageRes = R.string.common_error,
                     messageArgs = emptyList(),
                 )
@@ -1548,6 +1617,7 @@ class RouteViewModel(
                     voiceEnabled = false,
                     myLocation = null,
                     trackedGeometry = emptyList(),
+                    walkStartedAtMs = null,
                     completedWaypointIndex = -1,
                     voiceAnnouncedIndex = 0,
                     pointPreview = null,
@@ -1574,12 +1644,15 @@ class RouteViewModel(
                     pointsMultiplier = null,
                 )
             } else {
+                // M4-A2/429: Service läuft weiter; Session + Track bleiben. 429 zeigt
+                // die Wartezeit (retryAfterSeconds) statt „Allgemeiner Fehler“.
+                val errorBody = response.errorBody()?.string()
+                val code = parseErrorCode(errorBody)
+                val retryAfter = parseRetryAfterSeconds(errorBody)
                 _uiState.value = stateBefore.copy(
                     status = RouteStatus.IDLE,
-                    trackEnabled = prevTrack,
-                    voiceEnabled = prevVoice,
-                    messageRes = R.string.common_error,
-                    messageArgs = emptyList(),
+                    messageRes = if (response.code() == 429 && code == "rate_limited") R.string.route_rate_limited else R.string.common_error,
+                    messageArgs = if (response.code() == 429 && code == "rate_limited") listOf(retryAfter ?: 30) else emptyList(),
                 )
             }
         }
@@ -1674,6 +1747,7 @@ class RouteViewModel(
                 goldenHitIds = emptySet(),
                 guideMode = false,
                 pointsMultiplier = null,
+                walkStartedAtMs = null,
             )
         }
     }
@@ -1742,6 +1816,7 @@ class RouteViewModel(
             messageRes = null,
             pointPreview = null,
             goldenHitIds = emptySet(),
+            walkStartedAtMs = null,
         )
     }
 

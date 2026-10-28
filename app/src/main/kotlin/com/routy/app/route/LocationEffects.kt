@@ -70,6 +70,120 @@ internal fun ActiveRouteLocationEffect(uiState: RouteUiState, locationActive: Bo
     }
 }
 
+/**
+ * M5-A1: Freies Gehen braucht eine Position, unabhängig vom RouteMode.
+ * - läuft die Session NICHT über den Foreground-Service (needsService=false),
+ *   speist dieser Watcher setMyLocation → Check-in + Track + Kartenpunkt.
+ * - beim Start-Szenario (roamTabIdle) hält er myLocation warm, damit der
+ *   Start-Button „Freies Gehen starten“ eine Basis hat (Web: getCurrentPosition).
+ * Beim laufenden Service (needsService=true) übernimmt der Service die Fixes.
+ */
+@Composable
+internal fun FreeRoamStartLocationEffect(
+    running: Boolean,
+    granted: Boolean,
+    needsService: Boolean,
+    viewModel: RouteViewModel,
+) {
+    val run = running && granted && !needsService
+    if (!run) return
+    val context = LocalContext.current
+    DisposableEffect(running, granted, needsService) {
+        val client = LocationServices.getFusedLocationProviderClient(context)
+        val request = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 5_000L)
+            .setMinUpdateIntervalMillis(2_000L)
+            .build()
+        val callback = object : LocationCallback() {
+            override fun onLocationResult(result: LocationResult) {
+                result.lastLocation?.let { loc ->
+                    viewModel.setMyLocation(
+                        GeoPoint(loc.latitude, loc.longitude),
+                        if (loc.hasAccuracy()) loc.accuracy else null,
+                    )
+                    viewModel.setLocationMotion(
+                        if (loc.hasBearing()) loc.bearing else null,
+                        if (loc.hasSpeed()) loc.speed else null,
+                    )
+                }
+            }
+        }
+        requestLocationUpdatesIfPermitted(context, client, request, callback)
+        onDispose { client.removeLocationUpdates(callback) }
+    }
+}
+
+/**
+ * M5-A1: Foreground-Service im Free-Roam-Modus (keine Stationen, keine Guidance).
+ * Startet/stoppt den Service mit freeRoamActive + trackEnabled und sammelt dessen
+ * State → setMyLocation/setTrackedGeometry (Check-in + Shell-Karte). Der Service
+ * hält GPS + Track am Leben, wenn die App im Hintergrund / in der Tasche steckt.
+ */
+@Composable
+internal fun FreeRoamTrackingServiceEffect(
+    uiState: RouteUiState,
+    granted: Boolean,
+    viewModel: RouteViewModel,
+    accountLocaleTag: String,
+) {
+    val context = LocalContext.current
+    var service by remember { mutableStateOf<RouteTrackingForegroundService?>(null) }
+    val needsService = RouteTrackingForegroundService.needsForegroundService(uiState.trackEnabled, uiState.voiceEnabled)
+    val run = uiState.freeRoamActive && granted && needsService
+
+    LaunchedEffect(run) {
+        if (!run) {
+            RouteTrackingForegroundService.stopAll(context)
+            service = null
+        }
+    }
+
+    DisposableEffect(run) {
+        if (!run) {
+            return@DisposableEffect onDispose {}
+        }
+        RouteTrackingForegroundService.startFreeRoam(
+            context = context,
+            accountLocaleTag = accountLocaleTag,
+            trackEnabled = uiState.trackEnabled,
+        )
+        val connection = object : ServiceConnection {
+            override fun onServiceConnected(name: ComponentName?, binder: IBinder?) {
+                service = (binder as RouteTrackingForegroundService.LocalBinder).getService()
+            }
+
+            override fun onServiceDisconnected(name: ComponentName?) {
+                service = null
+            }
+        }
+        context.bindService(
+            Intent(context, RouteTrackingForegroundService::class.java),
+            connection,
+            Context.BIND_AUTO_CREATE,
+        )
+        onDispose {
+            runCatching { context.unbindService(connection) }
+        }
+    }
+
+    LaunchedEffect(service) {
+        val bound = service ?: return@LaunchedEffect
+        bound.state.collect { serviceState ->
+            serviceState.myLocation?.let(viewModel::setMyLocation)
+            viewModel.setLocationMotion(serviceState.locationBearing, serviceState.locationSpeed)
+            viewModel.setTrackedGeometry(serviceState.trackedGeometry)
+        }
+    }
+
+    LaunchedEffect(service) {
+        val bound = service ?: return@LaunchedEffect
+        bound.stopTrackRequested.collect {
+            // M5-A1: Notification-„Stopp“ schaltet nur das Tracking/GPS ab — die
+            // Session bleibt roambar (freeRoamActive), der In-UI-Watcher übernimmt.
+            viewModel.setTrackEnabled(false)
+        }
+    }
+}
+
 @Composable
 internal fun ActiveRouteTrackingServiceEffect(
     uiState: RouteUiState,
@@ -155,8 +269,9 @@ internal fun ActiveRouteTrackingServiceEffect(
             )
             if (serviceState.autoCompleteRequested) {
                 bound.consumeAutoCompleteRequest()
-                RouteTrackingForegroundService.stopAll(context)
-                viewModel.setTrackEnabled(false)
+                // M4-A2: Service NICHT hier stoppen — complete() fährt fort, bis 2xx.
+                // Ein Fehler lässt GPS + Track weiterlaufen (neue Fixes setzen das
+                // Auto-Complete-Flag erneut); Erfolg löst über needsService→stopAll ab.
                 viewModel.complete()
             }
         }

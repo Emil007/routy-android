@@ -113,6 +113,16 @@ fun RouteScreen(onStartRecording: () -> Unit, accountLocaleTag: String, modifier
         viewModel.clearPendingShareUrl()
     }
 
+    // Q7 (entschieden): Free-Roam-Ansagen werden gesprochen — die sichtbare
+    // Nachbarzeile, sobald sich freeRoamAnnounce ändert.
+    val freeRoamVoice = rememberVoiceGuidanceController(accountLocaleTag)
+    LaunchedEffect(uiState.freeRoamAnnounce) {
+        val line = uiState.freeRoamAnnounce
+        if (line != null && line.isNotBlank() && uiState.freeRoamActive) {
+            freeRoamVoice.speak(line)
+        }
+    }
+
     DisposableEffect(uiState.keepScreenOn, uiState.trackEnabled) {
         if (uiState.keepScreenOn && uiState.trackEnabled) {
             activity?.window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
@@ -139,6 +149,7 @@ fun RouteScreen(onStartRecording: () -> Unit, accountLocaleTag: String, modifier
             SuggestingMapLayout(
                 uiState = uiState,
                 viewModel = viewModel,
+                accountLocaleTag = accountLocaleTag,
                 modifier = modifier,
                 chromeHosted = chromeHosted,
                 section = section,
@@ -156,6 +167,7 @@ fun RouteScreen(onStartRecording: () -> Unit, accountLocaleTag: String, modifier
             SuggestingMapLayout(
                 uiState = uiState,
                 viewModel = viewModel,
+                accountLocaleTag = accountLocaleTag,
                 modifier = modifier,
                 chromeHosted = chromeHosted,
                 section = section,
@@ -398,6 +410,7 @@ private fun RouteBottomDock(
 private fun SuggestingMapLayout(
     uiState: RouteUiState,
     viewModel: RouteViewModel,
+    accountLocaleTag: String,
     modifier: Modifier = Modifier,
     chromeHosted: Boolean = false,
     section: RouteSection = RouteSection.FULL,
@@ -411,6 +424,11 @@ private fun SuggestingMapLayout(
     }
     // Bestätigung bevor man freies Gehen abbricht (Nr. 4b / Emil: zu leicht abzubrechen).
     var pendingFreeRoamStop by remember { mutableStateOf(false) }
+    // M5-4: Hardware-Back während freies Gehen → erst die Bestätigung (Beenden
+    // wirft sonst den laufenden Track weg).
+    BackHandler(enabled = uiState.freeRoamActive) {
+        pendingFreeRoamStop = true
+    }
 
     val nodeBadges = remember(uiState.startNodeId, uiState.destinationNodeId, uiState.isLoop, uiState.mustVisitNodeIds) {
         buildPlanningNodeBadges(uiState)
@@ -422,6 +440,36 @@ private fun SuggestingMapLayout(
     val fitKey = remember(uiState.startNodeId, uiState.destinationNodeId, uiState.mustVisitNodeIds, uiState.requiredSegmentIds, uiState.excludedSegmentIds) {
         "plan-${uiState.startNodeId}-${uiState.destinationNodeId}-${uiState.mustVisitNodeIds.joinToString(",")}-${uiState.requiredSegmentIds.joinToString(",")}"
     }
+
+    // --- M5-A1: Free-Roam braucht Location, unabhängig vom RouteMode. ---
+    // Das Go-Sheet (Frei-Tab, nichts aktiv) samt Start-Button liegt hier, NICHT in
+    // RouteWithMapLayout — deshalb ist das GPS-Composing hier, nicht dort.
+    val context = LocalContext.current
+    var hasLocationPermission by remember {
+        mutableStateOf(
+            ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) ==
+                PackageManager.PERMISSION_GRANTED,
+        )
+    }
+    val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        hasLocationPermission = granted
+    }
+    // Frei-Tab sichtbar und nichts aktiv → In-UI-Watcher hält myLocation warm, damit
+    // der Start eine Basis hat (Web: getCurrentPosition beim Start).
+    val roamTabIdle = section == RouteSection.GO && !uiState.freeRoamActive
+    val freeRoamNeedsService = RouteTrackingForegroundService.needsForegroundService(uiState.trackEnabled, uiState.voiceEnabled)
+    FreeRoamStartLocationEffect(
+        running = uiState.freeRoamActive || roamTabIdle,
+        granted = hasLocationPermission,
+        needsService = freeRoamNeedsService,
+        viewModel = viewModel,
+    )
+    FreeRoamTrackingServiceEffect(
+        uiState = uiState,
+        granted = hasLocationPermission,
+        viewModel = viewModel,
+        accountLocaleTag = accountLocaleTag,
+    )
 
     Column(modifier = modifier.fillMaxSize()) {
         RouteMapChrome(
@@ -542,7 +590,16 @@ private fun SuggestingMapLayout(
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
-                    CompactButton(onClick = viewModel::startFreeRoam, enabled = canStart) {
+                    CompactButton(
+                        onClick = {
+                            if (!hasLocationPermission) {
+                                permissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+                            } else {
+                                viewModel.startFreeRoam()
+                            }
+                        },
+                        enabled = canStart,
+                    ) {
                         Text(stringResource(R.string.free_roam_start))
                     }
                 } else {
@@ -881,9 +938,16 @@ private fun RouteWithMapLayout(
     }
     var pendingDiscard by remember { mutableStateOf(false) }
     var pendingBackDiscard by remember { mutableStateOf(false) }
+    // M5-4: Frei-Stopp im Gehen-Sheet fragt erst (Beenden wirft sonst den Track weg).
+    var pendingFreeRoamStop by remember { mutableStateOf(false) }
 
-    BackHandler(enabled = uiState.mode == RouteMode.ACTIVE) {
-        pendingBackDiscard = true
+    BackHandler(enabled = uiState.mode == RouteMode.ACTIVE || uiState.freeRoamActive) {
+        if (uiState.freeRoamActive) {
+            // M5-4: Frei-Stopp fragt erst — Beenden wirft den Track weg.
+            pendingFreeRoamStop = true
+        } else {
+            pendingBackDiscard = true
+        }
     }
 
     if (pendingBackDiscard) {
@@ -929,6 +993,28 @@ private fun RouteWithMapLayout(
                 }
             },
             text = { Text(stringResource(R.string.route_discard_confirm)) },
+        )
+    }
+
+    // M5-4: Frei-Stopp bestätigt (wie der Dock-Stopp) — Beenden verwirft den Track.
+    if (pendingFreeRoamStop) {
+        AlertDialog(
+            onDismissRequest = { pendingFreeRoamStop = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    pendingFreeRoamStop = false
+                    RouteTrackingForegroundService.stopAll(context)
+                    viewModel.cancelFreeRoam()
+                }) {
+                    Text(stringResource(R.string.free_roam_stop))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingFreeRoamStop = false }) {
+                    Text(stringResource(R.string.common_cancel))
+                }
+            },
+            text = { Text(stringResource(R.string.free_roam_stop_confirm)) },
         )
     }
 
@@ -1215,7 +1301,8 @@ private fun RouteWithMapLayout(
                                     val canComplete = uiState.trackEnabled && uiState.completedWaypointIndex >= route.stations.lastIndex
                                     CompactButton(
                                         onClick = {
-                                            RouteTrackingForegroundService.stopAll(context)
+                                            // M4-A2: Service NICHT vor complete() stoppen —
+                                            // nur Erfolg (2xx) beendet ihn (needsService→stopAll).
                                             viewModel.complete()
                                         },
                                         enabled = canComplete,
@@ -1264,7 +1351,7 @@ private fun RouteWithMapLayout(
                         CompactButton(onClick = viewModel::finishFreeRoam, enabled = !loading) {
                             Text(stringResource(R.string.free_roam_finish))
                         }
-                        CompactOutlinedButton(onClick = viewModel::cancelFreeRoam, enabled = !loading) {
+                        CompactOutlinedButton(onClick = { pendingFreeRoamStop = true }, enabled = !loading) {
                             Text(stringResource(R.string.free_roam_stop))
                         }
                     }
@@ -1286,7 +1373,16 @@ private fun RouteWithMapLayout(
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
-                        CompactButton(onClick = viewModel::startFreeRoam, enabled = !loading) {
+                        CompactButton(
+                            onClick = {
+                                if (!hasLocationPermission) {
+                                    permissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+                                } else {
+                                    viewModel.startFreeRoam()
+                                }
+                            },
+                            enabled = !loading,
+                        ) {
                             Text(stringResource(R.string.free_roam_start))
                         }
                     }

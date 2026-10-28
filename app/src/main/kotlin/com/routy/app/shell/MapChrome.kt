@@ -41,6 +41,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.foundation.layout.Arrangement
 import com.routy.app.R
@@ -113,6 +115,8 @@ fun MapChrome(
         mutableStateOf(ChromeState())
     }
     val mode = chrome.mode
+    // M5-4: Frei-Stopp vom Dock fragt immer erst (sonst wirft Beenden den Track weg).
+    var pendingStopRoam by remember { mutableStateOf(false) }
 
     // --- Aufnahme: Service-Bindung + ViewModel am Shell-Owner (J4) ---
     val recordingViewModel: RecordingViewModel = viewModel(
@@ -411,6 +415,28 @@ fun MapChrome(
             )
         }
 
+        // M5-4: bestätigter Frei-Stopp vom Dock — nie still.
+        if (pendingStopRoam) {
+            AlertDialog(
+                onDismissRequest = { pendingStopRoam = false },
+                confirmButton = {
+                    TextButton(onClick = {
+                        pendingStopRoam = false
+                        routeViewModel.cancelFreeRoam()
+                        chrome = ChromeState(ShellMode.PLAN, SheetStage.Half, null)
+                    }) {
+                        Text(stringResource(R.string.free_roam_stop))
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { pendingStopRoam = false }) {
+                        Text(stringResource(R.string.common_cancel))
+                    }
+                },
+                text = { Text(stringResource(R.string.free_roam_stop_confirm)) },
+            )
+        }
+
         if (layersOpen) {
             Box(modifier = Modifier.fillMaxSize().zIndex(14f)) {
                 val layersBoxModifier = if (isTablet) {
@@ -470,8 +496,7 @@ fun MapChrome(
                             chrome = ChromeState(next, SheetStage.Half, null)
                         }
                         "stop-roam" -> {
-                            routeViewModel.cancelFreeRoam()
-                            chrome = ChromeState(next, SheetStage.Half, null)
+                            pendingStopRoam = true
                         }
                         // Aufnahme läuft im Hintergrund weiter (recordContinuesInBackground=true,
                         // §7.2) — die Pille führt zurück in die Aufnahme, kein Abbruch.

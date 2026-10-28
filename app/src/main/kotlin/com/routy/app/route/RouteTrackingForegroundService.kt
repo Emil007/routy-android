@@ -84,6 +84,7 @@ class RouteTrackingForegroundService : Service() {
     private var accountLocaleTag: String = ""
     private var trackEnabled: Boolean = false
     private var voiceEnabled: Boolean = false
+    private var freeRoamMode: Boolean = false
     private var stations: List<RouteStation> = emptyList()
     private var routePolyline: List<LatLng> = emptyList()
     private var routeSegmentIds: List<Int> = emptyList()
@@ -151,13 +152,17 @@ class RouteTrackingForegroundService : Service() {
             }
             else -> {
                 val stationsJson = intent?.getStringExtra(EXTRA_STATIONS_JSON)
-                if (!stationsJson.isNullOrBlank()) {
+                val isFreeRoam = intent?.getBooleanExtra(EXTRA_FREE_ROAM_MODE, false) == true
+                freeRoamMode = isFreeRoam
+                if (isFreeRoam || !stationsJson.isNullOrBlank()) {
                     configureFromIntent(intent)
                 }
             }
         }
 
-        if (stations.isEmpty() || (!trackEnabled && !voiceEnabled)) {
+        // M5-A1: Freies Gehen hat keine Stationen — der Modus läuft rein auf Punkten.
+        // Ohne diesen Abzweig würde die Service-Gate (stations.isEmpty) sofort stoppen.
+        if ((stations.isEmpty() && !freeRoamMode) || (!trackEnabled && !voiceEnabled)) {
             stopSelf()
             return START_NOT_STICKY
         }
@@ -182,6 +187,32 @@ class RouteTrackingForegroundService : Service() {
         voiceEnabled = intent.getBooleanExtra(EXTRA_VOICE_ENABLED, false)
         val completed = intent.getIntExtra(EXTRA_COMPLETED_INDEX, -1)
         val voiceIdx = intent.getIntExtra(EXTRA_VOICE_INDEX, 0)
+        // Freies Gehen: keine Stationen, kein Guidance — nur Track + Position.
+        if (intent.getBooleanExtra(EXTRA_FREE_ROAM_MODE, false)) {
+            routePolyline = emptyList()
+            networkSegments = emptyList()
+            routeSegmentIds = emptyList()
+            todayGoldenCanonicalIds = emptySet()
+            voiceTracker = null
+            progressTracker = null
+            offPathDetector = null
+            goldenHitTracker = null
+            walkTrackSession.clear()
+            goldenSoundCued.clear()
+            emitState(
+                RouteTrackingServiceState(
+                    active = true,
+                    trackEnabled = trackEnabled,
+                    voiceEnabled = voiceEnabled,
+                    completedWaypointIndex = -1,
+                    voiceAnnouncedIndex = 0,
+                    stationCount = 0,
+                    nextStationName = null,
+                    trackedGeometry = emptyList(),
+                ),
+            )
+            return
+        }
         stations = runCatching {
             json.decodeFromString<List<RouteStation>>(intent.getStringExtra(EXTRA_STATIONS_JSON)!!)
         }.getOrDefault(emptyList())
@@ -257,6 +288,37 @@ class RouteTrackingForegroundService : Service() {
         var autoComplete = false
         var goldenHits = _state.value.goldenHitSegmentIds
 
+        if (freeRoamMode) {
+            // M5-A1: Freies Gehen zeichnet nur auf — keine Stationen, kein
+            // Off-Path, kein Golden, kein Voice-Cue an Stationen.
+            if (trackEnabled) {
+                walkTrackSession.addFix(
+                    lat = location.latitude,
+                    lng = location.longitude,
+                    ele = if (location.hasAltitude()) location.altitude else null,
+                    timestampMs = location.time,
+                    accuracy = accuracy,
+                    speed = if (location.hasSpeed()) location.speed else null,
+                    bearing = if (location.hasBearing()) location.bearing else null,
+                )
+            }
+            emitState(
+                _state.value.copy(
+                    active = true,
+                    trackEnabled = trackEnabled,
+                    voiceEnabled = voiceEnabled,
+                    myLocation = point,
+                    locationBearing = if (location.hasBearing()) location.bearing else null,
+                    locationSpeed = if (location.hasSpeed()) location.speed else null,
+                    stationCount = 0,
+                    nextStationName = null,
+                    trackedGeometry = walkTrackSession.geometryPoints().map { GeoPoint(it.lat, it.lng) },
+                ),
+            )
+            updateNotification()
+            return
+        }
+
         if (trackEnabled) {
             walkTrackSession.addFix(
                 lat = location.latitude,
@@ -316,8 +378,10 @@ class RouteTrackingForegroundService : Service() {
             }
             progressTracker?.let { tracker ->
                 if (shouldAutoCompleteRoute(tracker, stations, latLng)) {
+                    // M4-A2: NICHT trackEnabled=false — der Service muss weiterlaufen,
+                    // bis complete() 2xx antwortet. Bei Fehler bleibt GPS+Track aktiv
+                    // und die nächste Fix löst autoComplete erneut aus (Retry-Effekt).
                     autoComplete = true
-                    trackEnabled = false
                     if (!playedFinishSound) cueController?.routeCompleted()
                 }
             }
@@ -423,6 +487,7 @@ class RouteTrackingForegroundService : Service() {
         }
         goldenSoundCued.clear()
         stations = emptyList()
+        freeRoamMode = false
         routePolyline = emptyList()
         routeSegmentIds = emptyList()
         networkSegments = emptyList()
@@ -479,6 +544,18 @@ class RouteTrackingForegroundService : Service() {
         val done = (_state.value.completedWaypointIndex + 1).coerceAtLeast(0)
         val total = stations.size.coerceAtLeast(1)
         val next = _state.value.nextStationName
+        // M5-A1: Freies Gehen — eigene Notification ohne Stationszähler.
+        if (freeRoamMode) {
+            return NotificationCompat.Builder(this, CHANNEL_ID)
+                .setContentTitle(getString(R.string.notification_route_free_roam_title))
+                .setContentText(getString(R.string.notification_route_tracking_text_next, done, total, next ?: "—"))
+                .setSmallIcon(R.mipmap.ic_launcher)
+                .setOngoing(true)
+                .setOnlyAlertOnce(true)
+                .setContentIntent(openApp)
+                .addAction(0, getString(R.string.route_track_stop), stopTrack)
+                .build()
+        }
         val title = if (next != null) {
             getString(R.string.notification_route_next_stop, next)
         } else {
@@ -527,6 +604,7 @@ class RouteTrackingForegroundService : Service() {
         const val EXTRA_VOICE_ENABLED = "voice_enabled"
         const val EXTRA_COMPLETED_INDEX = "completed_index"
         const val EXTRA_VOICE_INDEX = "voice_index"
+        const val EXTRA_FREE_ROAM_MODE = "free_roam_mode"
 
         private val json = Json { ignoreUnknownKeys = true }
 
@@ -568,6 +646,21 @@ class RouteTrackingForegroundService : Service() {
                 putExtra(EXTRA_VOICE_ENABLED, voiceEnabled)
                 putExtra(EXTRA_COMPLETED_INDEX, completedWaypointIndex)
                 putExtra(EXTRA_VOICE_INDEX, voiceAnnouncedIndex)
+            }
+            context.startForegroundService(intent)
+        }
+
+        /** M5-A1: Freies Gehen — Nur Track + Position, keine Stationen/Guidance. */
+        fun startFreeRoam(
+            context: Context,
+            accountLocaleTag: String,
+            trackEnabled: Boolean,
+        ) {
+            val intent = Intent(context, RouteTrackingForegroundService::class.java).apply {
+                putExtra(EXTRA_FREE_ROAM_MODE, true)
+                putExtra(EXTRA_LOCALE_TAG, accountLocaleTag)
+                putExtra(EXTRA_TRACK_ENABLED, trackEnabled)
+                putExtra(EXTRA_VOICE_ENABLED, false)
             }
             context.startForegroundService(intent)
         }
