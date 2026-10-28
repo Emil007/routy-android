@@ -129,16 +129,16 @@ class RouteTrackingForegroundService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         // M1: startForeground FIRST, before any branch — a sticky restart (intent == null)
         // or a stop action must never run the system foreground-service timeout.
-        // Crash-Fix (0.57a): der Location-FGS-Typ erfordert auf targetSDK 36 zwingend
-        // gewährte Standort-Berechtigung (auch forceStopped beim Neustart/Install).
-        // Ohne Permission fällt er auf Typ 0 zurück, damit reine Stop-/Restore-/Toggle-
-        // Aktionen (z. B. TRACK_STOP_ALL beim App-Start) NICHT als SecurityException
-        // den ganzen Prozess crashen. Echte Tracking-Starts laufen nur, wenn die UI vorher
-        // die Location-Berechtigung angefragt hat (LocationEffects: granted-Check).
+        // Crash-Fix (0.57a/0.57b): auf targetSDK 36 ist der LOCATION-FGS nur MIT gewährter
+        // Standort-Berechtigung erlaubt, und ein FGS mit Typ 0/none ist komplett verboten.
+        // Fallback: dataSync (im Manifest zusätzlich deklariert, benötigt KEINE Permission) —
+        // damit laufen reine Stop-/Restore-/Toggle-Aktionen (z. B. TRACK_STOP_ALL beim
+        // App-Start ohne Berechtigung) als harmloser dataSync-FGS statt als Crash.
+        // Echtes Lage-Tracking läuft nur, wenn die UI die Location-Permission angefragt hat.
         val fgsType = if (hasLocationPermission(this)) {
             ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION
         } else {
-            0
+            ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
         }
         ServiceCompat.startForeground(
             this,

@@ -74,7 +74,7 @@ class RecordingForegroundService : Service() {
             this,
             NOTIFICATION_ID,
             buildNotification(),
-            if (hasLocationPermission(this)) ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION else 0,
+            if (hasLocationPermission(this)) ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION else ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC,
         )
         when (intent?.action) {
             ACTION_PAUSE -> pause()
@@ -109,7 +109,7 @@ class RecordingForegroundService : Service() {
                 this,
                 NOTIFICATION_ID,
                 buildNotification(),
-                if (hasLocationPermission(this)) ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION else 0,
+                if (hasLocationPermission(this)) ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION else ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC,
             )
             startLocationUpdates()
         } else if (session.phase == RecordingPhase.PAUSED) {
@@ -117,7 +117,7 @@ class RecordingForegroundService : Service() {
                 this,
                 NOTIFICATION_ID,
                 buildNotification(),
-                if (hasLocationPermission(this)) ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION else 0,
+                if (hasLocationPermission(this)) ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION else ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC,
             )
         }
     }

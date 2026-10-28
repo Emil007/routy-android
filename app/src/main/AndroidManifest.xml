@@ -20,6 +20,9 @@
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
+    <!-- dataSync-FGS als Fallback, wenn die Location-Berechtigung (noch) fehlt —
+         sonst crasht ein Stop-/Cleanup-FGS auf targetSDK 36 als SecurityException. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
 
     <!-- So the "ignore battery optimizations" prompt (M7) can be shown — without it, several
          OEMs (Xiaomi/Samsung/Huawei) kill the recording service within minutes of the screen
@@ -59,12 +62,12 @@
         <service
             android:name=".recording.RecordingForegroundService"
             android:exported="false"
-            android:foregroundServiceType="location" />
+            android:foregroundServiceType="location|dataSync" />
 
         <service
             android:name=".route.RouteTrackingForegroundService"
             android:exported="false"
-            android:foregroundServiceType="location" />
+            android:foregroundServiceType="location|dataSync" />
 
         <receiver
             android:name=".widget.RoutyWidgetProvider"
