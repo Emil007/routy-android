@@ -42,7 +42,11 @@ data class SegmentDto(
     val id: Int,
     val startNodeId: Int,
     val endNodeId: Int,
-    val geometry: List<GeoPoint>,
+    // Review-Fix (P1): wie bei RouteDisplayPayload auch hier den toleranten Serializer
+    // einsetzen — liest `{lat,lng}`-Objekte UND alte `[lat,lng]`-Tupel (legacy Caches),
+    // toleriert null/fehlend als leere Liste, statt die ganze Antwort scheitern zu lassen.
+    @Serializable(with = GeometryListSerializer::class)
+    val geometry: List<GeoPoint> = emptyList(),
     val lengthM: Int,
     val durationMin: Int = 0,
     val name: String? = null,

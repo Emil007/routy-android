@@ -18,13 +18,21 @@ object CookieBridge {
     private const val SESSION_COOKIE_NAME = "routy_session"
     private const val WEB_COOKIE_NAME = "routy_web"
 
-    /** Extracts a `routy_web=…; …` fragment from a Set-Cookie line, dropping `routy_session`. */
+    /** Extracts a `routy_web=…; …` fragment from a Set-Cookie line, dropping `routy_session`.
+     *  Review-Fix: der naive `split(",")` zerschnitt die Expires-Domäne (`Expires=Wed, 12 Nov …`),
+     *  weil das Datum ein Komma enthält. Stattdessen: nur die Attribute bis zum ersten `;`
+     *  behalten (`routy_web=<token>; Path=/; …`), die übrigen Attribute (HttpOnly/Secure/SameSite)
+     *  setzt der Server ohnehin über die echte Set-Cookie des nächsten Requests. */
     fun cookieHeaderFromSetCookie(setCookie: String?): String? {
         if (setCookie.isNullOrBlank()) return null
-        // Set-Cookie lines may be comma-separated for multiple cookies.
-        for (part in setCookie.split(",")) {
+        // Mehrere Set-Cookie-Blöcke können hintereinander stehen (trennen an `\n`);
+        // innerhalb eines Blocks gibt es keine Kommata im Cookie-Namen/Wert.
+        for (part in setCookie.split("\n")) {
             val trimmed = part.trim()
-            if (trimmed.startsWith("$WEB_COOKIE_NAME=")) return trimmed
+            if (!trimmed.startsWith("$WEB_COOKIE_NAME=")) continue
+            val nameValueEnd = trimmed.indexOf(';')
+            val core = if (nameValueEnd >= 0) trimmed.substring(0, nameValueEnd).trim() else trimmed
+            if (core.startsWith("$WEB_COOKIE_NAME=")) return core
         }
         return null
     }

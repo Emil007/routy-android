@@ -186,7 +186,10 @@ class RouteTrackingForegroundService : Service() {
 
         // M1: real stop path only — a restored run stays alive until the app re-syncs.
         // stopForeground is what actually ends it (never leave early before startForeground).
-        if (!restoredRun && (stations.isEmpty() && !freeRoamMode) || (!trackEnabled && !voiceEnabled)) {
+        // Review-Fix (A2): `!restoredRun` muss um BEIDE Stopp-Gründe geklammert werden —
+        // sonst gilt `(!trackEnabled && !voiceEnabled)` auch für einen Sticky-Restore, der
+        // mit restoreFromStore (Voice aus, Track nur bei Punkten/FreeRoam) fälschlich stoppt.
+        if (!restoredRun && ((stations.isEmpty() && !freeRoamMode) || (!trackEnabled && !voiceEnabled))) {
             stopForeground(STOP_FOREGROUND_REMOVE)
             stopSelf()
             return START_NOT_STICKY

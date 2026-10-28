@@ -368,19 +368,29 @@ class MapViewModel(
             }.getOrNull()
             if (res?.isSuccessful == true && res.body()?.segment != null) {
                 val updated = res.body()!!.segment!!
-                if (updated.oneWay != segment.oneWay && updated.id == segment.id) {
-                    val newSegments = _uiState.value.segments.map {
-                        if (it.id == updated.id) updated else it
+                // Review-Fix (A5): Der Server setzt beim Einbahn-Schalten das Gegenstück
+                // (reverseOf) auf one_way=0 — aber nur die angefasste Row kommt als Antwort
+                // zurück. Lokal müssen BEIDE Rows des Paars konsistent werden, sonst bleibt
+                // die Checkbox der Gegenrichtung fälschlich angehakt und ein späteres
+                // Umschalten dort löscht versehentlich beide Richtungen.
+                val siblingId = segment.reverseOf
+                val newSegments = _uiState.value.segments.map {
+                    when {
+                        it.id == updated.id -> updated
+                        // Nach jedem one-way-Toggle ist das Gegenstück false:
+                        //  - oneWay=true  → Server setzt A=1, B=0
+                        //  - oneWay=false → Server setzt A=0 UND B=0
+                        siblingId != null && it.id == siblingId && it.oneWay -> it.copy(oneWay = false)
+                        else -> it
                     }
-                    _uiState.value = _uiState.value.copy(
-                        segments = newSegments,
-                        selectedSegment = updated,
-                        actionBusy = false,
-                        messageRes = R.string.map_saved,
-                    )
-                    return@launch
                 }
-                _uiState.value = _uiState.value.copy(actionBusy = false, messageRes = R.string.map_saved)
+                _uiState.value = _uiState.value.copy(
+                    segments = newSegments,
+                    selectedSegment = newSegments.find { it.id == segment.id } ?: updated,
+                    actionBusy = false,
+                    messageRes = R.string.map_saved,
+                )
+                return@launch
             } else {
                 _uiState.value = _uiState.value.copy(actionBusy = false, isError = true, messageRes = R.string.common_error)
             }

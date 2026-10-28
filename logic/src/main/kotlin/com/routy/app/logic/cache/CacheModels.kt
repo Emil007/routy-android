@@ -38,4 +38,8 @@ data class RouteProgress(
     val completedIndex: Int,
     val voiceAnnouncedIndex: Int = 0,
     val goldenHitSegmentIds: List<Int> = emptyList(),
+    // Review-Fix (F5): Go-Startzeit (epoch-ms) persistieren — nach Prozess-Tod setzt
+    // die UI sonst die Uhr auf „jetzt“ und die Gehzeit der geführten Tour würde viel
+    // zu kurz verrechnet (Server nutzt durationMin, sobald gesetzt).
+    val walkStartedAtMs: Long? = null,
 )

@@ -10,9 +10,12 @@ class RouteProgressStore(context: Context) {
     private val prefs = context.getSharedPreferences("route_progress", Context.MODE_PRIVATE)
     private val json = Json { ignoreUnknownKeys = true }
 
-    fun save(routeKey: String, completedIndex: Int, voiceAnnouncedIndex: Int) {
+    fun save(routeKey: String, completedIndex: Int, voiceAnnouncedIndex: Int, walkStartedAtMs: Long? = null) {
         prefs.edit()
-            .putString("progress", json.encodeToString(RouteProgress(routeKey, completedIndex, voiceAnnouncedIndex)))
+            .putString(
+                "progress",
+                json.encodeToString(RouteProgress(routeKey, completedIndex, voiceAnnouncedIndex, emptyList(), walkStartedAtMs)),
+            )
             .apply()
     }
 

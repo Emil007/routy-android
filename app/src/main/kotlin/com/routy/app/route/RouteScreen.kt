@@ -123,7 +123,12 @@ fun RouteScreen(onStartRecording: () -> Unit, accountLocaleTag: String, modifier
     // spricht aber kein TTS. Nach dem Sprechen wird die Ansage VERBRAUCHT (null),
     // damit dieselbe Runde/neuer Start den nächsten Satz wieder spricht (F02).
     val freeRoamVoice = rememberVoiceGuidanceController(accountLocaleTag)
-    LaunchedEffect(uiState.freeRoamAnnounce) {
+    // M7: NUR im sichtbaren Gehen (GO oder FULL) — das Plan-Sheet hält die Anzeige,
+    // spricht aber kein TTS. Nach dem Sprechen wird die Ansage VERBRAUCHT (null),
+    // damit dieselbe Runde/neuer Start den nächsten Satz wieder spricht (F02).
+    // section gehört in die Dependencies: kam die Ansage im Plan-Sheet (wantsVoice=false),
+    // bleibt sie stehen und wird beim Wechsel in GO/FULL nachgesprochen statt verworfen.
+    LaunchedEffect(uiState.freeRoamAnnounce, section) {
         val line = uiState.freeRoamAnnounce
         val wantsVoice = section == RouteSection.GO || section == RouteSection.FULL
         if (line != null && line.isNotBlank() && uiState.freeRoamActive && wantsVoice) {

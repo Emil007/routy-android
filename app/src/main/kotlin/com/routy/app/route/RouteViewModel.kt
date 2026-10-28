@@ -215,7 +215,11 @@ class RouteViewModel(
                 if (savedToken != null) {
                     freeRoamStartedAtMs = saved.freeRoamStartedAtMs
                     freeRoamTrack.clear()
-                    freeRoamTrack.addAll(saved.points.map { GeoPoint(it.lat, it.lng) })
+                    // Review-Fix (F3): die persisiterten Punkte sind schon
+                    // RouteWalkTrackPoint INKL. Aufnahmezeit — direkt übernehmen
+                    // (nicht zu GeoPoint ohne Zeit degradieren, sonst fehlt beim
+                    // Finish die Zeitdifferenz für den Server-Hop-Guard).
+                    freeRoamTrack.addAll(saved.points)
                     _uiState.value = _uiState.value.copy(
                         freeRoamActive = true,
                         freeRoamToken = savedToken,
@@ -332,6 +336,9 @@ class RouteViewModel(
         _uiState.value = _uiState.value.copy(
             completedWaypointIndex = saved.completedIndex,
             voiceAnnouncedIndex = saved.voiceAnnouncedIndex,
+            // Review-Fix (F5): Go-Startzeit aus dem Snapshot wiederherstellen — sonst
+            // setzt die Restore-UI die Uhr auf „jetzt“ und die Gehzeit wäre zu kurz.
+            walkStartedAtMs = saved.walkStartedAtMs ?: _uiState.value.walkStartedAtMs,
             trackedGeometry = savedTrack?.points
                 ?.filter { point ->
                     val accuracy = point.accuracy
@@ -561,7 +568,7 @@ class RouteViewModel(
             repositionAccuracyM = accuracyM?.toDouble()?.coerceAtLeast(1.0) ?: _uiState.value.repositionAccuracyM,
         )
         if (_uiState.value.freeRoamActive && point != null) {
-            maybeCheckinFreeRoam(point)
+            maybeCheckinFreeRoam(point, System.currentTimeMillis())
         }
     }
 
@@ -590,7 +597,7 @@ class RouteViewModel(
      * free-roam is explicitly not a guided route, so TP still has a real walked
      * polyline at finish. Barely-moved fixes are skipped to keep it lean.
      */
-    private val freeRoamTrack = mutableListOf<GeoPoint>()
+    private val freeRoamTrack = mutableListOf<com.routy.app.logic.route.RouteWalkTrackPoint>()
     private var freeRoamStartedAtMs: Long? = null
 
     fun startFreeRoam() {
@@ -612,8 +619,19 @@ class RouteViewModel(
                 freeRoamLastCheckinLat = null
                 freeRoamLastCheckinLng = null
                 freeRoamTrack.clear()
-                freeRoamTrack.add(loc)
-                freeRoamStartedAtMs = System.currentTimeMillis()
+                // Review-Fix (F3): JEDER Trackpunkt bekommt seine Aufnahmezeit. Beim
+                // Finish werden die Zeitstempel mitgeschickt — der Server deckelt Hops
+                // sonst auf 500 m (keine Zeitdifferenz = dtHours 1/60), was bei einer
+                // GPS-Lücke ein fälschliches hop_too_far erzeugte.
+                val startedNow = System.currentTimeMillis()
+                freeRoamTrack.add(
+                    com.routy.app.logic.route.RouteWalkTrackPoint(
+                        lat = loc.lat, lng = loc.lng,
+                        time = java.time.Instant.ofEpochMilli(startedNow).toString(),
+                        accuracy = 35.0,
+                    ),
+                )
+                freeRoamStartedAtMs = startedNow
                 // M10: Token + Start in den persisted free-roam snapshot (Prozess-Tod).
                 routeWalkTrackStore.save(
                     routeKey = FREE_ROAM_ROUTE_KEY,
@@ -659,6 +677,10 @@ class RouteViewModel(
         freeRoamLastCheckinLng = null
         freeRoamTrack.clear()
         freeRoamStartedAtMs = null
+        // Review-Fix (A3): der persistierte FreeRoam-Snapshot (Token+Track) muss beim
+        // Abbruch weg — sonst holt loadInitial nach jedem Kaltstart die beendete Runde
+        // inkl. altem Token zurück, und ein zweites Finish trifft den 410/alreadyCredited.
+        routeWalkTrackStore.clear()
     }
 
     fun finishFreeRoam() {
@@ -671,9 +693,13 @@ class RouteViewModel(
             // M5-2: freeRoamActive bleibt AN, bis der Server 2xx antwortet — ein
             // Fehlschlag lässt Session + Track liegen, damit Finish wiederholt wird.
             _uiState.value = _uiState.value.copy(status = RouteStatus.LOADING)
+            // Review-Fix (F3): die Punkte haben schon ihre Aufnahmezeit — sie werden
+            // beim Hinzufügen (maybeCheckinFreeRoam/Start) mitgestempelt. Nur Punkte
+            // ohne `time` (Altdaten/gezeichnete Geometrie) bekommen den Jetzt-Zeitstempel,
+            // damit der Server-Hop-Guard echte Zeitdifferenzen sieht statt hop_too_far.
             val nowIso = java.time.Instant.ofEpochMilli(System.currentTimeMillis()).toString()
             val track = freeRoamTrack.takeIf { it.size >= 2 }
-                ?.map { com.routy.app.logic.route.RouteWalkTrackPoint(lat = it.lat, lng = it.lng, time = nowIso, accuracy = 35.0) }
+                ?.map { if (it.time != null) it else it.copy(time = nowIso) }
                 ?: _uiState.value.trackedGeometry.map {
                     com.routy.app.logic.route.RouteWalkTrackPoint(lat = it.lat, lng = it.lng, time = nowIso, accuracy = 35.0)
                 }
@@ -712,6 +738,10 @@ class RouteViewModel(
                 freeRoamLastCheckinLng = null
                 freeRoamTrack.clear()
                 freeRoamStartedAtMs = null
+                // Review-Fix (A3): nach erfolgreichem Abschluss den persistierten
+                // FreeRoam-Snapshot löschen — die beendete Session darf beim nächsten
+                // Kaltstart nicht als aktiv zurückkehren (Runde war fertig).
+                routeWalkTrackStore.clear()
                 StatsInvalidation.bump()
                 _uiState.value = _uiState.value.copy(
                     freeRoamActive = false,
@@ -745,21 +775,30 @@ class RouteViewModel(
         }
     }
 
-    private fun maybeCheckinFreeRoam(point: GeoPoint) {
+    private fun maybeCheckinFreeRoam(point: GeoPoint, timestampMs: Long = System.currentTimeMillis()) {
         val token = _uiState.value.freeRoamToken
         if (token.isEmpty()) return
         // M6/F13: Der Track wächst IMMER zuerst — auch während ein Check-in läuft
         // (die Sperre ist eine API-Sperre, keine Track-Sperre). Fixes im Flug gehen
         // so nie verloren, und finish hat immer die echte Polyline.
+        // Review-Fix (F3): die Position wird MIT ihrer Aufnahmezeit gespeichert, damit
+        // der serverseitige Hop-Guard echte Zeitdifferenzen sieht (kein hop_too_far bei
+        // einer kurzen GPS-Lücke, weil alle Punkte dieselbe Zeit hätten).
         val lastTrack = freeRoamTrack.lastOrNull()
+        val pointWithTime = com.routy.app.logic.route.RouteWalkTrackPoint(
+            lat = point.lat,
+            lng = point.lng,
+            time = java.time.Instant.ofEpochMilli(timestampMs).toString(),
+            accuracy = 35.0,
+        )
         if (lastTrack != null) {
             val moved = haversineMeters(LatLng(point.lat, point.lng), LatLng(lastTrack.lat, lastTrack.lng))
             if (moved >= 5.0) {
-                freeRoamTrack.add(point)
+                freeRoamTrack.add(pointWithTime)
                 persistFreeRoamSnapshot()
             }
         } else {
-            freeRoamTrack.add(point)
+            freeRoamTrack.add(pointWithTime)
             persistFreeRoamSnapshot()
         }
         if (freeRoamCheckinInFlight) return
@@ -827,7 +866,7 @@ class RouteViewModel(
         if (!_uiState.value.freeRoamActive) return
         routeWalkTrackStore.save(
             routeKey = FREE_ROAM_ROUTE_KEY,
-            points = freeRoamTrack.map { com.routy.app.logic.route.RouteWalkTrackPoint(lat = it.lat, lng = it.lng, accuracy = 35.0) },
+            points = freeRoamTrack.map { it.copy(accuracy = 35.0) },
             goldenHits = emptySet(),
             freeRoamToken = _uiState.value.freeRoamToken,
             freeRoamStartedAtMs = freeRoamStartedAtMs,
@@ -930,7 +969,7 @@ class RouteViewModel(
             return
         }
         if (route != null && (completed != state.completedWaypointIndex || voiceIdx != state.voiceAnnouncedIndex)) {
-            routeProgressStore.save(routeKey(route), completed, voiceIdx)
+            routeProgressStore.save(routeKey(route), completed, voiceIdx, _uiState.value.walkStartedAtMs)
         }
         _uiState.value = state.copy(
             completedWaypointIndex = completed,
@@ -972,7 +1011,7 @@ class RouteViewModel(
     fun onWaypointCompleted(index: Int) {
         val route = _uiState.value.route ?: return
         val voiceIndex = _uiState.value.voiceAnnouncedIndex
-        routeProgressStore.save(routeKey(route), index, voiceIndex)
+        routeProgressStore.save(routeKey(route), index, voiceIndex, _uiState.value.walkStartedAtMs)
         _uiState.value = _uiState.value.copy(completedWaypointIndex = index)
     }
 
@@ -992,7 +1031,7 @@ class RouteViewModel(
 
     fun onVoiceCueAnnounced(announcedCount: Int) {
         val route = _uiState.value.route ?: return
-        routeProgressStore.save(routeKey(route), _uiState.value.completedWaypointIndex, announcedCount)
+        routeProgressStore.save(routeKey(route), _uiState.value.completedWaypointIndex, announcedCount, _uiState.value.walkStartedAtMs)
         _uiState.value = _uiState.value.copy(voiceAnnouncedIndex = announcedCount)
     }
 
@@ -1761,10 +1800,15 @@ class RouteViewModel(
             } else {
                 // M4-A2/429: Service läuft weiter; Session + Track bleiben. 429 zeigt
                 // die Wartezeit (retryAfterSeconds) statt „Allgemeiner Fehler“.
+                // Review-Fix (A4): NICHT `stateBefore.copy` schreiben — das wirft die
+                // laufende Tour auf den Stand VOR dem Request zurück (GPS-Fixes,
+                // Stationen, Fortschritt gehen verloren; bei Doppel-Complete würde die
+                // Abschlusskarte verschwinden und Tracking wieder angehen). Nur Status
+                // + Meldung auf den AKTUELLEN State legen (wie im IOException-Zweig).
                 val errorBody = response.errorBody()?.string()
                 val code = parseErrorCode(errorBody)
                 val retryAfter = parseRetryAfterSeconds(errorBody)
-                _uiState.value = stateBefore.copy(
+                _uiState.value = _uiState.value.copy(
                     status = RouteStatus.IDLE,
                     messageRes = if (response.code() == 429 && code == "rate_limited") R.string.route_rate_limited else R.string.common_error,
                     messageArgs = if (response.code() == 429 && code == "rate_limited") listOf(retryAfter ?: 30) else emptyList(),

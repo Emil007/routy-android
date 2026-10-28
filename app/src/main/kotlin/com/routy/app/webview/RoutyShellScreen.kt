@@ -55,7 +55,12 @@ fun RoutyShellScreen(onSignedOut: () -> Unit) {
     LaunchedEffect(Unit) {
         val token = app.secureStorage.token
         if (baseUrl != null && token != null) {
-            CookieBridge.installSessionCookie(baseUrl, token)
+            // M36/Review-Fix: KEIN Bearer-Cookie setzen. Der langlebige API-Bearer darf
+            // nie in den WebView-Cookiejar — die eingeloggten Web-Sheets (Settings/Admin)
+            // holen ihre eigene kurze routy_web-Session über POST /api/auth/web-session
+            // (AuthenticatedWebSheet). Stattdessen eine evtl. alte routy_session aus
+            // früheren Installationen beim Start entfernen (frischer WebView-Cookiejar).
+            CookieBridge.clearLegacySessionCookie(baseUrl.trimEnd('/'))
         }
     }
 
